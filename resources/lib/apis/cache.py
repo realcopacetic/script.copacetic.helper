@@ -166,27 +166,29 @@ class Asides:
                     self.running -= 1
                     return
                 key = self.queue.popleft()
-            try:
-                self._turn(key)
-            except Exception:  # its own thread: nothing above it would log
-                log.exception(f"Asides → {key!r}")
-                with self.lock:
-                    self.asked.pop(key, None)
+            self._turn(key)
 
     def _turn(self, key: Hashable) -> None:
         """
         One key's fetch, skipped once no asker's arrival is still current (the service
-        stopping ends them all); then each asker on news.
+        stopping ends them all); then each asker on news. Its askers leave exactly once.
 
         :param key: What to fetch.
         """
-        with self.lock:  # the skip and its drop in one hold: no asker joins between
-            if not any(asker.current() for asker in self.asked[key][0]):
-                del self.asked[key]
-                return
-        answer = self.fetch(key)
-        with self.lock:
+        try:
+            with self.lock:  # the skip and its drop in one hold: none joins between
+                if not any(asker.current() for asker in self.asked[key][0]):
+                    del self.asked[key]
+                    return
+            answer = self.fetch(key)
+        except Exception:  # its own thread: nothing above it would log
+            log.exception(f"Asides → {key!r}")
+            answer = None
+        with self.lock:  # a later ask of the key, after this, queues a fetch of its own
             askers, stale = self.asked.pop(key)
         if answer is not None and answer != stale:
             for asker in askers:
-                asker()
+                try:
+                    asker()
+                except Exception:  # one asker's error: the others are still told
+                    log.exception(f"Asides → {key!r}: an asker")

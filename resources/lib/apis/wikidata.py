@@ -1,9 +1,9 @@
 # author: realcopacetic
 
 """
-Wikidata, keyless: a painter's works and one painting's standard fields from the
-query service (SPARQL), and the painting's English Wikipedia summary. Every request
-waits its turn in one queue, a second apart; a 429's Retry-After holds the queue.
+Wikidata, keyless: a painter by name, its works and a painting's fields by SPARQL,
+and the painting's English Wikipedia summary. Every request waits its turn in one
+queue, a second apart; a 429's Retry-After holds the queue.
 """
 
 import re
@@ -13,6 +13,7 @@ from urllib.parse import quote
 from resources.lib.apis import http
 from resources.lib.apis.cache import DAY, cached
 from resources.lib.apis.http import HttpError
+from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import fold
 
 SPARQL = "https://query.wikidata.org/sparql"
@@ -31,23 +32,29 @@ LANGUAGES = ", ".join(
 SEPARATOR = "\t"  # between a work's labels in one answer row: never in a label
 _ITEMS = ("material", "genre", "collection", "depicts")  # kinds whose values are items
 
-# The first painter a search finds and its works, one row each: sitelinks, every
-# label and alias, and each inception year
-_WORKS = """SELECT ?artist ?artistLabel ?work ?links
+# The first painter a search finds (srlimit doesn't limit the answer: the ordinal does)
+_SEARCH = """SELECT ?artist ?artistLabel WHERE {
+  SERVICE wikibase:mwapi {
+    bd:serviceParam wikibase:api "Search"; wikibase:endpoint "www.wikidata.org";
+      mwapi:srsearch "%s haswbstatement:P106=%s"; mwapi:srlimit "1" .
+    ?artist wikibase:apiOutputItem mwapi:title .
+    ?ordinal wikibase:apiOrdinal true .
+  }
+  OPTIONAL { ?artist rdfs:label ?artistLabel FILTER(LANG(?artistLabel) = "en") }
+} ORDER BY ?ordinal LIMIT 1"""
+
+# A painter's works, one row each: sitelinks, every label and alias, each inception
+# year. The painter is bound: joined to the search in one query, the query service
+# read every work of every artist first (504 after 65 s for Van Gogh; bound, 0.9 s)
+_WORKS = """SELECT ?work ?links
   (GROUP_CONCAT(DISTINCT ?label; separator="\\t") AS ?labels)
   (GROUP_CONCAT(DISTINCT ?year; separator=" ") AS ?years) WHERE {
-  { SELECT ?artist WHERE {
-    SERVICE wikibase:mwapi {
-      bd:serviceParam wikibase:api "Search"; wikibase:endpoint "www.wikidata.org";
-        mwapi:srsearch "%s haswbstatement:P106=%s"; mwapi:srlimit "1" .
-      ?artist wikibase:apiOutputItem mwapi:title .
-    } } }
+  VALUES ?artist { wd:%s }
   ?work wdt:P170 ?artist; wikibase:sitelinks ?links .
   { ?work rdfs:label ?label } UNION { ?work skos:altLabel ?label }
   FILTER(LANG(?label) IN (%s))
   OPTIONAL { ?work wdt:P571 ?date BIND(YEAR(?date) AS ?year) }
-  OPTIONAL { ?artist rdfs:label ?artistLabel FILTER(LANG(?artistLabel) = "en") }
-} GROUP BY ?artist ?artistLabel ?work ?links"""
+} GROUP BY ?work ?links"""
 
 # One painting's fields, a row per value: its kind, the value, its English label and,
 # for a material, the part it makes. Best-rank statements; a collection left is ended
@@ -101,47 +108,85 @@ def _qid(uri: str) -> str:
 def works(artist: str) -> dict[str, Any] | None:
     """
     A painter's works, by the name a file gives: the search's best painter, else
-    one found fuzzily, word by word ("Kandinksy~"), in a request of its own. Each
+    one found fuzzily, word by word ("Kandinksy~"); each a request of its own. Each
     work is [qid, sitelinks, inception years, labels and aliases].
 
     :param artist: Artist name.
     :return: The painter's qid and label, and works; {} for none; None if not asked.
     """
-    found = _works(f"wikidata:works:{fold(artist)}", artist)
-    if found != {}:  # found, or not asked
-        return found
-    fuzzy = " ".join(f"{word}~" for word in artist.split())
-    return _works(f"wikidata:fuzzy:{fold(artist)}", fuzzy)
+    painter = _painter(f"wikidata:artist:{fold(artist)}", artist)
+    if painter == {}:
+        fuzzy = " ".join(f"{word}~" for word in artist.split())
+        painter = _painter(f"wikidata:fuzzy:{fold(artist)}", fuzzy)
+    if not painter:  # {}: none; None: not asked
+        return painter
+    if (found := _works(painter["qid"])) is None:
+        return None
+    return painter | {"works": found} if found else {}
 
 
-def _works(key: str, search: str) -> dict[str, Any] | None:
+def _painter(key: str, search: str) -> dict[str, str] | None:
     """
-    The first painter one search finds, and its works; cached and queued.
+    The first painter a search finds; cached and queued.
 
     :param key: api_cache key.
     :param search: CirrusSearch text.
-    :return: As works; {} for no painter; None if not asked.
+    :return: Its qid and English label; {} for none; None if not asked.
     """
 
-    def fetch() -> dict[str, Any]:
-        if not (rows := sparql(_WORKS % (_literal(search), PAINTER, LANGUAGES))):
+    def fetch() -> dict[str, str]:
+        if not (rows := sparql(_SEARCH % (_literal(search), PAINTER))):
             return {}
         return {
             "qid": _qid(rows[0]["artist"]["value"]),
             "label": rows[0].get("artistLabel", {}).get("value", ""),
-            "works": [
-                [
-                    _qid(row["work"]["value"]),
-                    int(row["links"]["value"]),
-                    # A work with no inception has no years binding
-                    [int(y) for y in row.get("years", {}).get("value", "").split()],
-                    row["labels"]["value"].split(SEPARATOR),
-                ]
-                for row in rows
-            ],
         }
 
     return cached(key, fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def _works(qid: str) -> list[list] | None:
+    """
+    A painter's works; cached and queued.
+
+    :param qid: The painter's Q-id.
+    :return: As works gives them, possibly empty; None if not asked.
+    """
+
+    def fetch() -> list[list]:
+        return [
+            [
+                _qid(row["work"]["value"]),
+                int(row["links"]["value"]),
+                # A work with no inception has no years binding
+                [int(y) for y in row.get("years", {}).get("value", "").split()],
+                row["labels"]["value"].split(SEPARATOR),
+            ]
+            for row in sparql(_WORKS % (qid, LANGUAGES))
+        ]
+
+    return cached(f"wikidata:works:{qid}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def forget(artist: str = "", qid: str = "", article: str = "") -> None:
+    """
+    Mark a look-up's answers stale, so the next one asks again: an artist's
+    searches and its painter's works, a painting, an article's summary.
+
+    :param artist: The artist's name, as a file gives it.
+    :param qid: The painting's Q-id.
+    :param article: Its English Wikipedia article's title.
+    """
+    cache, name = ApiCacheHandler(), fold(artist)
+    searches = [f"wikidata:artist:{name}", f"wikidata:fuzzy:{name}"] if name else []
+    painters = [row[0]["qid"] for key in searches if (row := cache.get(key)) and row[0]]
+    # Patterns, but folded names, Q-ids and folded titles hold no % or _
+    cache.expire(
+        *searches,
+        *(f"wikidata:works:{painter}" for painter in painters),
+        *([f"wikidata:painting:{qid}"] if qid else []),
+        *([f"wikidata:summary:{fold(article)}"] if article else []),
+    )
 
 
 def painting(qid: str) -> dict[str, Any] | None:
@@ -199,7 +244,8 @@ def summary(title: str) -> str | None:
             if exc.status == 404:  # renamed or deleted since Wikidata linked it
                 return ""
             raise
-        return page.get("extract", "")
+        # One space between words: the extract keeps a dropped aside's ("Kanagawa  is")
+        return " ".join(page.get("extract", "").split())
 
     return cached(
         f"wikidata:summary:{fold(title)}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL

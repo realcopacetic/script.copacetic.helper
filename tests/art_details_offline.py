@@ -95,17 +95,34 @@ def literal(value, lang=None):
     return {"type": kind, "value": value} | ({"xml:lang": lang} if lang else {})
 
 
-def works_rows(search):
-    """The works query's rows for a search, as the query service answers them."""
+PAINTERS = {  # a painter's Q-id → its fixture entry
+    artist["qid"]: artist
+    for artist in FIXTURE["artists"].values()
+    if isinstance(artist, dict)
+}
+
+
+def search_rows(search):
+    """The search query's row: the painter a search finds, if any."""
     artist = FIXTURE["artists"].get(search, {})
     if isinstance(artist, str):  # the right spelling finds what the fuzzy one does
         artist = FIXTURE["artists"][artist]
-    rows = []
-    for qid, links, years, labels in artist.get("works", []):
-        row = {
+    if not artist:
+        return []
+    return [
+        {
             "artist": literal(wikidata.ENTITY + artist["qid"]),
             "artistLabel": literal(artist["label"], "en"),
-            "work": literal(wikidata.ENTITY + qid),
+        }
+    ]
+
+
+def works_rows(qid):
+    """The works query's rows for a painter, as the query service answers them."""
+    rows = []
+    for work, links, years, labels in PAINTERS[qid]["works"]:
+        row = {
+            "work": literal(wikidata.ENTITY + work),
             "links": literal(str(links)),
             "labels": literal(wikidata.SEPARATOR.join(labels)),
         }
@@ -151,9 +168,12 @@ class ArtDetailsTest(unittest.TestCase):
             if qid := re.search(r"VALUES \?work \{ wd:(Q\d+) \}", query):
                 self.asked.append(f"painting {qid[1]}")
                 return {"results": {"bindings": painting_rows(qid[1])}}
+            if qid := re.search(r"VALUES \?artist \{ wd:(Q\d+) \}", query):
+                self.asked.append(f"works {qid[1]}")
+                return {"results": {"bindings": works_rows(qid[1])}}
             search = re.search(r'srsearch "(.+?) haswbstatement', query)[1]
-            self.asked.append(f"works {search}")
-            return {"results": {"bindings": works_rows(search)}}
+            self.asked.append(f"search {search}")
+            return {"results": {"bindings": search_rows(search)}}
         title = unquote(url.removeprefix(wikidata.SUMMARY)).replace("_", " ")
         self.asked.append(f"summary {title}")
         if title not in FIXTURE["summaries"]:
@@ -192,13 +212,16 @@ class ArtDetailsTest(unittest.TestCase):
         artist = wikidata.works("Wassily Kandinksy")
         self.assertEqual(artist["label"], "Wassily Kandinsky")
         self.assertEqual(
-            self.asked, ["works Wassily Kandinksy", "works Wassily~ Kandinksy~"]
+            self.asked,
+            ["search Wassily Kandinksy", "search Wassily~ Kandinksy~", "works Q61064"],
         )
-        # each search is a request of its own, kept under its own key
-        self.assertEqual(
-            ApiCacheHandler().get("wikidata:works:wassilykandinksy")[0], {}
-        )
-        self.assertTrue(ApiCacheHandler().get("wikidata:fuzzy:wassilykandinksy")[0])
+        # each search is a request of its own, kept under its own key; the works too
+        cache_row = ApiCacheHandler().get
+        self.assertEqual(cache_row("wikidata:artist:wassilykandinksy")[0], {})
+        self.assertTrue(cache_row("wikidata:fuzzy:wassilykandinksy")[0])
+        self.asked = []
+        wikidata.works("Wassily Kandinsky")  # the right spelling: the same works
+        self.assertEqual(self.asked, ["search Wassily Kandinsky"])
 
     def test_label_words_in_the_title(self):
         hokusai = art.parse([n for n in NAMES if "Hokusai" in n][0])
@@ -218,6 +241,12 @@ class ArtDetailsTest(unittest.TestCase):
                 parsed = art.parse(name)
                 works = wikidata.works(parsed.artist)["works"]
                 self.assertIsNone(art.match(parsed, works))
+        # the re-review's probe: a Green Forest of the file's own year, 1912
+        yellow = art.parse("Natalia Goncharova - 'Yellow and Green Forest' (1912).jpg")
+        forest = [["Q900031", 2, [1912], ["Green Forest"]]]
+        title = art.words(yellow.title)
+        self.assertEqual(art.title_score(title, ["Green Forest"]), art.SHARE_MAX)
+        self.assertIsNone(art.match(yellow, forest))  # 0.6 + 0.15 = 0.75
 
     def test_ties_go_to_sitelinks(self):
         name = art.Name("Vincent Van Gogh", "The Starry Night", (1889, 1889))
@@ -299,7 +328,7 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(art.look_up(path), {})
         self.assertEqual(art.verdict(path), {})
         self.assertEqual(art.look_up("/pictures/IMG_2041.jpg"), {})  # no artist: no ask
-        self.assertEqual(self.asked, ["works Natalia Goncharova"])
+        self.assertEqual(self.asked, ["search Natalia Goncharova", "works Q232391"])
         self.assertEqual(art.look_up(f"{FOLDER}Nobody Known - Untitled.jpg"), {})
 
     def test_no_answer_keeps_no_verdict(self):
@@ -336,7 +365,9 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(self.asked, [])
         HOME.setProperty("art_details_refresh", path)  # read as written, no decode
         actions.art_details_refresh(prop="art_details_refresh")
-        self.assertEqual(self.asked, ["works Franz Marc", "painting Q2358487"])
+        self.assertEqual(
+            self.asked, ["search Franz Marc", "works Q44054", "painting Q2358487"]
+        )
         self.assertEqual(art.verdict(path)["qid"], "Q2358487")
 
     def test_forget_drops_its_own_file_only(self):
@@ -435,6 +466,26 @@ class ArtDetailsTest(unittest.TestCase):
         art.ASIDES.ask(path, waiting)
         art.ASIDES._drain()
         self.assertEqual((self.asked, waiting.call_count), ([], 0))
+
+    def test_an_asker_that_raises_spoils_no_other_ask(self):
+        self.asides()
+        queue = cache.Asides(lambda key: key.upper())
+        later = mock.Mock(current=lambda: True)
+
+        def boom():
+            queue.ask("a", later)  # a newer arrival asks while this one is told
+            raise RuntimeError("an asker")
+
+        first = mock.Mock(current=lambda: True, side_effect=boom)
+        other = mock.Mock(current=lambda: True)
+        queue.ask("a", first)
+        queue.ask("a", other)
+        with mock.patch.object(cache.log, "exception") as logged:
+            queue._drain()
+        logged.assert_called_once()  # the error, with its traceback
+        other.assert_called_once()  # told, whatever the first did
+        later.assert_called_once()  # its own fetch, in turn: not dropped
+        self.assertEqual((queue.asked, queue.running), ({}, 0))
 
     def test_only_pictures_are_looked_up(self):
         self.asides()

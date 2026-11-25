@@ -25,7 +25,6 @@ from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     ADDONDATA,
-    fold,
     replace_file,
     window_property,
 )
@@ -35,9 +34,11 @@ FOLDERS = Path(ADDONDATA, "art_details_folders.json")  # the marked folders' pat
 # file's row is pruned in time
 TTL_FILE = 365 * DAY
 THRESHOLD = 0.8  # the least score a match needs; below it the file shows nothing
-# A title holding every word of a label of CONTAIN_WORDS or more, the label at least
-# half of the title: at least CONTAIN. Shorter labels ("Green Forest") only by likeness
-CONTAIN, CONTAIN_WORDS = 0.75, 3
+# A label whose words are some of the title's scores the share it covers: from
+# CONTAIN up when it has CONTAIN_WORDS or more and covers half the title (Hokusai's
+# Great Wave); otherwise at most SHARE_MAX, which no year bonus lifts to THRESHOLD
+# ("Green Forest" in "Yellow and Green Forest")
+CONTAIN, CONTAIN_WORDS, SHARE_MAX = 0.75, 3, 0.6
 # Kodi browses these as folders, so a mark inside one never matches its own path again
 ARCHIVES = ("zip://", "rar://", "archive://")
 # Kodi's picture extensions it lists as folders or feeds, not pictures
@@ -140,8 +141,8 @@ def year_score(years: tuple[int, int] | None, inception: list[int]) -> float:
 def title_score(title: list[str], labels: list[str], floor: float = 0) -> float:
     """
     The best of a work's labels against a title: their similarity; a label whose
-    words are some of the title's, by how much of it they cover (CONTAIN up to 1 for
-    CONTAIN_WORDS or more and half of it: Hokusai's; else only that share).
+    words are some of the title's, by the share it covers (from CONTAIN for
+    CONTAIN_WORDS or more covering half; else at most SHARE_MAX).
 
     :param title: The file's title words.
     :param labels: The work's labels and aliases, as Wikidata has them.
@@ -157,6 +158,8 @@ def title_score(title: list[str], labels: list[str], floor: float = 0) -> float:
             share = len(part) / len(have)
             if len(part) >= max(CONTAIN_WORDS, len(have) / 2):
                 share = CONTAIN + (1 - CONTAIN) * share
+            else:
+                share = min(share, SHARE_MAX)
             best = max(best, share)
             continue
         matcher.set_seq1(" ".join(own))
@@ -314,16 +317,11 @@ def forget(path: str) -> None:
 
     :param path: The picture's path.
     """
-    cache, stale = ApiCacheHandler(), []
-    if name := parse(path):
-        artist = fold(name.artist)
-        stale += f"wikidata:works:{artist}", f"wikidata:fuzzy:{artist}"
-    if (row := cache.get(_key(path))) and row[0] and (found := row[0]["fields"]):
-        stale += (
-            f"wikidata:painting:{found['qid']}",
-            f"wikidata:summary:{fold(found['enwiki'])}",
-        )
-    cache.expire(*stale)  # patterns, but folded names and Q-ids hold no % or _
+    cache, name = ApiCacheHandler(), parse(path)
+    row = cache.get(_key(path))
+    found = row and row[0] and row[0]["fields"] or {}
+    artist = name.artist if name else ""
+    wikidata.forget(artist, found.get("qid", ""), found.get("enwiki", ""))
     cache.drop(_key(path))  # exactly: a path's % or _ would match other files
 
 

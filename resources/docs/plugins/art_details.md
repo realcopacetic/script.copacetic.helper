@@ -39,15 +39,17 @@ the year may be a range (`(1894-1895)`, `(1894-95)`), and words after a quoted t
 
 The artist is the first painter (occupation *painter*) Wikidata's search finds for the
 name, else, in a second request, for each word searched fuzzily, so a typo such as
-`Kandinksy` still finds Wassily Kandinsky. Each of the artist's works is scored against
-the title, on its labels and aliases in English, German, French, Spanish, Italian,
-Russian, Japanese, Dutch and Norwegian, accents, case, punctuation and small words
-(*the*, *of*, *off* …) aside, numbers to twenty as Roman numerals (`Composition Seven`
-is *Composition VII*):
+`Kandinksy` still finds Wassily Kandinsky. Its works come in a request of their own,
+kept by the painter's id, so two spellings of one name share them. Each work is
+scored against the title, on its labels and aliases in English, German, French,
+Spanish, Italian, Russian, Japanese, Dutch and Norwegian, accents, case, punctuation
+and small words (*the*, *of*, *off* …) aside, numbers to twenty as Roman numerals
+(`Composition Seven` is *Composition VII*):
 
 - how alike the two titles are; but a label whose words are only some of the title's
-  scores the share of the title it covers, and, at three words or more covering half
-  of it, at least 0.75, more the more it covers. So *The Great Wave off Kanagawa*
+  scores by the share of the title it covers: at three words or more covering half of
+  it, at least 0.75, more the more it covers; else that share, 0.6 at most, which no
+  year bonus lifts to a match. So *The Great Wave off Kanagawa*
   matches `Behind the Great Wave at Kanagawa`, while *Green Forest* doesn't match
   `Yellow and Green Forest`, nor *Self-Portrait* `Self-Portrait with Bandaged Ear and
   Pipe`;

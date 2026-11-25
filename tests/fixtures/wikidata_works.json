@@ -1,5 +1,5 @@
 {
-  "note": "Hand-written from the 25 Nov 2026 filename test (Ash's 16 files, coding-notes briefs/2026-11-25-pictures-api.md): per artist search, the painter and some works as [qid, sitelinks, inception years, labels and aliases]. Q-ids the test reported are real; Q9000xx are placeholders for its unnamed runners-up and for the 25 Nov review's false-positive cases (Girls on the Bridge, Green Forest, Self-Portrait); sitelink counts are approximate. The Bedroom's rows test an unknown inception (a node, not a literal), canvas with no painting-surface qualifier and an unknown collection; The Starry Night's an unlabelled collection. tests/art_details_offline.py turns each into the query service's answer shape.",
+  "note": "Hand-written from the 25 Nov 2026 filename test (Ash's 16 files, coding-notes briefs/2026-11-25-pictures-api.md): per artist search, the painter and some works as [qid, sitelinks, inception years, labels and aliases]. Q-ids the test reported are real; Q9000xx are placeholders for its unnamed runners-up and for the 25 Nov review's false-positive cases (Girls on the Bridge, Green Forest dated 1912 as the Yellow and Green Forest file is, Self-Portrait); sitelink counts are approximate. The Bedroom's rows test an unknown inception (a node, not a literal), canvas with no painting-surface qualifier and an unknown collection; The Starry Night's an unlabelled collection. tests/art_details_offline.py turns each into the query service's answer shape.",
   "artists": {
     "Edvard Munch": {
       "qid": "Q41406",
@@ -44,7 +44,7 @@
         ["Q19883648", 3, [1911], ["Rayonism Blue-Green Forest"]],
         ["Q27973526", 2, [1913], ["La Forêt [The Forest]", "La Forêt"]],
         ["Q900030", 2, [1913], ["Rayonist Lilies"]],
-        ["Q900031", 2, [1913], ["Green Forest"]]
+        ["Q900031", 2, [1912], ["Green Forest"]]
       ]
     },
     "Vincent Van Gogh": {
