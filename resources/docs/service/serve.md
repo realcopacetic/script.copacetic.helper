@@ -248,9 +248,11 @@ during an artwork call's art reads, is waited out and the list read again.
 
 ## What stays a plugin call
 
-Every list you keep on `<content>`. Copacetic 2 keeps its visualisation and music OSD
-lists, the TV guide's, and the dialogs with a single blur as plugin calls: they follow
-the player or rarely change, so a run per change costs little.
+Every list you keep on `<content>`. Copacetic 2 keeps its visualisation's lists, the
+music OSD's playing song under its rails, the TV guide's, and the dialogs with a single
+blur as plugin calls: they follow the player or rarely change, so a run per change
+costs little. The music OSD's rails are served, in the OSD (`window=10120`), as an info
+dialog's are.
 
 ## Log lines
 
