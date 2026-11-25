@@ -81,8 +81,7 @@ class AlbumResumeTest(LibraryTest):
 
     def album(self, *songs):
         self.songs = list(songs)
-        since = f"{datetime.now() - timedelta(days=14):%Y-%m-%d %H:%M:%S}"
-        return helpers.ProgressBarManager("ListItem", 4010, 10025, since).album
+        return helpers.ProgressBarManager("ListItem", 4010, 10025, 14).album
 
     def test_after_the_song_heard_last(self):
         # GetSongs's order isn't album order; 3 was heard after 5

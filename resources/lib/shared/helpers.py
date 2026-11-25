@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 import time
+from datetime import datetime, timedelta
 from functools import cached_property
 from operator import itemgetter
 from threading import Lock
@@ -398,13 +399,13 @@ def album_resume(order: list[dict], heard: list[dict]) -> tuple[int, dict[str, s
     return after, resume
 
 
-def album_progress(album_id: int, since: str, *fields: str) -> AlbumProgress:
+def album_progress(album_id: int, days: int, *fields: str) -> AlbumProgress:
     """
-    An album's seconds heard since since, its length, "played" or "unplayed" (every
-    song or none ever played) unless part-heard, its resume point, from one GetSongs.
+    An album's seconds heard in the last days, its length, "played" or "unplayed"
+    (every song or none ever played) unless part-heard, its resume point.
 
     :param album_id: The album's library id.
-    :param since: Earliest last played ("YYYY-MM-DD HH:MM:SS") that counts.
+    :param days: How far back a song's last play counts.
     :param fields: More song properties for its songs, e.g. file to play them.
     :return: The album's progress; heard 0 unless some but not all is recent.
     """
@@ -427,6 +428,7 @@ def album_progress(album_id: int, since: str, *fields: str) -> AlbumProgress:
     if not (songs := response.get("result", {}).get("songs")):
         # An error answer: no state, so both menu items show
         return AlbumProgress(0, 0, "", {}, 0, [])
+    since = f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}"
     songs.sort(key=itemgetter("disc", "track"))
     # Unplayed songs keep their last played (CMusicDatabase::UpdateSong), so the
     # play count gates it; JSON-RPC's date strings sort as times
@@ -454,7 +456,7 @@ class ProgressBarManager:
         target: str,
         base_id: int,
         window_id: int,
-        album_since: str,
+        album_days: int,
     ) -> None:
         """
         Initialize default control IDs and sizing.
@@ -462,12 +464,12 @@ class ProgressBarManager:
         :param target: InfoLabel prefix (e.g. "ListItem" or "Container(50).ListItem").
         :param base_id: Base group ID that wraps the bar/btn; sub-controls default to +1/+2/+3/+4.
         :param window_id: Window that holds the controls.
-        :param album_since: Earliest last played ("YYYY-MM-DD HH:MM:SS") an album counts.
+        :param album_days: How far back a song's last play counts towards an album.
         """
 
         self.window = Window(window_id)
         self.target = target
-        self.album_since = album_since
+        self.album_days = album_days
         self.base_id = base_id
         self.progress_id = base_id + 1
         self.btn_id = base_id + 2
@@ -554,13 +556,13 @@ class ProgressBarManager:
     @cached_property
     def album(self) -> AlbumProgress:
         """
-        The focused album's progress (album_progress) since album_since.
+        The focused album's progress (album_progress) over album_days.
 
         :return: The album's progress; heard 0 unless some but not all is recent.
         """
         if not (album_id := to_int(self.infolabels["DBID"])):
             return AlbumProgress(0, 0, "", {}, 0, [])
-        return album_progress(album_id, self.album_since)
+        return album_progress(album_id, self.album_days)
 
     def update(
         self,

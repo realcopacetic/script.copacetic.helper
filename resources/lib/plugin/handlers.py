@@ -1304,14 +1304,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         target_id = to_int(self.params.get("target_id"), None)
-        since = datetime.now() - timedelta(
-            days=to_int(self.params.get("album_days"), 14)
-        )
         pb = ProgressBarManager(
             target=self.target_item,
             base_id=target_id,
             window_id=self.window_id,
-            album_since=f"{since:%Y-%m-%d %H:%M:%S}",
+            album_days=to_int(self.params.get("album_days"), 14),
         )
         resume, unwatched = pb.calculate()
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)

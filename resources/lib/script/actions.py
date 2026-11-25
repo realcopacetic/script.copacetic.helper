@@ -4,7 +4,6 @@ import json
 import random
 import time
 from collections.abc import Iterable
-from datetime import datetime, timedelta
 from functools import reduce
 from urllib.parse import quote
 
@@ -592,9 +591,8 @@ def play_album_resume(
     """
     from resources.lib.shared.helpers import album_progress  # this action only
 
-    since = datetime.now() - timedelta(days=to_int(album_days))
     album_id = to_int(id)
-    album = album_progress(album_id, f"{since:%Y-%m-%d %H:%M:%S}", "file")
+    album = album_progress(album_id, to_int(album_days), "file")
     if not album.songs:
         return
     position = album.position
@@ -1167,6 +1165,7 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
         )
     window_property("album_played", value=str(album) if mark else "")
     window_property("album_unplayed", value="" if mark else str(album))
+    window_property("album_resume")  # either way, not part-heard
 
 
 @action
