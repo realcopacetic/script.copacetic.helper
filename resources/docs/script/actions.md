@@ -81,6 +81,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`pin`](#pin) | Pins a music item to the front of speed dial |
 | [`play_album`](#play_album) | Plays an album |
 | [`play_album_from_track`](#play_album_from_track) | Plays a song's album, starting at that song |
+| [`play_album_resume`](#play_album_resume) | Plays an album, asking first whether to resume a part-heard one at its next track |
 | [`play_item`](#play_item) | Plays one library video from its resume point |
 | [`play_items`](#play_items) | Plays every item in a container |
 | [`play_radio`](#play_radio) | Old name for `start_mix` |
@@ -134,6 +135,7 @@ the action named. In any other skin they are hidden.
 | Unlike | Library songs rated at or above `Skin.String(like_threshold)` | [`rate_song`](#rate_song) with `rating=0` |
 | Pin to speed dial | Library songs, artists and albums, and music playlists, that are not pinned in [speed dial](../plugins/speed_dial.md) | [`pin`](#pin) |
 | Unpin | Library songs, artists and albums, and music playlists, that are pinned in speed dial | [`unpin`](#unpin) |
+| Resume | Library albums (not disc or music video album nodes) part-heard past their first track (`album_resume`, below) | [`play_album_resume`](#play_album_resume) with `resume=true` |
 | Mark as played | Library albums (not disc or music video album nodes) that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
 | Mark as unplayed | Library albums (not disc or music video album nodes) that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
 | Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
@@ -153,7 +155,7 @@ whose builder templates (`extras/templates/`) or `16x9/` XML name
 `info=speed_dial`, for example in a widget's content path. The service checks when
 the skin becomes active and again when it is updated, and sets
 `Window(home).Property(helper_speed_dial)` for it. A skin that opts in without speed
-dial gets the other seven items only.
+dial gets the other eight items only.
 
 **Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
 properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
@@ -725,7 +727,7 @@ Each song write is a full rewrite of its row and an `AudioLibrary.OnUpdate`, so 
 album costs a moment and Home refreshes its widgets once per song.
 
 **Sets:** `Window(home).Property(album_played)` and `album_unplayed` (the album's id,
-or cleared). The service then sets `progress_version` once for the songs' updates
+or cleared), and clears `album_resume`. The service then sets `progress_version` once for the songs' updates
 ([On song updates](../service/index.md#on-song-updates)), which a skin puts in its
 progress bar URL to have the bar served again.
 
@@ -798,6 +800,40 @@ on. The album is added to the [speed dial](../plugins/speed_dial.md) recent list
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=play_album_from_track,id=$INFO[ListItem.DBID])</onclick>
+```
+
+---
+
+## play_album_resume
+
+Plays a library album in disc and track order, as Kodi's own **Play** does, but picks
+up a part-heard album where it was left. When the album is
+[part-heard](../plugins/progressbar.md#albums) and its
+[resume point](../plugins/progressbar.md#albums) is past the first track, it first
+asks, with the menu Kodi uses to resume a video
+(`CVideoPlayActionProcessorBase::ChoosePlayOrResume`): **Resume from track 6** (on an
+album of more than one disc, **Resume from disc 2, track 6**) or **Play from
+beginning**. Otherwise it plays from the start without asking. Cancelling the menu
+plays nothing. Like [`play_album_from_track`](#play_album_from_track), it clears the
+playlists, turns Kodi's shuffle off and adds the album to the
+[speed dial](../plugins/speed_dial.md) recent list. The album is read with the
+progress bar's one `AudioLibrary.GetSongs` call (with `file` added).
+
+The context menu's **Resume** item runs this action with `resume=true`. It shows on a
+library album (not a disc node, nor a music video album node) whose resume point is
+past its first track: the [progress bar serve](../plugins/progressbar.md#albums)
+writes the focused album's id to `album_resume`, and the item compares it with
+`ListItem.DBID`. Where that serve doesn't run, it never shows.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | album database id | required | The album. Not in the library, or no songs: nothing happens. |
+| `album_days` | whole number | `14` | How far back a song's play counts, as the progress bar's [`album_days`](../plugins/progressbar.md#albums): give the same value. |
+| `resume` | `true`, anything else | — | `true` resumes at the next track without asking |
+| `close` | a dialog's name | — | A dialog to close as it starts playing (not on a cancelled menu), as Kodi's own **Play** closes its info dialog |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=play_album_resume,id=$INFO[ListItem.DBID],album_days=14,close=musicinformation)</onclick>
 ```
 
 ---

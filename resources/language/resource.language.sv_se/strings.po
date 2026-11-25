@@ -1069,6 +1069,24 @@ msgctxt "#32843"
 msgid "Mark as unplayed"
 msgstr "Markera som ospelad"
 
+#. A context menu item: keep it short. For an album part-heard lately: plays it on from its next track.
+#: /addon.xml
+msgctxt "#32844"
+msgid "Resume"
+msgstr "Återuppta"
+
+#. %s is a track number. A menu choice for an album part-heard lately, beside Kodi's "Play from beginning".
+#: /resources/lib/script/actions.py
+msgctxt "#32845"
+msgid "Resume from track %s"
+msgstr "Återuppta från spår %s"
+
+#. First %s: a disc number; second %s: a track number. As "Resume from track %s", for an album of several discs.
+#: /resources/lib/script/actions.py
+msgctxt "#32846"
+msgid "Resume from disc %s, track %s"
+msgstr "Återuppta från skiva %s, spår %s"
+
 
 
 

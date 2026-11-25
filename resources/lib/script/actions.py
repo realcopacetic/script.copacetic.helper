@@ -577,6 +577,46 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
 
 
 @action
+def play_album_resume(
+    id: str, album_days: str = "14", resume: str = "", close: str = "", **kwargs: str
+) -> None:
+    """
+    Plays an album in disc and track order. A part-heard one first asks, as Kodi's
+    video resume menu does, whether to pick up at its next track (album_progress).
+
+    :param id: Album ID.
+    :param album_days: How far back a song's play counts, as the progress bar's.
+    :param resume: "true" picks up at the next track without asking.
+    :param close: A dialog to close once it plays, as Kodi's own Play closes info.
+    """
+    from resources.lib.shared.helpers import album_progress  # this action only
+
+    album_id = to_int(id)
+    album = album_progress(album_id, to_int(album_days), "file")
+    if not album.songs:
+        return
+    position = album.position
+    if position and resume != "true":
+        point = album.resume
+        track = point["album_next_track"]
+        label = (
+            ADDON.getLocalizedString(32846) % (point["album_next_disc"], track)
+            if "album_next_disc" in point
+            else ADDON.getLocalizedString(32845) % track
+        )
+        # Kodi's video resume menu (ChoosePlayOrResume): the point, Play from beginning
+        choice = xbmcgui.Dialog().contextmenu([label, xbmc.getLocalizedString(12021)])
+        if choice < 0:
+            return
+        if choice:
+            position = 0
+    if close:
+        log.execute(f"Dialog.Close({close})")
+    mark_source(dial_entry("album", album_id))
+    play_files(album.songs, position=position)
+
+
+@action
 def play_item(type: str, id: str, **kwargs: str) -> None:
     """
     Plays one library video from where it was left, in place of what plays: Kodi
@@ -1125,6 +1165,7 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
         )
     window_property("album_played", value=str(album) if mark else "")
     window_property("album_unplayed", value="" if mark else str(album))
+    window_property("album_resume")  # either way, not part-heard
 
 
 @action

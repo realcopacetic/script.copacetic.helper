@@ -1303,14 +1303,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         target_id = to_int(self.params.get("target_id"), None)
-        since = datetime.now() - timedelta(
-            days=to_int(self.params.get("album_days"), 14)
-        )
         pb = ProgressBarManager(
             target=self.target_item,
             base_id=target_id,
             window_id=self.window_id,
-            album_since=f"{since:%Y-%m-%d %H:%M:%S}",
+            album_days=to_int(self.params.get("album_days"), 14),
         )
         resume, unwatched = pb.calculate()
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
@@ -1350,7 +1347,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 **self._unwatched_new(pb, resume),
             }
             # An album's resume point; album, for the service's re-serve on song
-            # updates (service/monitor.py) and the context menu's Mark items (addon.xml)
+            # updates (service/monitor.py) and the context menu's Mark and Resume
+            # items (addon.xml)
             if pb.infolabels["DBType"] == "album":
                 state, dbid = pb.album.state, pb.infolabels["DBID"]
                 item["properties"] |= {"album": "true", **pb.album.resume}
@@ -1358,6 +1356,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 window_property(
                     "album_unplayed", value=dbid if state == "unplayed" else ""
                 )
+                window_property("album_resume", value=dbid if pb.album.position else "")
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
