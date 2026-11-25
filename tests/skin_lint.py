@@ -125,6 +125,15 @@ ACCEPTED = {  # (rule, file, message start): why it stands
         ),
         DISPATCH,
     ),
+    **{
+        (
+            "constant-param",
+            f"{GENERATED}includes.xml",
+            f"blk_grid_layout_{art}_large: no call passes 'underlay'",
+        ): "the template forwards a storyboard's underlay (the bookmarks rail's) to"
+        " every layout; a storyboard mounts only the small ones"
+        for art in ("fanart", "poster", "square")
+    },
     ("window-property", "resources/lib/service/monitor.py", "progress_version:"): "the"
     " helper's public bump for another skin's plugin bar URL"
     " (docs/plugins/progressbar.md); C2's bars are served",
