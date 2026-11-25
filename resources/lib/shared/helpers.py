@@ -373,32 +373,31 @@ class DataHandler:
 
     def _most_played(self) -> dict[str, str]:
         """
-        The album's or artist's song with the most plays, if two or more (one isn't a
-        favourite); of a tie, the last played. An album's names the song's artists
-        when none of them is an album artist (a compilation's song).
+        The album's or artist's song with the most plays: two or more, and more than
+        any other's (an album played through has none). An album's names the song's
+        artists when none of them is an album artist (a compilation's song).
 
         :return: most_played, with most_played_artist as above; {} for none.
         """
-        songs = json_call(
+        response = json_call(  # the top two, sorted and cut in the database
             "AudioLibrary.GetSongs",
             properties=[
                 "title",
                 "playcount",
-                "lastplayed",
                 "displayartist",
                 "artistid",
                 "albumartistid",
             ],
+            sort={"method": "playcount", "order": "descending"},
             query_filter={f"{self.dbtype}id": to_int(self.dbid)},
+            limit=2,
             parent=self.__class__.__name__,
         )
-        top = max(
-            songs.get("result", {}).get("songs", []),
-            key=itemgetter("playcount", "lastplayed"),
-            default=None,
-        )
-        if not top or top["playcount"] < 2:
+        songs = response.get("result", {}).get("songs", [])
+        plays = [song["playcount"] for song in songs] + [0]
+        if plays[0] < 2 or plays[0] == plays[1]:
             return {}
+        top = songs[0]
         found = {"most_played": top["title"]}
         if self.dbtype == "album" and set(top["artistid"]).isdisjoint(
             top["albumartistid"]
