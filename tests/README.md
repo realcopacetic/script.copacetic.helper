@@ -44,8 +44,8 @@ python tests/api_offline.py
 python tests/artwork_serve_offline.py
 
 # The palette and its darken (art/compose.py, ImageEditor._compose) on synthetic
-# measurements: the logo's own secondary; with palette_ratio one darken carrying the
-# page's elements and the accent (the logo's when it has colour, else the art's)
+# measurements: the logo's own secondary; with palette_ratio palette_darken as the
+# accent's floor (the logo's when it has colour, else the art's), the darken unchanged
 python tests/palette_offline.py
 
 # Soundtrack title matching (plugin/soundtracks.py) against real album titles
