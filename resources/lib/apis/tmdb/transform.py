@@ -152,12 +152,7 @@ def tmdb_to_canonical(
         return {}
 
     log.debug(f"tmdb_to_canonical → fetched {cache_kind}/{tmdb_id}")
-    item = _build_tmdb_canonical_item(
-        kind=kind,
-        tmdb_id=tmdb_id,
-        raw=raw,
-        language=language_key,
-    )
+    item = _build_tmdb_canonical_item(raw=raw, language=language_key)
     cache.put(key, item, TTL_HIT)
     return item
 
@@ -246,16 +241,12 @@ def _aside(args: tuple) -> None:
 
 
 def _build_tmdb_canonical_item(
-    kind: str,
-    tmdb_id: int,
     raw: Mapping[str, Any],
     language: str,
 ) -> dict[str, Any]:
     """
     Convert raw TMDb fields into canonical Kodi-compatible structure.
 
-    :param kind: Logical TMDb kind ('movie', 'tvshow').
-    :param tmdb_id: TMDb numeric identifier.
     :param raw: Resolved TMDb logical fields.
     :param language: TMDb language key used for fetching.
     :return: Canonical item dict for downstream handlers.
