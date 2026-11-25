@@ -230,9 +230,10 @@ three artists leaves the rest empty.
 
 A version is the last `(…)`, `[…]` or ` - …` of a title when it holds one of these
 whole words, in any case: mix, remix, edit, remaster, remastered, version, live,
-acoustic, demo, take, session, mono, stereo, instrumental, radio, extended, single,
-dub, unplugged, feat., ft. A bracket that opens a title (`(I Can't Get No)
-Satisfaction`) is never one, and a title that is only a bracket stays whole.
+acoustic, demo, take with its number (`Take 2`), session, mono, stereo, instrumental,
+radio, extended, single, dub, unplugged, feat., ft. A bracket that opens a title
+(`(I Can't Get No) Satisfaction`) is never one, and a title that is only a bracket
+stays whole.
 
 For the playing song's rating, use Kodi's own `MusicPlayer.UserRating`. It updates
 straight away when [`rate_song`](../script/actions.md#rate_song) changes the rating.

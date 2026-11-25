@@ -31,6 +31,8 @@ SPLIT = {
     "Bohemian Rhapsody - Live Aid": ("Bohemian Rhapsody", "Live Aid"),
     "Track [Instrumental]": ("Track", "Instrumental"),
     "Song (Live) (Remastered)": ("Song (Live)", "Remastered"),  # the last one only
+    "Song (Take 2)": ("Song", "Take 2"),
+    "Love Me Do - Mono": ("Love Me Do", "Mono"),
 }
 WHOLE = (
     "(I Can't Get No) Satisfaction",
@@ -39,6 +41,14 @@ WHOLE = (
     "Song (Ft Lauderdale)",  # ft. needs its dot
     "(Live)",  # nothing left to name it
     "Take Five",
+    "Against All Odds (Take a Look at Me Now)",  # take needs its number
+    "Single Ladies (Put a Ring on It)",
+    "Demo - Something",  # the word before the dash
+    "Live Forever",
+    "Radio Gaga",
+    "Session Man",
+    "Edit",
+    "Mono",
 )
 
 
