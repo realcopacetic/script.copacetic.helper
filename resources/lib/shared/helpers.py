@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import posixpath
 import random
+import re
 import time
 from collections import Counter
 from datetime import datetime, timedelta
@@ -632,12 +633,17 @@ class ProgressBarManager:
             ],
         )
 
-    def calculate(self) -> tuple[float, str]:
+    def calculate(self, resolution_span: int) -> tuple[float, str]:
         """
         Compute percent and unwatched label for the item referenced by ``target``.
 
+        :param resolution_span: A picture's long edge that fills the bar; 0 for none.
         :return: (percent [0-100], unwatched label as string)
         """
+
+        if resolution_span:  # Kodi's "1920 x 1520"; empty for a file it can't read
+            edges = re.findall(r"\d+", infolabel(f"{self.target}.PictureResolution"))
+            return min(max(map(int, edges), default=0) / resolution_span * 100, 100), ""
 
         if self.infolabels["DBType"] == "album":
             heard, total, *_ = self.album

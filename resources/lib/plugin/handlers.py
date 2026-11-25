@@ -1329,7 +1329,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             window_id=self.window_id,
             album_days=to_int(self.params.get("album_days"), 14),
         )
-        resume, unwatched = pb.calculate()
+        resume, unwatched = pb.calculate(to_int(self.params.get("resolution_span")))
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
         # is unchanged
         secs = pb.runtime(resume)

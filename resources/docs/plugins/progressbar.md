@@ -8,7 +8,8 @@ whether a show has ended, and the track to play next on an album.
 
 It handles movies, episodes, TV shows, seasons, movie sets and music albums. For a set
 it counts the watched movies in the set; for an album, the songs heard (see
-[Albums](#albums)).
+[Albums](#albums)). With `resolution_span` it measures a picture's size instead (see
+[Pictures](#pictures)).
 
 ## Plugin path
 
@@ -53,6 +54,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `img_id` | control id | `target_id + 3` | Image id. |
 | `img_h` | whole number | the bar height | Height of the image. |
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
+| `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDB data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDB lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
@@ -75,7 +77,19 @@ The first rule that matches wins:
    `VideoLibrary.GetMovieSetDetails`.
 4. Otherwise: 0.
 
-An album skips these rules; see [Albums](#albums).
+An album skips these rules; see [Albums](#albums). So does any item when the call
+has `resolution_span`; see [Pictures](#pictures).
+
+## Pictures
+
+With `resolution_span` (Copacetic passes `3840` in its Pictures window's Listings view)
+the value is the focused picture's long edge as a share of that many pixels, capped at
+100: a 1920 × 1520 picture against 3840 is 50. The edge comes from
+`ListItem.PictureResolution`, which Kodi writes as `1920 x 1520` once it has read the
+picture's tags (`pictures.usetags`, on by default); a picture it couldn't read (Kodi
+reads JPEG headers itself, other formats only through an image decoder add-on) is 0,
+no bar. A picture has no library id or play count, so its item carries no context
+values and costs no library call.
 
 ## Albums
 
