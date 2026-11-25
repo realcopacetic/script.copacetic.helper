@@ -157,6 +157,11 @@ python tests/listing_offline.py
 # underscore and title-less forms
 python tests/clean_name_offline.py
 
+# Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
+# height; a 1x image drawn 2x and shrunk, a 2x one drawn 1:1, both giving the same
+# height in skin pixels, cached apart (needs Pillow and the skin's fonts)
+python tests/text_offline.py [../skin.copacetic2]
+
 # Builder passes (builders/modules.py): an item's `also` metadata gives a pass more per
 # row, so one settings entry feeds a second window's expressions (append, assign, the
 # inverted fallback) and variables, in static and dynamic mappings. Skin mirrors
