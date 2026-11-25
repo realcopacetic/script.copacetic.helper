@@ -323,7 +323,7 @@ class DataHandler:
 
     def _genres(self, genres: str) -> list[str]:
         """
-        The item's genres; an episode, which Kodi gives none, takes its show's.
+        The item's genres; an episode with none (a served one) takes its show's.
 
         :param genres: The item's Genre infolabel.
         :return: Genre names, in the library's order.
