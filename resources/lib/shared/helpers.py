@@ -257,6 +257,7 @@ class DataHandler:
         genre_aliases: Iterable[tuple[str, str]] = (),
         genre_chips: int = 0,
         album_format: bool = False,
+        most_played: bool = False,
     ) -> dict[str, object]:
         """
         Build a normalized metadata dictionary.
@@ -265,6 +266,7 @@ class DataHandler:
         :param genre_aliases: (substring, name) pairs renaming the picked genre.
         :param genre_chips: Characters two genre chips may hold (genre_chip_names).
         :param album_format: An album's most common audio format (audio_format).
+        :param most_played: An album's or artist's most played song (_most_played).
         :return: Dictionary with art, resume, contributors, etc.
         """
         label = self.infolabels["Label"]
@@ -276,6 +278,8 @@ class DataHandler:
             properties |= genre_chip_names(self._genres(genres), genre_chips)
         if album_format and self.dbtype == "album":
             properties |= self._album_format()
+        if most_played and self.dbtype in ("album", "artist"):
+            properties |= self._most_played()
         if pick_genre or pick_director:
             # One pick per item and Kodi session, so a refire (closing info, back
             # from a rail) keeps the rails it fed. The genre is drawn first, so a
@@ -366,6 +370,41 @@ class DataHandler:
         )
         formats.pop(None, None)
         return dict(formats.most_common(1)[0][0]) if formats else {}
+
+    def _most_played(self) -> dict[str, str]:
+        """
+        The album's or artist's song with the most plays, if two or more (one isn't a
+        favourite); of a tie, the last played. An album's names the song's artists
+        when none of them is an album artist (a compilation's song).
+
+        :return: most_played, with most_played_artist as above; {} for none.
+        """
+        songs = json_call(
+            "AudioLibrary.GetSongs",
+            properties=[
+                "title",
+                "playcount",
+                "lastplayed",
+                "displayartist",
+                "artistid",
+                "albumartistid",
+            ],
+            query_filter={f"{self.dbtype}id": to_int(self.dbid)},
+            parent=self.__class__.__name__,
+        )
+        top = max(
+            songs.get("result", {}).get("songs", []),
+            key=itemgetter("playcount", "lastplayed"),
+            default=None,
+        )
+        if not top or top["playcount"] < 2:
+            return {}
+        found = {"most_played": top["title"]}
+        if self.dbtype == "album" and set(top["artistid"]).isdisjoint(
+            top["albumartistid"]
+        ):
+            found["most_played_artist"] = top["displayartist"]
+        return found
 
     def _studio(self) -> str:
         """

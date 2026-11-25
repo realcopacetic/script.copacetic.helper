@@ -3,8 +3,9 @@ Offline checks for the info screen's chips on info=metadata (shared/helpers.py
 DataHandler): genre_chips=N gives two genre chips while both names and the second's
 " +N" fit N characters, else one; an episode takes its show's genres; album_format
 gives an album's most common format, lossless by sample rate, lossy by bitrate, an
-.m4a by its bitrate. JSON-RPC rows are hand-written in Omega's shape. Run from the
-helper root:
+.m4a by its bitrate; most_played an album's or artist's most played song, two plays
+or more, the last played of a tie, a compilation's with its artist. JSON-RPC rows are
+hand-written in Omega's shape. Run from the helper root:
 python tests/infoscreen_chips_offline.py
 """
 
@@ -179,6 +180,55 @@ class DataHandlerChipsTest(unittest.TestCase):
     def test_album_format_none(self):
         self.answers["AudioLibrary.GetSongs"] = {"songs": []}
         self.assertNotIn("format_codec", self.fetch("album", album_format=True))
+
+    def songs(self, *rows):
+        """GetSongs rows: title, plays, last played, artist ids, album artist ids."""
+        keys = ("title", "playcount", "lastplayed", "artistid", "albumartistid")
+        self.answers["AudioLibrary.GetSongs"] = {
+            "songs": [
+                dict(zip(keys, row), displayartist=f"Artist {row[3][0]}")
+                for row in rows
+            ]
+        }
+
+    def test_most_played(self):
+        self.songs(
+            ("Intro", 9, "2026-11-01 10:00:00", [1], [1]),
+            ("Hit", 12, "2026-10-01 10:00:00", [1], [1]),
+            ("Single", 12, "2026-11-20 08:00:00", [1, 2], [1]),  # the tie's last
+        )
+        self.assertEqual(
+            self.fetch("artist", most_played=True),
+            {"dbid": "7", "most_played": "Single"},
+        )
+        (call,) = self.songs_calls()
+        self.assertEqual(call["params"]["filter"], {"artistid": 7})
+        self.assertNotIn("limits", call["params"])  # every song, for the tie
+        # an album's own artist among the song's: no artist named
+        self.assertNotIn("most_played_artist", self.fetch("album", most_played=True))
+        self.assertEqual(self.songs_calls()[-1]["params"]["filter"], {"albumid": 7})
+
+    def test_most_played_compilation(self):
+        self.songs(
+            ("Track", 3, "2026-11-01 10:00:00", [4], [9]),
+            ("Other", 2, "2026-11-02 10:00:00", [5], [9]),
+        )
+        properties = self.fetch("album", most_played=True)
+        self.assertEqual(properties["most_played"], "Track")
+        self.assertEqual(properties["most_played_artist"], "Artist 4")
+        # an artist's song on a compilation names no artist: it is theirs
+        self.assertNotIn("most_played_artist", self.fetch("artist", most_played=True))
+
+    def test_most_played_none(self):
+        self.songs(("Once", 1, "2026-11-01 10:00:00", [1], [1]))
+        self.assertNotIn("most_played", self.fetch("album", most_played=True))
+        self.songs()
+        self.assertNotIn("most_played", self.fetch("artist", most_played=True))
+        # opt-in, and albums and artists only
+        self.calls.clear()
+        self.assertNotIn("most_played", self.fetch("album"))
+        self.assertNotIn("most_played", self.fetch("song", most_played=True))
+        self.assertEqual(self.songs_calls(), [])
 
 
 if __name__ == "__main__":
