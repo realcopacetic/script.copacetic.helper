@@ -219,11 +219,20 @@ Use Kodi's value first and the service's when Kodi's is empty:
 | `player_disc` | Disc number | A song starts |
 | `player_genres` | The song's genres, joined with ` / ` as `MusicPlayer.Genre` reads them; unlike that infolabel it changes with the other properties, not ahead of them | A song starts |
 | `player_songid` | The song's database id (`-1` outside the library). These properties hold the previous song's values until the new one starts, so match it to `MusicPlayer.DBID` before acting on them | A song starts |
+| `player_title` | The title these were made from, as `MusicPlayer.Title` read it at the song's start. Match the two (and `player_artist` to `MusicPlayer.Artist`, for two songs of one title) before showing `player_title_name` and `player_title_version`: unlike `player_songid` this works outside the library, and a stream whose title changes mid-play no longer matches. It is written after the other two | A song starts |
+| `player_title_name` | The title less a version at its end: `Pyramid Song` from `Pyramid Song (Live)`. The whole title when there is none | A song starts |
+| `player_title_version` | That version, without its brackets or dash: `Live`, `Bright-Side Mix`, `Remastered 2015`. Empty when there is none | A song starts |
 
 `player_artist_1` to `player_artist_3` hold one artist each, so you can match a single
 artist exactly, and `player_artistid_1` to `player_artistid_3` hold their database ids
 in the same order, so two artists with one name stay apart. A song with fewer than
 three artists leaves the rest empty.
+
+A version is the last `(…)`, `[…]` or ` - …` of a title when it holds one of these
+whole words, in any case: mix, remix, edit, remaster, remastered, version, live,
+acoustic, demo, take, session, mono, stereo, instrumental, radio, extended, single,
+dub, unplugged, feat., ft. A bracket that opens a title (`(I Can't Get No)
+Satisfaction`) is never one, and a title that is only a bracket stays whole.
 
 For the playing song's rating, use Kodi's own `MusicPlayer.UserRating`. It updates
 straight away when [`rate_song`](../script/actions.md#rate_song) changes the rating.

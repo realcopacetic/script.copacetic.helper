@@ -43,6 +43,19 @@ LOOKUPS = str(Path(ADDONDATA) / "_lookup.db")
 DEV_RESET = Path(ADDONDATA, "dev_reset.txt")
 # A title's version part, dropped for matching: "(feat. …)", "[Remaster]", " - Live"
 VERSION = re.compile(r"(?<=\S)\s*[(\[].*|\s+-\s.*")
+# A song title's last (…), […] or " - …" naming a version, for song_version
+_VERSION_WORD = (
+    r"\b(?:mix|remix|edit|remaster(?:ed)?|version|live|acoustic|demo|take|session"
+    r"|mono|stereo|instrumental|radio|extended|single|dub|unplugged|feat\.|ft\.)(?!\w)"
+)
+_SONG_VERSION = re.compile(
+    rf"""(.*\S) \s* (?:
+        \( ([^()]* {_VERSION_WORD} [^()]*) \)
+        | \[ ([^\[\]]* {_VERSION_WORD} [^\[\]]*) \]
+        | \s-\s (.* {_VERSION_WORD} .*)
+    )""",
+    re.IGNORECASE | re.VERBOSE,
+)
 
 # DBType: details method; its id and result keys are f"{type}id", f"{type}details"
 DETAILS = {
@@ -896,6 +909,19 @@ def file_clean_name(path: str, title: str | None = None) -> dict[str, str]:
     if title is not None and not (title and title in forms):
         return {}
     return clean_name(name)
+
+
+def song_version(title: str) -> tuple[str, str]:
+    """
+    A song title's name and its version, as "Pyramid Song" and "Live" from "Pyramid
+    Song (Live)"; the whole title and "" when its end names no version.
+
+    :param title: The song's title.
+    :return: The name and the version.
+    """
+    if match := _SONG_VERSION.fullmatch(title):
+        return match[1], match[match.lastindex]
+    return title, ""
 
 
 def split(
