@@ -47,6 +47,7 @@ from resources.lib.plugin.library import (
     enrich_with_tvshow,
     fetch_and_add,
     fetch_raw,
+    library_details,
     random_rows,
     role_endpoint,
     seeded_sort,
@@ -100,7 +101,6 @@ from resources.lib.shared.text import (
 )
 from resources.lib.shared.utilities import (
     ADDON,
-    DETAILS,
     INFO_DIALOGS,
     clear_label,
     condition,
@@ -138,35 +138,11 @@ _VIDEO_METHODS = {
     "episode": "Episode",
     "musicvideo": "MusicVideo",
     "set": "MovieSet",
-}  # VideoLibrary.Get{…}s / Get{…}Details per library type
+}  # VideoLibrary.Get{…}s per library type
 _MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
 # TMDb's show status as _show_news's show_status: no more episodes, or more to come
 _SHOW_STATUS = {"Canceled": "ended", "Ended": "ended", "Returning Series": "returning"}
 _LABEL = "popularity_label"  # the handler's name: its item's path, its calls' parent
-
-
-def _video_details(
-    type: str, dbid: int, properties: list[str], parent: str
-) -> dict | None:
-    """
-    A library video item's details: a film, show, season, episode, music video or set.
-
-    :param type: A _VIDEO_METHODS key.
-    :param dbid: Library id.
-    :param properties: Properties to fetch.
-    :param parent: Caller name for logging.
-    :return: The details row, or None if the library lost the item.
-    """
-    return (
-        json_call(
-            f"VideoLibrary.Get{_VIDEO_METHODS[type]}Details",
-            properties=properties,
-            params={f"{type}id": dbid},
-            parent=parent,
-        )
-        .get("result", {})
-        .get(f"{type}details")
-    )
 
 
 _INFO_OPEN = " | ".join(f"Window.IsVisible({wid})" for wid in INFO_DIALOGS)
@@ -1192,7 +1168,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             items = [(plugin_path("favourite"), li, False)]
         else:
             properties = JSON_PROPERTIES["movieset" if dbtype == "set" else dbtype]
-            if not (row := _video_details(dbtype, int(dbid), properties, "favourite")):
+            if not (row := library_details(dbtype, int(dbid), properties, "favourite")):
                 forget(path, dbtype)
                 return []
             if dbtype in ("episode", "season"):
@@ -1492,17 +1468,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # An episode by air date: a show added late, or a binge, isn't new. Empty (not
         # aired, or unknown) sorts first; a future date (a pre-release file) is new
         field = "firstaired" if dbtype == "episode" else "dateadded"
-        if dbtype != "album":
-            item = _video_details(dbtype, dbid, [field], "progressbar")
-        elif pb.album.state == "unplayed":
-            response = json_call(
-                method="AudioLibrary.GetAlbumDetails",
-                params={"albumid": dbid, "properties": [field]},
-                parent="progressbar",
-            )
-            item = response.get("result", {}).get("albumdetails")
-        else:
+        if dbtype == "album" and pb.album.state != "unplayed":
             return {}
+        item = library_details(dbtype, dbid, [field], "progressbar")
         new = item and item[field] >= self._new_since(field)  # None: an error answer
         return {"new": "true" if new else ""}
 
@@ -2314,13 +2282,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         if not (self._require("type", "id") and (dbid := to_int(self.dbid))):
             return
-        details = json_call(
-            f"VideoLibrary.Get{_VIDEO_METHODS[self.dbtype]}Details",
-            properties=["cast"],
-            params={f"{self.dbtype}id": dbid},
-            parent="cast",
-        )
-        item = details.get("result", {}).get(f"{self.dbtype}details", {})
+        item = library_details(self.dbtype, dbid, ["cast"], "cast") or {}
         set_plugincontent(content="actors")
         actors = [
             {
@@ -2528,18 +2490,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
         seed = self.params.get("seed", "artist")
         if (dbid := to_int(self.dbid)) and seed != "artist":
-            details = (
-                json_call(
-                    DETAILS[seed],
-                    properties=(
-                        ["artistid", "compilation"] if seed == "album" else ["artistid"]
-                    ),
-                    params={f"{seed}id": dbid},
-                    parent="similar_music",
-                )
-                .get("result", {})
-                .get(f"{seed}details")
+            properties = (
+                ["artistid", "compilation"] if seed == "album" else ["artistid"]
             )
+            details = library_details(seed, dbid, properties, "similar_music")
             # gone from the library, or a compilation (its first artist is Various
             # Artists): genres only
             if not details or details.get("compilation"):
@@ -2794,7 +2748,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param albumid: Library album id.
         :return: The word, or "" for none.
         """
-        album = self._music_details("album", albumid, ["artistid", "compilation"])
+        album = library_details("album", albumid, ["artistid", "compilation"], _LABEL)
         if not album or album["compilation"]:
             return ""
         artistid = album["artistid"][0]
@@ -2815,7 +2769,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param songid: Library song id.
         :return: The word, or "" for none.
         """
-        if not (song := self._music_details("song", songid, ["artistid", "title"])):
+        if not (song := library_details("song", songid, ["artistid", "title"], _LABEL)):
             return ""
         songs = self._artist_songs(song["artistid"][0], ["playcount", "title"], _LABEL)
         place = song_play_place(songs, song["title"])
@@ -2853,7 +2807,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param albumid: Library album id.
         :return: The word, or "" for none.
         """
-        album = self._music_details("album", albumid, ["artistid", "compilation"])
+        album = library_details("album", albumid, ["artistid", "compilation"], _LABEL)
         if not album or album["compilation"]:
             return ""
         artistid = album["artistid"][0]
@@ -2874,33 +2828,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param songid: Library song id.
         :return: The word, or "" for none.
         """
-        if not (song := self._music_details("song", songid, ["artistid", "title"])):
+        if not (song := library_details("song", songid, ["artistid", "title"], _LABEL)):
             return ""
         properties = [*ALBUM_SONG_PROPERTIES, "playcount"]
         rankings, songs = self._popularity(song["artistid"][0], properties, _LABEL)
         place = song_place(rankings, songs, song["title"])
         return ADDON.getLocalizedString(32997) % place if place else ""
-
-    @staticmethod
-    def _music_details(type: str, dbid: int, properties: list[str]) -> dict | None:
-        """
-        A library album's or song's details, for popularity_label.
-
-        :param type: album or song.
-        :param dbid: Library id.
-        :param properties: Properties to fetch.
-        :return: The details object, or None for an id Kodi no longer has.
-        """
-        return (
-            json_call(
-                DETAILS[type],
-                properties=properties,
-                params={f"{type}id": dbid},
-                parent=_LABEL,
-            )
-            .get("result", {})
-            .get(f"{type}details")
-        )
 
     @log.duration
     def lyrics(self) -> list[DirectoryItem] | None:
@@ -2967,15 +2900,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         media, season = self.dbtype, None
         if media in ("season", "episode"):
             if not (
-                parent := _video_details(
-                    media, dbid, ["tvshowid", "season"], parent="soundtracks"
+                parent := library_details(
+                    media, dbid, ["tvshowid", "season"], "soundtracks"
                 )
             ):
                 return
             media, dbid, season = "tvshow", parent["tvshowid"], parent["season"]
         if not (
-            item := _video_details(
-                media, dbid, ["title", "originaltitle", "year"], parent="soundtracks"
+            item := library_details(
+                media, dbid, ["title", "originaltitle", "year"], "soundtracks"
             )
         ):
             return
@@ -3035,16 +2968,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param albumid: Library album id.
         :return: List of one directory item, or None if not a soundtrack or no match.
         """
-        album = (
-            json_call(
-                "AudioLibrary.GetAlbumDetails",
-                properties=["genre", "originaldate", "style", "title", "type", "year"],
-                params={"albumid": albumid},
-                parent="soundtracks",
-            )
-            .get("result", {})
-            .get("albumdetails")
-        )
+        properties = ["genre", "originaldate", "style", "title", "type", "year"]
+        album = library_details("album", albumid, properties, "soundtracks")
         if not album:  # gone from the library
             return
         tags = (album["type"], album["title"], *album["genre"], *album["style"])
