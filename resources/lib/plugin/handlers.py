@@ -1218,7 +1218,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return
 
         own_plot = data["Plot"]
-        enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb", "false"))
+        enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb"))
         tmdb_art = enrich_with_tmdb and parse_bool(self.params.get("tmdb_art"))
         if enrich_with_tmdb:
             # tmdb_art: the one request also caches the art-bearing entry (a superset)
@@ -1780,7 +1780,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return []
 
         target_id = to_int(self.params.get("target_id"), None)
-        if parse_bool(self.params.get("reset", "false")):
+        if parse_bool(self.params.get("reset")):
             TypewriterAnimation.reset(target_id=target_id)
             window_property("typewriter_container")
             window_property("typewriter_pos")
