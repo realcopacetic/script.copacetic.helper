@@ -670,7 +670,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         identical keys. Selection survives if its entry still exists, else re-anchors.
         """
         self._begin_mutation()
-        self._build_dicts()
         self._refresh_list()
         if self.current_listitem is None and self.listitems:
             self.container_position = 0
@@ -717,37 +716,36 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         browse_result = None
         then_data = None
 
-        if governing:
-            dialog_result = governing.run_preflight_dialog()
-            if dialog_result is None:
+        dialog_result = governing.run_preflight_dialog()
+        if dialog_result is None:
+            return
+        result, cfg = dialog_result
+
+        if governing.control.get("role") == "item_picker":
+            if not isinstance(result, int) or result < 0:
                 return
-            result, cfg = dialog_result
+            chosen = cfg["items"][result]
 
-            if governing.control.get("role") == "item_picker":
-                if not isinstance(result, int) or result < 0:
+            # Optional chained action declared per-item on the picker.
+            # If the chosen item maps to a handler name, run that handler's
+            # onclick action (e.g. browse, input, select, colorpicker)
+            # before inserting. User cancel of the chained action = no
+            # insert.
+            then_map = governing.control.get("onclick", {}).get("then", {})
+            then_name = then_map.get(chosen)
+            then_handler = self.handlers.get(then_name) if then_name else None
+            if isinstance(then_handler, ButtonHandler):
+                then_dialog = then_handler.run_preflight_dialog()
+                if then_dialog is None:
                     return
-                chosen = cfg["items"][result]
-
-                # Optional chained action declared per-item on the picker.
-                # If the chosen item maps to a handler name, run that handler's
-                # onclick action (e.g. browse, input, select, colorpicker)
-                # before inserting. User cancel of the chained action = no
-                # insert.
-                then_map = governing.control.get("onclick", {}).get("then", {})
-                then_name = then_map.get(chosen)
-                then_handler = self.handlers.get(then_name) if then_name else None
-                if isinstance(then_handler, ButtonHandler):
-                    then_dialog = then_handler.run_preflight_dialog()
-                    if then_dialog is None:
-                        return
-                    then_result, then_cfg = then_dialog
-                    if then_result is None:
-                        return
-                    then_data = (then_handler, then_result, then_cfg)
-            else:
-                if result is None:
+                then_result, then_cfg = then_dialog
+                if then_result is None:
                     return
-                browse_result = result
+                then_data = (then_handler, then_result, then_cfg)
+        else:
+            if result is None:
+                return
+            browse_result = result
 
         # Insert entry
         source_insert = self.runtime_manager.insert_position_for(
@@ -937,7 +935,6 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
 
         self._update_mgmt_buttons()
         self._refresh_ui(update_row=not list_rebuilt)
-        self._update_mgmt_buttons()
 
     def _seed_metadata(self) -> None:
         """

@@ -252,14 +252,7 @@ class BaseControlHandler:
         """
         if self._get_setting_value() == value:
             return
-
-        link = self._active_link()
-        if link.get("config"):
-            self.runtime_manager.update_runtime_setting(
-                self.mapping_key, self.source_index, self.field, value
-            )
-            return
-
+        # A linked config implies a field (is_dynamic_linked), so one write serves both
         self.runtime_manager.update_runtime_setting(
             self.mapping_key,
             self.source_index,

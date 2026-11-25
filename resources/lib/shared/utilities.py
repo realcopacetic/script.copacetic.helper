@@ -778,7 +778,7 @@ def return_label(
 
     find = urllib.unquote(find)
     replace = urllib.unquote(replace)
-    return label.replace(find, replace, label.count(find))
+    return label.replace(find, replace)
 
 
 _EPISODE_CODE = re.compile(  # not \b, as "_" is a word character
