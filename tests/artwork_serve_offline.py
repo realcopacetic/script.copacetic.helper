@@ -69,10 +69,9 @@ class ArtworkServe(unittest.TestCase):
         **served,
     ) -> dict:
         """
-        Run artwork() and report what it saw: logo, icon and label (the clearlogo and
-        icon URLs and band label the image work got), family (the item the family was
-        read from), seeded, register and seed_item (seed_multiart's), props (the
-        window properties written) and items (what it returned).
+        Run artwork() and report what it saw: logo, icon and label (the image work's
+        clearlogo, icon and band label), family (the item it was read from), seeded,
+        register and seed_item (seed_multiart's), props (written) and items (returned).
 
         :param params: The URL's params past the fixed ones; a None drops one.
         :param on_top: Whether the serve's window is topmost (else a menu is).

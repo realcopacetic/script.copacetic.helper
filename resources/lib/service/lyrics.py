@@ -276,9 +276,9 @@ def lookup(aborted: Callable[[], bool]) -> "Lyrics":
     """
     Publish the playing song's lyrics from a .lrc, its tags or LRCLIB's cache, else
     ask LRCLIB on a thread for the poller to publish; and ask ahead for the next song.
+    A Monitor made in a request's thread after Kodi's abort never hears it.
 
-    :param aborted: abortRequested of a Monitor made on the service thread: one
-        made in a request's thread after Kodi's abort never hears it.
+    :param aborted: abortRequested of a Monitor made on the service thread.
     :return: Lyrics to follow; with no lines unless synced, or LRCLIB's on the way.
     """
     for key, value in SEARCHING.items():
@@ -317,11 +317,11 @@ class Lyrics:
     def tick(self, now: float) -> float:
         """
         Poller step: publish LRCLIB's answer once in, then the line at the playhead,
-        and step the list in view.
+        and step the list in view. It waits until the next line, at most 1 s (1 s
+        while paused or after the last line), or 0.2 s while the visualisation shows.
 
         :param now: The playhead in seconds.
-        :return: Seconds to the next line (1 while paused or after the last), at most
-            1, or 0.2 while the visualisation shows.
+        :return: Seconds to wait before the next tick.
         """
         if self.fetch:
             if self.fetch.is_alive():
