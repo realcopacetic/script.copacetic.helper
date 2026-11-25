@@ -818,6 +818,41 @@ class StreamLanguages(unittest.TestCase):
                     execute.assert_called_once_with("Action(ShowSubtitles)")
 
 
+class CommentarySubtitles(unittest.TestCase):
+    """A commentary is never the preferred stream, but stays listed (N156)."""
+
+    def streams(self, *names: str) -> list[dict]:
+        """English full streams named ``names``, in order."""
+        return [subtitle(i, "eng") | {"name": name} for i, name in enumerate(names)]
+
+    def preferred(self, streams: list[dict], kind: str = "") -> int | None:
+        """The index of the preferred English stream of ``kind``."""
+        with languages_of(kodi22=False):
+            found = actions.preferred_subtitle(streams, "eng", kind)
+        return found and found["index"]
+
+    def test_a_commentary_listed_first_is_passed_over(self):
+        for name in ("Director's Commentary", "COMMENTARY", "Commentaries (cast)"):
+            with self.subTest(name=name):
+                self.assertEqual(self.preferred(self.streams(name, "English")), 1)
+
+    def test_a_word_containing_commentary_is_not_one(self):
+        self.assertEqual(self.preferred(self.streams("Commentarylessness")), 0)
+
+    def test_a_commentary_is_passed_over_for_the_fallback_type(self):
+        streams = self.streams("Commentary", "English SDH")
+        self.assertEqual(self.preferred(streams), 1)
+        self.assertEqual(self.preferred(streams, "impaired"), 1)
+
+    def test_only_a_commentary_reads_missing(self):
+        streams = self.streams("Commentary")
+        self.assertIsNone(self.preferred(streams))
+        with languages_of(kodi22=False):
+            self.assertEqual(actions.subtitle_status(streams, None, ["eng"]), "missing")
+            # showing, picked by hand: still its own type
+            self.assertEqual(actions.subtitle_status(streams, streams[0]), "full")
+
+
 class MultiLanguageSubtitles(unittest.TestCase):
     """Several preferred subtitle languages: stored joined, stepped in turn."""
 

@@ -15,6 +15,8 @@ _STREAMS = {
 }
 # Words in a subtitle's name that mark it for the hearing impaired
 _IMPAIRED_WORDS = frozenset({"cc", "hi", "sdh"})
+# Words in a subtitle's name that mark a commentary, never picked as preferred
+_COMMENTARY_WORDS = frozenset({"commentary", "commentaries"})
 # "forced" negated in a subtitle's name: Non-Forced, Not forced (not "non-English")
 _NOT_FORCED = re.compile(r"\bno[nt][\s-]*forced\b")
 # Subtitle types looked for, in order, for each preferred type
@@ -78,14 +80,19 @@ def iso639_2(lang: str) -> str:
 def preferred_subtitle(streams: list[dict], lang: str, kind: str) -> dict | None:
     """
     The first lang stream of kind, else of its fallback: full and impaired
-    stand in for each other, forced has none.
+    stand in for each other, forced has none. Commentaries are passed over.
 
     :param streams: The JSON-RPC subtitle streams.
     :param lang: ISO 639-2/B language code, as iso639_2 gives it.
     :param kind: forced, full or impaired; empty counts as full.
     :return: The preferred stream, or None without one.
     """
-    in_lang = [stream for stream in streams if iso639_2(stream["language"]) == lang]
+    in_lang = [
+        stream
+        for stream in streams
+        if iso639_2(stream["language"]) == lang
+        and _COMMENTARY_WORDS.isdisjoint(re.findall(r"[a-z]+", stream["name"].lower()))
+    ]
     return next(
         (
             stream

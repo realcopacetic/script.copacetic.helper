@@ -998,6 +998,9 @@ nothing until playback catches up.
 A subtitle's type comes from its flags (`isforced`, `isimpaired` in JSON-RPC), then from
 words in its name: `forced` is forced, unless `non` or `not` comes straight before it
 (`Non-Forced`, `Not forced`; `Forced (non-English parts)` stays forced); `SDH`, `CC` or `HI` is hearing impaired. Anything else is full.
+A stream whose name says `commentary` (`Director's Commentary`) is never the preferred
+one, whatever its type, so a commentary listed first doesn't win; it is still one of
+the streams stepped through without `lang`.
 
 A subtitle file next to the video carries only the forced flag, so name a hearing
 impaired file with `sdh` or `cc` (`Film.en.sdh.srt`). Avoid `hi` there: it is also
