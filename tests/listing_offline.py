@@ -60,6 +60,7 @@ EXCLUDED = {
     "broadcasts",
     "cast",
     "clean_name",
+    "creator_credits",
     "daily_mixes",
     "director_credits",
     "discography",

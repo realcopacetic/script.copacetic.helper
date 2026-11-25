@@ -135,6 +135,7 @@ With `enrich_with_tmdb=true`, these come from TMDB:
 | `ListItem.Plot` | overview | overview | season overview |
 | `ListItem.TagLine` | tagline | tagline | — |
 | `ListItem.Writer` | — | creators | — |
+| `ListItem.Property(tmdb_creator_ids)` | — | the creators' TMDB person ids, joined by `,`, for [`creator_credits`](library.md#creator_credits) | — |
 | `ListItem.Trailer` | best YouTube trailer, as a `plugin://plugin.video.youtube/…` path: trailers, then teasers, then other video types; official over unofficial; then the newest | same | — |
 | `ListItem.Property(tmdb_next_air_date)` | — | next episode air date | — |
 | `ListItem.Property(tmdb_next_air_season)`, `ListItem.Property(tmdb_next_air_episode)` | — | next episode's season and episode number | — |

@@ -2267,6 +2267,65 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         pass
 
+    @log.duration
+    def creator_credits(self) -> list[DirectoryItem] | None:
+        """
+        Build a container of the library TV shows TMDb credits to the creators of TV
+        show ``self.dbid`` (or tmdb_id=; a season's or episode's show), less itself.
+
+        :return: List of directory items for Kodi, or None if empty.
+        """
+        from resources.lib.apis.tmdb.client import tmdb_token
+        from resources.lib.apis.tmdb.context import resolve_tmdb_context
+        from resources.lib.apis.tmdb.transform import creator_shows, tmdb_to_canonical
+
+        if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
+            return
+        ctx = resolve_tmdb_context(self.params, target=self.target_item)
+        if not (show_id := to_int(ctx["tmdb_id"], 0)):
+            return
+        show = tmdb_to_canonical(
+            "tvshow",
+            show_id,
+            language=self.params.get("language"),
+            append_artwork=False,
+        )
+        # An entry cached before the ids were kept (7-day TTL) has none
+        people = show.get("properties", {}).get("tmdb_creator_ids", "")
+        created = {
+            tv
+            for person in filter(None, people.split(","))
+            for tv in creator_shows(person)
+        }
+        created.discard(show_id)
+        if not created:
+            return
+        pool = [  # the library's shows by TMDb id; Kodi has no uniqueid filter
+            row
+            for row in fetch_raw(
+                "VideoLibrary.GetTVShows",
+                "tvshow",
+                [],
+                None,
+                "creator_credits",
+                properties=["uniqueid"],
+            )
+            if to_int(row["uniqueid"].get("tmdb"), 0) in created
+        ]
+        if not pool:
+            return
+        ids = {row["tvshowid"] for row in pool}
+        rows = fetch_raw(  # their details by title; a same-titled show drops by id
+            "VideoLibrary.GetTVShows",
+            "tvshow",
+            [title_filter(row["label"] for row in pool)],
+            {"method": self.params.get("sort", "year"), "order": "descending"},
+            "creator_credits",
+        )
+        set_plugincontent(content="tvshows", category=ADDON.getLocalizedString(32617))
+        rows = [row for row in rows if row["tvshowid"] in ids][: self.limit]
+        return build_items(rows, "tvshow", apply_videoinfotag) or None
+
     @role_endpoint(
         field="genre",
         category_id=32607,

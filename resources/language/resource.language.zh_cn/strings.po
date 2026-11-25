@@ -808,6 +808,12 @@ msgctxt "#32616"
 msgid "m"
 msgstr " 分"
 
+#. The name of a list of TV shows sharing a creator with the open one: keep it short.
+#: /resources/lib/plugin/handlers.py
+msgctxt "#32617"
+msgid "Creator credits"
+msgstr "创作者作品"
+
 
 
 
