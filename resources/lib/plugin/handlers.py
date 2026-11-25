@@ -2293,38 +2293,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # An entry cached before the ids were kept (7-day TTL) has none
         people = show.get("properties", {}).get("tmdb_creator_ids", "")
         created = {
-            tv
+            show["id"]: show["names"]
             for person in filter(None, people.split(","))
-            for tv in creator_shows(person)
+            for show in creator_shows(person)
         }
-        created.discard(show_id)
+        created.pop(show_id, None)
         if not created:
             return
-        pool = [  # the library's shows by TMDb id; Kodi has no uniqueid filter
-            row
-            for row in fetch_raw(
-                "VideoLibrary.GetTVShows",
-                "tvshow",
-                [],
-                None,
-                "creator_credits",
-                properties=["uniqueid"],
-            )
-            if to_int(row["uniqueid"].get("tmdb"), 0) in created
-        ]
-        if not pool:
-            return
-        ids = {row["tvshowid"] for row in pool}
-        rows = fetch_raw(  # their details by title; a same-titled show drops by id
+        names = [name for names in created.values() for name in names]
+        rows = fetch_raw(  # Kodi has no uniqueid filter: by name, then by TMDb id
             "VideoLibrary.GetTVShows",
             "tvshow",
-            [title_filter(row["label"] for row in pool)],
+            [{"or": [title_filter(names), title_filter(names, "originaltitle")]}],
             {"method": self.params.get("sort", "year"), "order": "descending"},
             "creator_credits",
+            properties=[*JSON_PROPERTIES["tvshow"], "uniqueid"],
         )
         set_plugincontent(content="tvshows", category=ADDON.getLocalizedString(32617))
-        rows = [row for row in rows if row["tvshowid"] in ids][: self.limit]
-        return build_items(rows, "tvshow", apply_videoinfotag) or None
+        rows = [r for r in rows if to_int(r["uniqueid"].get("tmdb"), 0) in created]
+        return build_items(rows[: self.limit], "tvshow", apply_videoinfotag) or None
 
     @role_endpoint(
         field="genre",

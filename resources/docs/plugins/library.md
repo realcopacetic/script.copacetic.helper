@@ -372,14 +372,16 @@ episode stands for its show. The show itself is left out. Items are TV shows, as
 <content>plugin://script.copacetic.helper/?info=creator_credits&amp;type=tvshow&amp;id=$INFO[ListItem.DBID]&amp;tmdb_id=$INFO[ListItem.UniqueID(tmdb)]&amp;limit=50</content>
 ```
 
-A library show is matched by its TMDB id (`ListItem.UniqueID(tmdb)`), so shows scraped
-without one never appear. Needs the TMDB token (see
+Kodi can't filter the library by TMDB id, so the shows are asked for by their TMDB name
+or original name (one query) and kept only if their TMDB id (`ListItem.UniqueID(tmdb)`)
+matches: shows scraped without one, or titled in the library under neither name, never
+appear. Needs the TMDB token (see
 [TMDB lookups](metadata.md#tmdb-lookups)); without it the list is empty and nothing is
 asked. The show comes from the same cache as `metadata`'s TMDB details (a show cached
 before this path existed has no creator ids until it is fetched again, within 7 days,
 or *Clear add-on cache*). Each creator's credits are cached for 7 days (none as
-*Creator* for a day), a failed request for 5 minutes. Once cached, a refetch costs two
-JSON-RPC calls and no request.
+*Creator* for a day), a failed request for 5 minutes. Once cached, a refetch costs one
+JSON-RPC call and no request.
 
 ## `similar_music`
 
