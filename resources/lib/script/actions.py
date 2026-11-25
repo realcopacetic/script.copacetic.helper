@@ -4,6 +4,7 @@ import json
 import random
 import time
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from functools import reduce
 from urllib.parse import quote
 
@@ -574,6 +575,47 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
     position = [s["songid"] for s in songs].index(songid)  # raises before the mark
     mark_source(dial_entry("album", song["albumid"]))
     play_files(songs, position=position)
+
+
+@action
+def play_album_resume(
+    id: str, album_days: str = "14", resume: str = "", close: str = "", **kwargs: str
+) -> None:
+    """
+    Plays an album in disc and track order. A part-heard one first asks, as Kodi's
+    video resume menu does, whether to pick up at its next track (album_progress).
+
+    :param id: Album ID.
+    :param album_days: How far back a song's play counts, as the progress bar's.
+    :param resume: "true" picks up at the next track without asking.
+    :param close: A dialog to close once it plays, as Kodi's own Play closes info.
+    """
+    from resources.lib.shared.helpers import album_progress  # this action only
+
+    since = datetime.now() - timedelta(days=to_int(album_days))
+    album_id = to_int(id)
+    album = album_progress(album_id, f"{since:%Y-%m-%d %H:%M:%S}", "file")
+    if not album.songs:
+        return
+    position = album.position
+    if position and resume != "true":
+        point = album.resume
+        track = point["album_next_track"]
+        label = (
+            ADDON.getLocalizedString(32846) % (point["album_next_disc"], track)
+            if "album_next_disc" in point
+            else ADDON.getLocalizedString(32845) % track
+        )
+        # Kodi's video resume menu (ChoosePlayOrResume): the point, Play from beginning
+        choice = xbmcgui.Dialog().contextmenu([label, xbmc.getLocalizedString(12021)])
+        if choice < 0:
+            return
+        if choice:
+            position = 0
+    if close:
+        log.execute(f"Dialog.Close({close})")
+    mark_source(dial_entry("album", album_id))
+    play_files(album.songs, position=position)
 
 
 @action

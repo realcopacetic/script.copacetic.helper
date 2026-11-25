@@ -118,8 +118,10 @@ bar in, or for a plugin bar container `9010`, so give that helper container this
 for the skip to work. The serve also writes the focused album's id to
 `Window(home).Property(album_played)`
 when every song has played and none is part-heard, or to `album_unplayed` when none
-has, and clears the other. The context menu's
-[Mark as played and Mark as unplayed](../script/actions.md#mark_album) read them.
+has, and clears the other; and to `album_resume` when its resume point is past the
+first track, or clears it. The context menu's
+[Mark as played and Mark as unplayed](../script/actions.md#mark_album) and
+[Resume](../script/actions.md#play_album_resume) read them.
 
 ## What you get back
 
