@@ -69,6 +69,7 @@ EXCLUDED = {
     "genre_credits",
     "genre_music",
     "lyrics",
+    "lyrics_plain",
     "metadata",
     "multiart_tiles",
     "popularity_label",

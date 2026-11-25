@@ -87,11 +87,16 @@ from resources.lib.plugin.soundtracks import (
     title_key,
 )
 from resources.lib.shared import logger as log
-from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS
+from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS, PLAIN
 from resources.lib.shared.mix import genre_ids, kept_mix, leading_cards, played_songs
 from resources.lib.shared.parser import parse_plugin_argv
 from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
-from resources.lib.shared.text import markdown_label, single_quotes
+from resources.lib.shared.text import (
+    markdown_label,
+    single_quotes,
+    skin_metric,
+    wrap_text,
+)
 from resources.lib.shared.utilities import (
     ADDON,
     DETAILS,
@@ -2843,6 +2848,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             or None
         )
+
+    @log.duration
+    def lyrics_plain(self) -> list[DirectoryItem] | None:
+        """
+        One item per line of the playing song's plain lyrics; with wrap_width= and
+        wrap_font=, a line Kodi would wrap is split there. One path for every item,
+        so a list Kodi refetches (a new song) opens on its first.
+
+        :return: List of directory items for Kodi, or None if none.
+        """
+        lines = Window(10000).getProperty(PLAIN).splitlines()
+        if (width := to_int(self.params.get("wrap_width"))) and (
+            metric := skin_metric(self.params.get("wrap_font", ""))
+        ):
+            lines = [
+                row for line in lines for row in wrap_text(metric, line, width) or [""]
+            ]
+        path = plugin_path("lyrics/plain")
+        return set_items({"file": path, "label": line} for line in lines) or None
 
     @log.duration
     def soundtracks(self) -> list[DirectoryItem] | None:

@@ -3,8 +3,9 @@ Offline checks for lyrics: the LRC parser (shared/lrc.py); the service's sources
 order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it steps
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
-service/player.py); the info=lyrics plugin path, the lyrics_seek action, the
-LRCLIB row's toggle_setting and the Lyrics row's toggle_skin_bool.
+service/player.py); the info=lyrics and info=lyrics_plain plugin paths, the
+lyrics_seek action, the LRCLIB row's toggle_setting and the Lyrics row's
+toggle_skin_bool.
 Infolabels and conditions are dicts; nothing reaches the network.
 Run from the helper root: python tests/lyrics_offline.py
 """
@@ -137,7 +138,7 @@ class Kodi(unittest.TestCase):
             (lyrics, "window_property", self.prop),
             (lyrics.log, "execute", self.builtins.append),
             (lyrics.log, "exception", self.errors.append),
-            (lyrics, "skin_font", lambda name: None),  # no skin: nothing long
+            (lyrics, "skin_metric", lambda name: None),  # no skin: nothing long
             (lyrics.lrclib, "enabled", lambda: True),
             (lyrics.lrclib, "lyrics", lambda *args: self.ask("lyrics", *args)),
             (lyrics.lrclib, "prefetch", lambda *args: self.ask("prefetch", *args)),
@@ -307,11 +308,7 @@ class LookupTest(Kodi):
 
     def test_long_lines_overflow_two_lines_at_660(self):
         metric = type("Metric", (), {"getlength": lambda self, text: 30 * len(text)})
-        with (
-            patch.object(lyrics, "skin_font", lambda name: ("f", 53)),
-            patch.object(lyrics, "load_font", lambda path: object()),
-            patch.object(lyrics, "KodiMetric", lambda *args: metric()),
-        ):
+        with patch.object(lyrics, "skin_metric", lambda name: metric()):
             # 22 characters a line at 30 px: 44 fit in two, a 45th wraps to a third
             self.assertEqual(
                 lyrics.long_lines([[0, "word " * 8], [1, "word " * 9], [2, ""]]),
@@ -718,6 +715,42 @@ class PluginAndActionTest(unittest.TestCase):
         )
         self.home.clearProperty(lrc.LINES)  # plain, none, or not playing
         self.assertIsNone(object.__new__(handlers.PluginHandlers).lyrics())
+
+    def plain(self, **params):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = params
+        return [(item["file"], item["label"]) for item in handler.lyrics_plain() or ()]
+
+    def test_plain_lines_wrap_to_the_width_in_the_font(self):
+        self.addCleanup(self.home.clearProperty, lrc.PLAIN)
+        self.home.setProperty(lrc.PLAIN, "Feel good\n\nWindmill, windmill for the land")
+        path = (
+            "plugin://script.copacetic.helper/lyrics/plain"  # one: a refetch opens on 0
+        )
+        self.assertEqual(
+            self.plain(),
+            [
+                (path, "Feel good"),
+                (path, ""),
+                (path, "Windmill, windmill for the land"),
+            ],
+        )
+        metric = type("Metric", (), {"getlength": lambda self, text: 10 * len(text)})
+        fonts = []
+        with patch.object(
+            handlers, "skin_metric", lambda name: fonts.append(name) or metric()
+        ):
+            wrapped = self.plain(wrap_width="200", wrap_font="lyrics_embedded")
+        # 20 characters a row at 10 px; the blank line between verses stays a row
+        self.assertEqual(
+            [label for _, label in wrapped],
+            ["Feel good", "", "Windmill, windmill", "for the land"],
+        )
+        self.assertEqual(fonts, ["lyrics_embedded"])
+        with patch.object(handlers, "skin_metric", lambda name: None):  # no such font
+            self.assertEqual(len(self.plain(wrap_width="200", wrap_font="x")), 3)
+        self.home.clearProperty(lrc.PLAIN)
+        self.assertEqual(self.plain(), [])
 
     def test_seek_to_a_line(self):
         seeks = []

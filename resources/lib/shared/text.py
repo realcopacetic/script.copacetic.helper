@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import xbmcvfs
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import SKINXML, skin_path
+from resources.lib.shared.utilities import SKINXML, infolabel, skin_path, to_int
 
 if TYPE_CHECKING:
     from PIL import ImageFont
@@ -218,6 +218,23 @@ class KodiMetric:
                 ) >> 6
             total += advance
         return total / self.scale_x
+
+
+def skin_metric(name: str) -> KodiMetric | None:
+    """
+    Line widths in a Font.xml font as Kodi lays them out at the GUI's scale.
+
+    :param name: Kodi font name, e.g. "lyrics_embedded".
+    :return: Its KodiMetric; None for an unknown name or an unreadable file.
+    """
+    if (spec := skin_font(name)) is None or not (face := load_font(spec[0])):
+        return None
+    return KodiMetric(
+        face,
+        spec[1],
+        to_int(infolabel("System.ScreenWidth")) / 1920,
+        to_int(infolabel("System.ScreenHeight")) / 1080,
+    )
 
 
 def plain_text(text: str) -> str:
