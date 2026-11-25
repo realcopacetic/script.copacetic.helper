@@ -193,8 +193,8 @@ class Monitor(xbmc.Monitor):
         """
         Build, then reload if an output changed. Production: missing outputs, or all
         when ids are fresh or the resolver cache is missing or stale (other skin, new
-        skin or helper version, an output another profile wrote). Dev: clear state if
-        requested, rebuild, reload.
+        skin or helper version, an edited template, an output another profile wrote).
+        Dev: clear state if requested, rebuild, reload.
         """
         adopt_shared_state()  # first, so a dev reset clears what it adopts
 
