@@ -338,8 +338,8 @@ def set_multiart_fadelabel(
             alive=alive,
         )
 
-    except Exception as e:
-        log.warning(f"Unable to set multiart fadelabel → {e}")
+    except Exception:
+        log.exception("Unable to set multiart fadelabel", log.WARNING)
         return False
 
 

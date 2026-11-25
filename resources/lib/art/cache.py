@@ -257,10 +257,11 @@ class ArtworkCacheManager:
                         f"{self.__class__.__name__} → write_lookup evicted stale "
                         f"file → {stale_path}"
                     )
-                except Exception as e:
-                    log.debug(
+                except Exception:
+                    log.exception(
                         f"{self.__class__.__name__} → write_lookup could not "
-                        f"delete {stale_path}: {e}"
+                        f"delete {stale_path}",
+                        log.DEBUG,
                     )
             self.sqlite.delete_entry(stale_key)
 
