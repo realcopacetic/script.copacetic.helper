@@ -79,7 +79,7 @@ class XMLHandler:
         """
         Lazily loads and returns data from the specified path.
 
-        :return: Dictionary of {Path: content}.
+        :return: {file stem: ElementTree} for a folder, else one ElementTree.
         """
         if self._data is None:
             self._data = self._read_xml()
@@ -99,16 +99,15 @@ class XMLHandler:
 
     def _read_xml(self):
         """
-        Reads and returns the XML data. If the file path is a directory,
-        merges XML files into a single tree, or returns a dictionary of trees if merging isn't possible.
+        Reads and returns the XML data: a folder's .xml files each parsed on their
+        own, by name; a file that fails to parse is left out.
 
-        :return: {file_name: ElementTree} if a folder, else a single ElementTree.
+        :return: {file stem: ElementTree} if a folder, else a single ElementTree.
         """
         if not self.path.exists():
             return {}
 
         if self.path.is_dir():
-            # Handle directory, merge XML files
             data = {}
             for xml_file in sorted(self.path.glob("*.xml")):
                 tree = self._parse_single_xml(xml_file)
@@ -238,10 +237,10 @@ class XMLMerger:
 
     def _merge_xml_files(self, folder_path: Path):
         """
-        Lazily merges XML elements from a single folder.
+        Lazily reads each XML file of a single folder.
 
         :param folder_path: Path to a subfolder containing XML files.
-        :yields: Tuples of (mapping_name, ET.Element).
+        :yields: Tuples of (mapping_name, the file's element_tag elements).
         """
         xml_handler = XMLHandler(folder_path)
         for file_path, tree in xml_handler.data.items():

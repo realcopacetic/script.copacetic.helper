@@ -644,7 +644,7 @@ def _build_result(
     """
     Build the final return dict for a selected path.
     Widget mode returns ``{path, label, icon, target}``; menu mode adds
-    ``{type, window, action}``.
+    ``{type, window, action, update}``, and a command has no target.
 
     :param path: Selected path or action string.
     :param label: Display label for the result.
@@ -1012,7 +1012,7 @@ def browse_content(cfg) -> dict[str, str] | str | None:
     """
     Entry point for content path browsing. Called from onclick_actions.
     Widget mode returns ``{path, label, icon, target}``; menu mode adds
-    ``{type, window, action}``; ``item_type`` when ``sibling_fields`` maps it.
+    ``{type, window, action, update}``; ``item_type`` when ``sibling_fields`` maps it.
 
     :param cfg: Onclick config (heading, mode, clearable, pictures, depth).
     :return: Result dict, ``""`` for None (``clearable``), or None if cancelled.

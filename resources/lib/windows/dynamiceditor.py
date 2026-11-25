@@ -784,8 +784,8 @@ class DynamicEditor(xbmcgui.WindowXMLDialog):
         )
 
         self._refresh_list()
-        # mapping_changed=True refreshes handlers (metadata already included
-        # in the new entry via _build_default_entry — no _seed_metadata needed)
+        # mapping_changed=True refreshes handlers (a new entry's metadata resolves at
+        # read time, resolved_entry: no _seed_metadata needed)
         self._finalize_selection(mapping_changed=True, list_rebuilt=True)
 
     def _on_delete(self) -> None:
