@@ -307,6 +307,7 @@ back with the next play, speed dial change or slide.
 | `player_disc` | A song starts | Disc number | As above | [Player properties](player.md) |
 | `player_genres` | A song starts | The song's genres, joined with ` / ` | As above | [Player properties](player.md) |
 | `player_songid` | A song starts | Song database id, for matching the others to `MusicPlayer.DBID` | As above | [Player properties](player.md) |
+| `player_title`, `player_title_name`, `player_title_version` | A song starts | The title as `MusicPlayer.Title` read it, and that title split into its name and a version at its end (`Live`), or the whole title and an empty version | As above | [Player properties](player.md) |
 | `player_emulator`, `player_system` | A game starts | The game add-on's emulator name, and the system your skin's emulators mapping gives it (empty if none) | As above | [Games](games.md) |
 | `player_game_blur` | The game OSD opens, or the first poll after that with a picture it can read | The game's newest save picture, blurred; empty until there is one | The game OSD closes; as above; the next game's start | [Games](games.md#when-the-game-osd-opens) |
 | `player_seek_offset` | A seek with a jump finishes | The jump, signed (`+10:00`, `-00:30`) | 4 seconds after the seek once `Player.HasPerformedSeek(4)` is false; a chapter jump or speed change; a new file starts; playback stops, ends or fails | [Player properties](player.md#seek-offset) |

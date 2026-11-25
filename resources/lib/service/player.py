@@ -37,6 +37,7 @@ from resources.lib.shared.utilities import (
     infolabel,
     json_call,
     session_salt,
+    song_version,
     split_random,
     to_float,
     to_int,
@@ -558,9 +559,13 @@ class PlayerMonitor(Player):
         """
         Publish music-related window properties on audio start, and lyrics: the
         player's artists and their ids split into player_artist_1..3 and
-        player_artistid_1..3 for exact matching; the album's rail path; song id, genres.
+        player_artistid_1..3 for exact matching; the title's version; the album's rail
+        path; song id, genres.
         """
         tag = self.getMusicInfoTag()
+        # As the skin reads it, the tag's or else the label: the skin matches the two
+        title = infolabel("MusicPlayer.Title")
+        name, version = song_version(title)
         songid = tag.getDbId()
         query = json_call(
             "Player.GetItem",
@@ -588,6 +593,9 @@ class PlayerMonitor(Player):
                 "player_album": tag.getAlbum(),
                 "player_albumid": str(item.get("albumid", "")),
                 "player_songid": str(songid),
+                "player_title_name": name,
+                "player_title_version": version,
+                "player_title": title,  # last: the skin's sign that the two are this song's
                 "player_album_path": self._album_path(item.get("albumid", 0)),
                 "player_disc": str(tag.getDisc()),
                 "player_genres": " / ".join(tag.getGenres()),

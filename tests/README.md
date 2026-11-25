@@ -162,6 +162,10 @@ python tests/listing_offline.py
 # underscore and title-less forms
 python tests/clean_name_offline.py
 
+# A song title's version (shared/utilities.py song_version): a last (…), […] or " - …"
+# naming one splits off; a leading bracket or one naming none stays
+python tests/song_version_offline.py
+
 # The info screen's chips on info=metadata (shared/helpers.py DataHandler): genre_chips
 # two genres while they fit, else one, with the rest's count (an episode's its show's);
 # album_format an album's most common codec, lossless by sample rate, lossy by bitrate
