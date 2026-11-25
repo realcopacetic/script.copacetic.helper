@@ -657,7 +657,7 @@ class TmdbTest(Base):
         self.assertEqual(len(transform._aside_queue), 3)
 
     def test_aside_skips_items_no_asker_still_wants(self):
-        started = self.aside_queue()
+        self.aside_queue()
         landed = self.asker(current=False)  # moved on before the fetch began
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
         transform._drain_asides()

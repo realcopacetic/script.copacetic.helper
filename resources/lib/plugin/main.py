@@ -50,7 +50,7 @@ class Main:
 
     def run_listing(self) -> None:
         """Emit the add-on's own directory: the root, or a group's folders."""
-        log.debug(f"PluginListing initialized")
+        log.debug("PluginListing initialized")
         items = PluginListing().build(
             self.params.get("group"), self.params.get("content_type")
         )
