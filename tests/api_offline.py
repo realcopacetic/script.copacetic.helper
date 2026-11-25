@@ -64,7 +64,7 @@ from resources.lib.apis import (
     lrclib,
     theintrodb,
 )  # noqa: E402
-from resources.lib.apis.tmdb import transform  # noqa: E402
+from resources.lib.apis.tmdb import context, transform  # noqa: E402
 from resources.lib.apis.tmdb.context import resolve_tmdb_context  # noqa: E402
 from resources.lib.apis.tmdb.fields import filter_tmdb_images_by_size  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
@@ -925,6 +925,45 @@ class TmdbTest(Base):
             handler.params["truncate_probe"], handler.dbtype = "false", "album"
             handler.metadata()  # music keeps the probe (an album caption: description)
         self.assertEqual(probes, [True, False, True, False, True, False, False, True])
+
+    def test_season_takes_its_shows_creators(self):
+        library = {"Plot": "The show's plot", "Studio": "HBO", "Season": "5"}
+        library["TvShowDBID"] = "7"  # Omega's season: m_iIdShow, no UniqueID
+        rpcs = []
+
+        def rpc(request):
+            rpcs.append(json.loads(request)["method"])
+            show = {"uniqueid": {"tmdb": "1399"}}
+            return json.dumps({"result": {"tvshowdetails": show}})
+
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", rpc),
+            (handlers, "set_items", lambda items, **kwargs: items),
+        )
+        self.net.answers = [TMDB_TV]
+        transform.tmdb_to_canonical("tvshow", 1399)  # the show's own serve
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {"type": "season", "id": "3", "show_creators": "true"}
+        handler.item, handler.dbtype, handler.dbid = False, "season", "3"
+        handler.dialog, handler.again = False, mock.Mock()  # served
+        handler.target_item = "Container(50).ListItem"
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        handler._apply_truncated_label = lambda *a, **kw: None
+        label = lambda path: library.get(path.rpartition(".")[2], "")
+        with mock.patch.object(helpers, "infolabel", label), mock.patch.object(
+            context, "infolabel", label
+        ):
+            (item,) = handler.metadata()  # no request: net.answers is empty
+            del handler.params["show_creators"]  # opt-in
+            (plain,) = handler.metadata()
+        self.assertEqual(item["Writers"], ["David Benioff", "D. B. Weiss"])
+        self.assertEqual(item["Plot"], "The show's plot")  # nothing else of the show's
+        self.assertEqual((item["Studios"], item["properties"]["dbid"]), ("HBO", "3"))
+        self.assertEqual(item["Title"], "")
+        self.assertFalse(plain["Writers"])
+        self.assertEqual(rpcs, ["VideoLibrary.GetTVShowDetails"])
+        handler.again.assert_not_called()
 
     def test_metadata_tagline_quotes(self):
         handler = object.__new__(handlers.PluginHandlers)
