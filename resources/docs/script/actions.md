@@ -1442,7 +1442,7 @@ English ABC.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `layout` | `<language> <layout>`, as in Kodi's keyboard layout files (for example `English ABC`, `Russian АБВ`) | ask | Without it, a dialog lists every layout to choose from, except the coding-table ones (Chinese, Japanese and Korean input). Cancel writes nothing. |
+| `layout` | `<language> <layout>`, as in Kodi's keyboard layout files (for example `English ABC`, `Russian АБВ`) | ask | Without it, a dialog lists every layout to choose from, except the coding-table ones (Chinese, Japanese and Korean input), with every layout that gives the keys the mapping holds now marked selected (`ListItem.IsSelected`; one language's layouts often give the same keys). Cancel writes nothing. |
 
 It does not rebuild by itself. Run it from a control inside a settings window, so
 the rebuild happens when the window closes. Example from Copacetic's templates:
