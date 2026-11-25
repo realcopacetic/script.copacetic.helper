@@ -727,7 +727,7 @@ Each song write is a full rewrite of its row and an `AudioLibrary.OnUpdate`, so 
 album costs a moment and Home refreshes its widgets once per song.
 
 **Sets:** `Window(home).Property(album_played)` and `album_unplayed` (the album's id,
-or cleared). The service then sets `progress_version` once for the songs' updates
+or cleared), and clears `album_resume`. The service then sets `progress_version` once for the songs' updates
 ([On song updates](../service/index.md#on-song-updates)), which a skin puts in its
 progress bar URL to have the bar served again.
 
