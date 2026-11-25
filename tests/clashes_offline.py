@@ -531,6 +531,7 @@ class Service(unittest.TestCase):
         with (
             patch.object(monitor, "skin_uses_builder", lambda: True),
             patch.object(monitor, "PlayerMonitor", Mock()),
+            patch.object(monitor, "Server", Mock()),  # its threads outlive the test
             patch.object(monitor.clashes, "apply", return_value=[LRC]) as apply,
             patch.object(monitor.log, "execute") as execute,
         ):
