@@ -110,6 +110,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`tmdb_test`](#tmdb_test) | Checks the TMDB token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
 | [`toggle_setting`](#toggle_setting) | Turns one of the helper's on/off settings over |
+| [`toggle_skin_bool`](#toggle_skin_bool) | Turns a skin's on/off setting over and waits until Kodi has |
 | [`trailer_fullscreen`](#trailer_fullscreen) | Takes a window's trailer full screen without restarting it |
 | [`trailer_return`](#trailer_return) | Reopens the info dialog a full-screen trailer came from |
 | [`unpin`](#unpin) | Unpins a speed dial entry |
@@ -1711,6 +1712,26 @@ new value at once.
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=toggle_setting,id=lrclib)</onclick>
+```
+
+---
+
+## toggle_skin_bool
+
+Turns one of the skin's own on/off settings over, as `Skin.ToggleSetting(<id>)` does,
+but waits until Kodi has done it. Read it back with `Skin.HasSetting(<id>)`. A
+[settings window](../builders/06-controls.md#onclick) row's `custom` onclick runs its
+builtin without waiting, so a `label2` that reads the setting keeps the old value until
+focus moves; run this as a `runtime_script` onclick instead
+(`"action": "toggle_skin_bool"`, `"kwargs": {"id": "lyrics"}`) and the row redraws with
+the new value at once.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | a skin bool's name, e.g. `lyrics` | required | The setting to turn over |
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=toggle_skin_bool,id=lyrics)</onclick>
 ```
 
 ---
