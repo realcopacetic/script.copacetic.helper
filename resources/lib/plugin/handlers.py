@@ -3212,11 +3212,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.shared import wikidata_details as wd
 
-        key = wd.video_key(fit[0], fit[1]["uniqueid"])
-        composers = wd.linked(key, "composers")
+        found = wd.linked(wd.video_key(fit[0], fit[1]["uniqueid"]))
         return (
-            album["musicbrainzreleasegroupid"] in wd.linked(key, "soundtracks"),
-            not set(album["musicbrainzalbumartistid"]).isdisjoint(composers),
+            album["musicbrainzreleasegroupid"] in found.get("soundtracks", []),
+            not set(album["musicbrainzalbumartistid"]).isdisjoint(
+                found.get("composers", [])
+            ),
         )
 
     @staticmethod
@@ -3234,7 +3235,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.shared import wikidata_details as wd
 
-        if not (groups := set(wd.linked(wd.video_key(media, uniqueid), "soundtracks"))):
+        found = wd.linked(wd.video_key(media, uniqueid))
+        if not (groups := set(found.get("soundtracks", []))):
             return []
         # No release group filter: every album's, then the linked ones' details
         rows = library_rows(
@@ -3257,7 +3259,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         from resources.lib.shared import wikidata_details as wd
 
-        if not (films := wd.linked(("album", group) if group else None, "films")):
+        found = wd.linked(("album", group) if group else None)
+        if not (films := found.get("films")):
             return None
         for type in ("movie", "tvshow"):
             rows = fetch_raw(  # no uniqueid filter: every id, then the one's details

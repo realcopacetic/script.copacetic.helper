@@ -163,7 +163,8 @@ def owner(
     fits = [fit for fit in fits if fit[0] == claim.medium] or fits
     if len(fits) > 1:  # Dune (1984) and Dune (2021): the one it's linked to or scored
         ranks = [rank(fit) for fit in fits]
-        fits = [fit for fit, ties in zip(fits, ranks) if ties == max(ranks)]
+        best = max(ranks)
+        fits = [fit for fit, ties in zip(fits, ranks) if ties == best]
     return min(
         fits,
         key=lambda fit: abs(fit[1]["year"] - album_year) if album_year else 0,

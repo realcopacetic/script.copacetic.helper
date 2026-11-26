@@ -410,16 +410,16 @@ class DetailsTest(WikidataCase):
             self.assertEqual(found["music_by"], ["Hans Zimmer"])
 
     def test_the_setting(self):
-        self.assertEqual(wd.linked(DUNE, "composers"), [])  # kept only: never asked
+        self.assertEqual(wd.linked(DUNE), {})  # kept only: never asked
         self.assertEqual(self.asked, [])
         wd.details(DUNE, ALIVE)  # as 9000's aside keeps them
         self.setting = False
-        self.assertEqual(wd.linked(DUNE, "composers"), [])
+        self.assertEqual(wd.linked(DUNE), {})
         self.setting = True
         self.asked.clear()
-        self.assertEqual(wd.linked(DUNE, "composers"), [ZIMMER])
+        self.assertEqual(wd.linked(DUNE)["composers"], [ZIMMER])
         self.assertEqual(self.asked, [])
-        self.assertEqual(wd.linked(None, "composers"), [])
+        self.assertEqual(wd.linked(None), {})
         self.assertEqual(wd.video_key("movie", {"tvdb": "1"}), None)
         self.assertEqual(wd.video_key("movie", {"tmdb": "841"}), ("movie", "841", ""))
 
