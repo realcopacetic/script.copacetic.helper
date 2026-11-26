@@ -331,6 +331,14 @@ class DetailsTest(WikidataCase):
         self.assertEqual(
             wd.properties("artist", trio, "Trio"), {"wikidata_labels": "Daft Life +1"}
         )
+        # neither of the first two labelled: no bare "+N"
+        self.entities |= {
+            "Q914": item("Q914", "Quartet", P434=["m-914"], P264=["Q913", "Q915"]),
+            "Q915": item("Q915", ""),
+        }
+        quartet = wd.details(("artist", "m-914"), ALIVE)
+        self.assertEqual((quartet["labels"], quartet["more"]), ([], 2))
+        self.assertEqual(wd.properties("artist", quartet, "Quartet"), {})
 
     def test_album_producer_and_films(self):
         found = wd.details(("album", "baf438d5-47ce-399c-9389-40a5d5f14632"), ALIVE)
