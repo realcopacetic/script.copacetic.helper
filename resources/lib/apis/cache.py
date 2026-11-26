@@ -112,6 +112,11 @@ def cached(
     return payload
 
 
+def busy(queue: str) -> bool:
+    """Whether a queue's next free slot is over MAX_WAIT away, so cached skips a call."""
+    return float(Window(10000).getProperty(queue) or 0) - time.time() > MAX_WAIT
+
+
 class Asker(Protocol):
     """A served call's re-serve once its late answer lands (serve.py's Again)."""
 
@@ -123,8 +128,8 @@ class Asker(Protocol):
 class Asides:
     """
     Fetches for served calls, on threads of their own: one per key while it is queued
-    or running, its askers told when it brings news. At most `workers` daemon
-    threads, which end with the queue: a dead network queues, and holds no exit.
+    or running, its askers told when it brings news or is dropped. At most `workers`
+    daemon threads, which end with the queue: a dead network queues, holds no exit.
     """
 
     def __init__(
@@ -177,22 +182,28 @@ class Asides:
     def _turn(self, key: Hashable) -> None:
         """
         One key's fetch, skipped once no asker's arrival is still current (the service
-        stopping ends them all); then each asker on news. Its askers leave exactly once.
+        stopping ends them all); then its askers, told once on news or when none
+        wanted it any more, which owes them their lists (serve.py's again).
 
         :param key: What to fetch.
         """
+        answer, skipped = None, False
         try:
             with self.lock:  # the skip and its drop in one hold: none joins between
-                if not any(asker.current() for asker in self.asked[key][0]):
-                    del self.asked[key]
-                    return
-            answer = self.fetch(key, partial(self._wanted, key))
+                if skipped := not any(asker.current() for asker in self.asked[key][0]):
+                    askers, stale = self.asked.pop(key)
+            if not skipped:
+                answer = self.fetch(key, partial(self._wanted, key))
         except Exception:  # its own thread: nothing above it would log
             log.exception(f"Asides → {key!r}")
-            answer = None
-        with self.lock:  # a later ask of the key, after this, queues a fetch of its own
-            askers, stale = self.asked.pop(key)
-        if answer is not None and answer != stale:
+        if not skipped:
+            with self.lock:  # a later ask of the key, after this, queues its own fetch
+                askers, stale = self.asked.pop(key)
+        # News; or none for want of a current asker: each records its list as owed, and
+        # its arrival's next ring serves it, asking again (a current one's failure isn't)
+        if (answer is not None and answer != stale) or (
+            answer is None and (skipped or not any(asker.current() for asker in askers))
+        ):
             for asker in askers:
                 try:
                     asker()

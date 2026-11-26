@@ -663,8 +663,22 @@ class TmdbTest(Base):
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
         transform.ASIDES._drain()
         self.assertEqual(self.net.requests, [])
-        landed.assert_not_called()
+        landed.assert_called_once()  # its list is owed: its next ring asks again
         self.assertEqual(transform.ASIDES.asked, {})
+
+    def test_a_fetch_stopped_for_want_of_an_asker_tells_them(self):
+        self.aside_queue()
+        current = [True]
+        landed = mock.Mock(current=lambda: current[0])
+        aside = cache.Asides(lambda key, live: current.__setitem__(0, False))
+        aside.ask("item", landed)
+        aside._drain()  # stopped part-way (None): no asker current, so it's owed
+        landed.assert_called_once()
+        failed = self.asker()
+        aside = cache.Asides(lambda key, live: None)
+        aside.ask("item", failed)
+        aside._drain()  # a current asker's failure is no news: no loop of re-serves
+        failed.assert_not_called()
 
     def test_aside_decides_a_skip_and_drops_it_in_one_hold(self):
         started = self.aside_queue()

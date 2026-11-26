@@ -19,6 +19,7 @@ import copy
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -329,6 +330,26 @@ class DetailsTest(WikidataCase):
         self.assertIsNone(wd.details(SLOW_HORSES, lambda: next(stopped)))
         self.assertEqual(len(self.asked), 2)
         self.assertEqual(wd.kept(SLOW_HORSES), (None, False))
+
+    def test_a_busy_queue_is_waited_out(self):
+        # cached skips a request over MAX_WAIT ahead: the look-up, aside, waits a
+        # second at a time while it is live, and asks once the queue frees
+        home, queue, waits = cache.Window(10000), "test.wikidata_next", []
+        home.setProperty(queue, f"{time.time() + 60}")
+
+        def wait(monitor, seconds=0):
+            waits.append(seconds)
+            home.setProperty(queue, "0")
+            return False
+
+        with (
+            mock.patch.object(wikidata, "NEXT_CALL", queue),
+            mock.patch.object(Monitor, "waitForAbort", wait),
+        ):
+            found = wd.details(DUNE, ALIVE)
+        self.assertEqual(found["music_by"], ["Hans Zimmer"])
+        self.assertEqual(waits.count(1), 1)
+        self.assertEqual(self.asked[0], "having P4947=438631")
 
     def test_the_setting(self):
         self.assertEqual(wd.linked(DUNE, "composers"), [])  # kept only: never asked
