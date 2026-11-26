@@ -163,8 +163,8 @@ item with no properties.
 |---|---|
 | `art_name` | The artist's English name |
 | `art_occupation` | *Painter* where Wikidata lists it, else the first occupation |
-| `art_life` | Birth and death years, as `1775–1851`; the birth year alone for a living artist, `–1851` with only the death known |
-| `art_born`, `art_died` | The date to Wikidata's precision (`23 April 1775`, `April 1775`, `1775`), then the place |
+| `art_life` | Birth and death years, as `1775–1851` (a decade or century where Wikidata knows no more: `1650s–1688`); the birth year alone for a living artist, `–1851` with only the death known |
+| `art_born`, `art_died` | The date to Wikidata's precision (`23 April 1775`, `April 1775`, `1775`, `1770s`, `18th century`), then the place |
 | `art_teacher`, `art_teacher_more` | The first two teachers (*student of*), and how many more |
 | `art_movement`, `art_movement_more` | The first movement, and how many more |
 | `art_nationality` | The first country of citizenship's English demonym (the one with no start date, else the earliest: `Russian` for Kandinsky), the adjective (`British`) where Wikidata lists a noun (`Briton`) too |
@@ -184,12 +184,13 @@ an empty property.
 
 - `gallery`: the artist's works with a picture, its notable works (*notable work* on the
   artist) first, then by Wikipedia sitelinks;
-- `similar`: painters of the artist's movements born within 35 years of it, with a
-  painting of their own on Wikidata (an occupation alone lets in a writer who also
-  painted), by sitelinks;
+- `similar`: painters of the artist's movements born within 35 years of it, the 60
+  with the most sitelinks, of whom those with five paintings or more on Wikidata (an
+  occupation and a painting let in a writer who also painted), by sitelinks;
 - `influenced`: those whose *influenced by* names the artist, by sitelinks.
 
-Up to 30 items, each labelled with its English name (empty for none), `label2` a
+Up to 30 items, each labelled with its English name (a work may have none; an artist
+always has one), `label2` a
 work's earliest inception year, its picture 1280 pixels wide as `thumb`, and:
 
 | Property | Value |

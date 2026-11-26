@@ -769,9 +769,29 @@ class ArtDetailsTest(unittest.TestCase):
 
     def test_similar_painters_only(self):
         query = wikidata.RAILS["similar"]
-        self.assertIn("wdt:P106 wd:%(painter)s", query)  # the occupation, and a
-        self.assertIn("?work wdt:P170 ?item; wdt:P31 wd:%(painting)s", query)  # work
+        self.assertIn("wdt:P106 wd:%(painter)s", query)  # the occupation, and
+        self.assertIn("?work wdt:P170 ?item; wdt:P31 wd:%(painting)s", query)  # works,
+        self.assertIn("HAVING(COUNT(DISTINCT ?work) >= %(paintings)s)", query)  # five
         self.assertIn("<= %(years)s", query)
+        for kind in ("similar", "influenced"):  # an artist always has a name to open
+            label = 'rdfs:label ?name FILTER(LANG(?name) = "en")'
+            self.assertIn(label, wikidata.RAILS[kind])
+            self.assertNotIn("OPTIONAL { ?item rdfs:label", wikidata.RAILS[kind])
+
+    def test_date_precision(self):
+        time = "1650-01-01T00:00:00Z"
+        self.assertEqual(art._date(time, 7), "17th century")
+        self.assertEqual(art._date("1700-01-01T00:00:00Z", 7), "17th century")
+        self.assertEqual(art._date("1901-01-01T00:00:00Z", 7), "20th century")
+        self.assertEqual(art._date("1101-01-01T00:00:00Z", 7), "12th century")
+        self.assertEqual(art._date("1001-01-01T00:00:00Z", 7), "11th century")
+        self.assertEqual(art._date(time, 8), "1650s")
+        self.assertEqual(art._date("1655-01-01T00:00:00Z", 8), "1650s")
+        self.assertEqual(art._date(time, 9), "1650")
+        found = {"born": [[time, 8]], "died": [["1688-05-02T00:00:00Z", 11]]}
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            fields = art.artist_fields(found | {"biography": ""})
+        self.assertEqual(fields["life"], "1650s–1688")  # each to its precision
 
     def test_artist_history(self):
         sent = []

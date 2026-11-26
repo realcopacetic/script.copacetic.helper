@@ -111,7 +111,8 @@ _ARTIST = """SELECT ?kind ?value ?valueLabel ?precision ?country ?since WHERE {
 }"""
 
 # An artist's rails, each row an item with a picture (P18): its English label, the
-# picture's Commons URL and, for a work, its first inception year
+# picture's Commons URL and, for a work, its first inception year. An artist must have
+# an English label, as selecting one opens its page; a work may be art only
 RAILS = {
     # Its works: the notable ones (the artist's P800) first, then by sitelinks
     "gallery": """SELECT ?item ?links ?notable (SAMPLE(?name) AS ?label)
@@ -122,27 +123,35 @@ RAILS = {
   OPTIONAL { ?item rdfs:label ?name FILTER(LANG(?name) = "en") }
   OPTIONAL { ?item wdt:P571 ?date BIND(YEAR(?date) AS ?made) }
 } GROUP BY ?item ?links ?notable ORDER BY DESC(?notable) DESC(?links) LIMIT 30""",
-    # Painters of its movements born within YEARS of it, with a painting on Wikidata:
-    # an occupation alone lets in a writer who also painted (E. T. A. Hoffmann)
+    # Painters of its movements born within YEARS of it, the CANDIDATES best known,
+    # with PAINTINGS or more on Wikidata: an occupation and a painting let in a writer
+    # who also painted (E. T. A. Hoffmann, fifth on Turner's rail). In the order
+    # written: counted for every member of Romanticism, the query ran out (504, 65 s)
     "similar": """SELECT ?item ?links (SAMPLE(?name) AS ?label)
   (SAMPLE(?picture) AS ?image) WHERE {
-  VALUES ?artist { wd:%(qid)s }
-  ?artist wdt:P135 ?movement; wdt:P569 ?birth .
-  ?item wdt:P135 ?movement; wdt:P106 wd:%(painter)s; wdt:P569 ?born;
-    wdt:P18 ?picture; wikibase:sitelinks ?links .
-  FILTER(?item != ?artist && ABS(YEAR(?born) - YEAR(?birth)) <= %(years)s)
-  FILTER EXISTS { ?work wdt:P170 ?item; wdt:P31 wd:%(painting)s }
-  OPTIONAL { ?item rdfs:label ?name FILTER(LANG(?name) = "en") }
-} GROUP BY ?item ?links ORDER BY DESC(?links) LIMIT 30""",
+  hint:Query hint:optimizer "None" .
+  { SELECT DISTINCT ?item ?links WHERE {
+    VALUES ?artist { wd:%(qid)s }
+    ?artist wdt:P135 ?movement; wdt:P569 ?birth .
+    ?item wdt:P135 ?movement; wdt:P106 wd:%(painter)s; wdt:P569 ?born;
+      wikibase:sitelinks ?links .
+    FILTER(?item != ?artist && ABS(YEAR(?born) - YEAR(?birth)) <= %(years)s)
+  } ORDER BY DESC(?links) LIMIT %(candidates)s }
+  ?item wdt:P18 ?picture; rdfs:label ?name FILTER(LANG(?name) = "en")
+  ?work wdt:P170 ?item; wdt:P31 wd:%(painting)s .
+} GROUP BY ?item ?links HAVING(COUNT(DISTINCT ?work) >= %(paintings)s)
+ORDER BY DESC(?links) LIMIT 30""",
     # Those it influenced: their own influenced by (P737) names it
     "influenced": """SELECT ?item ?links (SAMPLE(?name) AS ?label)
   (SAMPLE(?picture) AS ?image) WHERE {
   VALUES ?artist { wd:%(qid)s }
   ?item wdt:P737 ?artist; wdt:P18 ?picture; wikibase:sitelinks ?links .
-  OPTIONAL { ?item rdfs:label ?name FILTER(LANG(?name) = "en") }
+  ?item rdfs:label ?name FILTER(LANG(?name) = "en")
 } GROUP BY ?item ?links ORDER BY DESC(?links) LIMIT 30""",
 }
 YEARS = 35  # the most a similar painter's birth year is from the artist's
+PAINTINGS = 5  # the fewest paintings a similar painter has on Wikidata
+CANDIDATES = 60  # similar painters' paintings counted, the most sitelinks first
 
 
 def sparql(query: str) -> list[dict[str, dict[str, str]]]:
@@ -352,9 +361,11 @@ def rail(kind: str, qid: str) -> list[list] | None:
 
     def fetch() -> list[list]:
         query = RAILS[kind] % {
+            "candidates": CANDIDATES,
             "qid": qid,
             "painter": PAINTER,
             "painting": PAINTING,
+            "paintings": PAINTINGS,
             "years": YEARS,
         }
         return [

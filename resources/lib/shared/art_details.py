@@ -58,6 +58,7 @@ NAMES = 2  # teachers and influences named on the artist page, the rest counted
 # A demonym's adjective endings: Wikidata lists a country's noun too, in no set order
 # (Briton before British, Spaniard after Spanish); the shortest of them wins
 ADJECTIVES = ("sh", "ch", "an", "ese", "ic", "i")
+_ORDINALS = {1: "st", 2: "nd", 3: "rd"}  # by last digit, else th (and 11th to 13th)
 # Widths Commons scales a picture to, two of its standard thumbnail steps: the 600
 # squares (portrait, rails) at a 4K GUI's 1200 near enough, and full screen
 TILE, FULL = 1280, 1920
@@ -480,8 +481,18 @@ PAGES = Asides(_ask)
 
 
 def _date(time: str, precision: int) -> str:
-    """A Wikidata time to its precision: day, month and year in Kodi's month names."""
+    """
+    A Wikidata time to its precision: day, month and year in Kodi's month names; a
+    decade (1600s) or century (17th century, as Wikidata's own English labels).
+    """
     year, month, day = map(int, re.match(r"(-?\d+)-(\d\d)-(\d\d)", time).groups())
+    if precision == 7:
+        century = -(-year // 100)  # 1601 to 1700: the 17th
+        teens = century % 100 in (11, 12, 13)
+        suffix = "th" if teens else _ORDINALS.get(century % 10, "th")
+        return f"{century}{suffix} century"
+    if precision == 8:
+        return f"{year // 10 * 10}s"
     if precision < 10:
         return str(year)
     month = getLocalizedString(20 + month)  # 21-32: January to December
@@ -517,7 +528,11 @@ def artist_fields(found: dict[str, Any]) -> dict[str, str]:
     occupation = occupations.get(wikidata.PAINTER) or next(
         iter(occupations.values()), ""
     )
-    born, died = (first(kind) and _date(first(kind)[0], 9) for kind in ("born", "died"))
+    # Years, or a coarser precision's decade or century
+    born, died = (
+        first(kind) and _date(first(kind)[0], min(first(kind)[1], 9))
+        for kind in ("born", "died")
+    )
     # Each country's demonyms, the earliest citizenship first (one with no start first)
     countries = {}
     for country, _, name in sorted(found.get("nationality", []), key=itemgetter(1)):
