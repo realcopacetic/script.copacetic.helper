@@ -166,8 +166,12 @@ def _artist(ask: Callable, mbid: str) -> dict[str, Any]:
     # A group's formation, else a person's birth
     place = (claims.get("P740") or claims.get("P19") or [""])[0]
     names = ask(wikidata.labels, [*signed[:NAMES], *filter(None, [place])])
-    shown = [*filter(None, map(names.get, signed[:NAMES]))]
-    return {"labels": shown, "more": len(signed[NAMES:]), "place": names.get(place, "")}
+    shown = [*filter(None, map(names.get, signed[:NAMES]))]  # an unlabelled one counts
+    return {
+        "labels": shown,
+        "more": len(signed) - len(shown),
+        "place": names.get(place, ""),
+    }
 
 
 def _album(ask: Callable, group: str) -> dict[str, Any]:
