@@ -163,8 +163,8 @@ BATCH = 50  # the most ids wbgetentities answers in one request
 # The statements an item is kept with: the details' (wikidata_details.py) and the
 # external ids that lead back to the library
 CLAIMS = frozenset(
-    "P19 P31 P50 P86 P144 P162 P264 P345 P406 P434 P436 P740 P840 P4947 P4983 "
-    "P7937 P9899".split()
+    "P19 P31 P50 P86 P144 P162 P170 P264 P345 P406 P434 P436 P740 P840 P4947 "
+    "P4983 P7937 P9899".split()
 )
 YEARS = 35  # the most a similar painter's birth year is from the artist's
 PAINTINGS = 5  # the fewest paintings a similar painter has on Wikidata
