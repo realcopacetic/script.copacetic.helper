@@ -2135,11 +2135,11 @@ def deezer_chart(*ids):
 # popularity_label's strings, as en_gb words them
 WORDS = {
     32993: "Your #%d song",
-    32994: "Your most played album",
+    32994: "Your #1 album",
     32995: "Charting",
     32996: "Popular",
     32997: "#%d song",
-    32998: "Most popular album",
+    32998: "#1 album",
     32999: "Your #%d artist",
 }
 
@@ -2285,7 +2285,7 @@ class PopularityLabelTest(Base):
     def test_album_most_popular(self):
         # Deezer alone, Discography reads 2, 8, 5… (QotsaRailsTest)
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
-        self.assertEqual(self.label("album", 2), "Most popular album")
+        self.assertEqual(self.label("album", 2), "#1 album")
         self.assertIsNone(self.label("album", 8))
         self.compilation = True  # its first artist is Various Artists
         calls = len(self.calls)
@@ -2295,9 +2295,9 @@ class PopularityLabelTest(Base):
     def test_album_leads_alone_over_another(self):
         self.net.answers = [DEEZER_SEARCH, DEEZER_TOP]
         for credit, shown in (
-            ({2: 0.5, 8: 0.2}, "Most popular album"),
+            ({2: 0.5, 8: 0.2}, "#1 album"),
             ({2: 0.5, 8: 0.5}, None),  # a tie: Discography's newer first isn't a lead
-            ({2: 0.5}, "Most popular album"),  # every top song on it: the rest score 0
+            ({2: 0.5}, "#1 album"),  # every top song on it: the rest score 0
             ({}, None),  # nothing credited
         ):
             patch(self, (handlers, "album_credit", lambda *a, c=credit: Counter(c)))
@@ -2328,7 +2328,7 @@ class PopularityLabelTest(Base):
 
     def test_deezer_off_your_most_played_album(self):
         self.settings["deezer"] = False
-        self.assertEqual(self.label("album", 1), "Your most played album")  # Rated R
+        self.assertEqual(self.label("album", 1), "Your #1 album")  # Rated R
         self.assertIsNone(self.label("album", 8))  # second
         self.assertIsNone(self.label("album", 2))  # unplayed
         self.assertEqual(self.net.requests, [])

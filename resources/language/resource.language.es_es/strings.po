@@ -415,13 +415,13 @@ msgctxt "#32136"
 msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr "Olvida todas las respuestas guardadas de Deezer (artistas encontrados, mejores pistas, artistas similares, la lista de hoy), para que cada una se vuelva a obtener la próxima vez que se muestre. Para un solo artista: Actualizar datos en caché en su menú contextual."
 
-#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your most played album"
+#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your #1 album"
 #. (#32994), "Your #2 song" (#32993) and "Start mix" (#32821) are the helper's own labels: use the
 #. same words as those strings.
 #: /resources/settings.xml
 msgctxt "#32138"
-msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
-msgstr "Ordena Mejores canciones y la Discografía (Popularidad) según lo que se escucha ahora en Deezer, solo o combinado con ListenBrainz; encuentra artistas similares (las filas de similares, Iniciar mix, la cola infinita y los mixes diarios); etiqueta la información musical con En las listas o Popular. Envía a Deezer el nombre del artista y pide su lista una vez al día; no requiere cuenta. Apagado: no se envía nada, y la información musical indica Su artista n.º 3, Su álbum más escuchado o Su canción n.º 2 según sus reproducciones."
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your #1 album or Your #2 song from your plays."
+msgstr "Ordena Mejores canciones y la Discografía (Popularidad) según lo que se escucha ahora en Deezer, solo o combinado con ListenBrainz; encuentra artistas similares (las filas de similares, Iniciar mix, la cola infinita y los mixes diarios); etiqueta la información musical con En las listas o Popular. Envía a Deezer el nombre del artista y pide su lista una vez al día; no requiere cuenta. Apagado: no se envía nada, y la información musical indica Su artista n.º 3, Su álbum n.º 1 o Su canción n.º 2 según sus reproducciones."
 
 #. "Play next" is the skin's own label. Keep theintrodb.org as it is.
 #: /resources/settings.xml
@@ -1152,8 +1152,8 @@ msgstr "Su canción n.º %d"
 #. By the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32994"
-msgid "Your most played album"
-msgstr "Su álbum más escuchado"
+msgid "Your #1 album"
+msgstr "Su álbum n.º 1"
 
 #. An artist in today's chart. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
@@ -1176,8 +1176,8 @@ msgstr "Canción n.º %d"
 #. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32998"
-msgid "Most popular album"
-msgstr "Álbum más popular"
+msgid "#1 album"
+msgstr "Álbum n.º 1"
 
 #. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
