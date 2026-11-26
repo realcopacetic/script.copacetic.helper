@@ -236,7 +236,8 @@ during an artwork call's art reads, is waited out and the list read again.
   of a show or season with `follow_tmdb=true` asks nothing itself, but follows a fetch
   the metadata serve asked for the same show (with art or not): it carries
   `tmdb_pending` meanwhile and is served again when that fetch ends, news or not, so
-  the skin can hide its rows for the wait and fade them in once.
+  the skin can hide its rows for the wait and fade them in once. It follows only a
+  fetch already asked, so name the metadata list before the bar's in `lists=`.
 - **An album's play counts.** A song heard serves again the list the window on top
   last served with the [progress bar](../plugins/progressbar.md).
 - **Multiart.** When an artwork row that names `slides=<list>:<probe>` binds a family

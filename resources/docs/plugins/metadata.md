@@ -151,6 +151,10 @@ passed, else from the focused item.
 | `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped, `show_creators` too. |
 | `language` | add-on setting **TMDB language**, else `en-US` | TMDB language, for example `de-DE`. |
 
+A season with `enrich_with_tmdb` also reads its show's entry (asked on a thread of its
+own in a served list when missing or stale), so the show's next airing stays current
+for its [progress bar](progressbar.md#how-the-context-values-are-worked-out).
+
 Episodes look up their show, as TMDB has no episode lookup here, and take only what
 fits an episode: the show's trailer, artwork and `tmdb_*` properties. The episode's
 own title, plot and year are kept.
