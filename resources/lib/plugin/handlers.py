@@ -36,6 +36,7 @@ from resources.lib.shared.helpers import (
     merge_metadata,
     reposition_control,
     rewatch_pass,
+    rewatch_stops,
 )
 from resources.lib.plugin.identity import ArtworkIdentity
 from resources.lib.plugin.json_map import (
@@ -1431,7 +1432,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # set's movies and an album's songs are: a rewatch's pass is its value (15A)
         show = self._show_item(pb.infolabels)
         played = self._played(show) if show else []
-        if rewatch := self._rewatch(played):
+        if rewatch := show and self._rewatch(played, show.show_id):
             resume, unwatched = rewatch.percent, str(rewatch.left)
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
         # is unchanged
@@ -1483,6 +1484,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 **(self._show_context(show, played, rewatch) if show else {}),
                 **self._unwatched_new(pb, resume),
             }
+            # A show's or season's rewatch, for the context menu's Stop rewatch, which
+            # marks its show (addon.xml); as album_resume
+            if show:
+                window_property("rewatch", value=show.dbid if rewatch else "")
+                window_property("rewatch_show", value=show.show_id if rewatch else "")
             # An album's resume point; album, for the service's re-serve on song
             # updates (service/monitor.py) and the context menu's Mark and Resume
             # items (addon.xml)
@@ -1559,12 +1565,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         return sorted(episodes, key=itemgetter("season", "episode"))
 
-    def _rewatch(self, played: list[dict]) -> Rewatch | None:
+    def _rewatch(self, played: list[dict], show_id: int) -> Rewatch | None:
         """
         A watched show's or season's rewatch (rewatch_pass), unless its latest play is
-        older than rewatch_days (default 90; 17B): its share, episodes left and next.
+        older than rewatch_days (default 90) or before its show's Stop rewatch on this
+        device (17B): its share, episodes left and next.
 
         :param played: Its episodes (_played).
+        :param show_id: Its show's library id, for the Stop rewatch mark.
         :return: The pass; None for no rewatch.
         """
         if not (run := rewatch_pass(played)):
@@ -1572,6 +1580,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         days = to_int(self.params.get("rewatch_days"), 90)
         latest = max(ep["lastplayed"] for ep in played[:run])
         if latest < f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}":
+            return None
+        if latest <= rewatch_stops().get(str(show_id), ""):  # stopped since its play
             return None
         return Rewatch(run * 100 / len(played), len(played) - run, played[run])
 

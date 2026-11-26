@@ -3404,6 +3404,40 @@ class ProgressbarTest(unittest.TestCase):
         )  # episodes left: no rewatch, its unwatched call alone
         self.assertEqual(helpers.rewatch_pass([]), 0)
 
+    def test_stop_rewatch(self):
+        home = sys.modules["xbmcgui"].Window(10000)
+        stops = Path(tempfile.mkdtemp(), "rewatch_stopped.json")
+        notify = mock.Mock()
+        patch(self, (helpers, "REWATCH_STOPS", stops), (actions, "json_call", notify))
+        show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "4"}
+        show["Property(UnwatchedEpisodes)"] = "0"
+        self.watched = True
+
+        def bar(last=5, **labels):
+            for ep, count in zip(self.played, (2, 1, 1, 1)):
+                ep |= {"playcount": count, "lastplayed": days_ago(last)}
+            return self.prop("rewatch", **show | labels)
+
+        self.assertEqual(bar(), "true")
+        shown = home.getProperty("rewatch"), home.getProperty("rewatch_show")
+        self.assertEqual(shown, ("7", "7"))  # the menu's Stop rewatch shows
+        actions.stop_rewatch(id="7", type="tvshow")
+        self.assertEqual(list(json.loads(stops.read_text())), ["7"])  # this device's
+        self.assertEqual(home.getProperty("rewatch"), "")  # hidden at once
+        notify.assert_called_once()  # the service serves the bar again
+        self.assertEqual(notify.call_args.args[0], "JSONRPC.NotifyAll")
+        self.assertEqual(bar(), "")  # its latest play is before the mark
+        self.assertEqual(home.getProperty("rewatch"), "")
+        season = {"DBType": "season", "DBID": "40", "TvShowDBID": "7", "Season": "1"}
+        self.assertEqual(bar(**season), "")  # the mark is its show's
+        self.assertEqual(bar(last=-1), "true")  # a play after it: shown again
+        self.assertEqual(bar(last=-1, **season), "true")
+        shown = home.getProperty("rewatch"), home.getProperty("rewatch_show")
+        self.assertEqual(shown, ("40", "7"))
+        bar(**{"Property(UnwatchedEpisodes)": "2"})  # another show or season serves
+        self.assertEqual(home.getProperty("rewatch"), "")
+        self.assertNotIn("SetEpisodeDetails", str(self.calls))  # nothing written
+
     def test_show_news(self):
         props = {}
         self.handler._get_tmdb_item = lambda **kwargs: ({"properties": props}, False)

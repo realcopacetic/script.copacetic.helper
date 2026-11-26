@@ -17,6 +17,7 @@ from resources.lib.service import clashes
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.serve import Server
 from resources.lib.shared import logger as log
+from resources.lib.shared.helpers import REWATCH_STOPPED
 from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.text import load_font
@@ -304,7 +305,7 @@ class Monitor(xbmc.Monitor):
         """
         Kodi event hook, on the service's thread: the clashes writes scripts hand over;
         while active, a new playlist_revision on each music queue edit (a shuffle too),
-        and progress_version after song updates outside a scan.
+        progress_version after song updates outside a scan, the bar after Stop rewatch.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
@@ -318,6 +319,9 @@ class Monitor(xbmc.Monitor):
         if mine and method == f"Other.{clashes.RESET}":
             clashes.restore(forget=True)
             self.clash_features = ()  # checked next pass: reads this frame are cached
+            return
+        if mine and method == f"Other.{REWATCH_STOPPED}":  # the action's mark is down
+            self._serve_bar(self.server.served("progressbar") if self.server else 0)
             return
         if method == "AudioLibrary.OnUpdate":
             # Music updates don't reach 9010's video-tagged item (DirectoryProvider.cpp
@@ -386,12 +390,21 @@ class Monitor(xbmc.Monitor):
             f"!String.StartsWith(Container({bar}).ListItem.FileNameAndPath,plugin://)"
             f" | String.IsEqual(Container({bar}).ListItem.Property(album),true)"
         ):
-            if served:
-                server.again(served)
-            window_property("progress_version", value=str(time.monotonic_ns()))
+            self._serve_bar(served)
         closed, self.closed = self.closed, {}  # a started Timer can't be cancelled
         if any(_play_count(songid) != count for songid, count in closed.items()):
             window_property("played_version", value=str(time.monotonic_ns()))
+
+    def _serve_bar(self, served: int) -> None:
+        """
+        The progress bar again: the topmost window's served list, and a plugin bar
+        by a new progress_version in its URL.
+
+        :param served: The list the bar was served in (Server.served); 0 for none.
+        """
+        if served:
+            self.server.again(served)
+        window_property("progress_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
         """Kodi event hook: re-read debug_logging, pin a new reset to this skin."""

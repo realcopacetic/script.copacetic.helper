@@ -110,6 +110,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 | [`size_identity`](#size_identity) | Sizes the video OSD's, seek bar dialog's or full-screen info's logo control to the playing item's logo |
 | [`skip_segment`](#skip_segment) | Seeks past the intro, recap or credits in play |
 | [`start_mix`](#start_mix) | Plays a random mix built around a song, album, artist, genre or year, or a daily mix card's |
+| [`stop_rewatch`](#stop_rewatch) | Hides a TV show's rewatch on this device until its next play |
 | [`subtitle_limiter`](#subtitle_limiter) | Switches to a preferred subtitle language |
 | [`tmdb_test`](#tmdb_test) | Checks the TMDB token |
 | [`toggle_addon`](#toggle_addon) | Enables or disables an add-on |
@@ -141,6 +142,7 @@ the action named. In any other skin they are hidden.
 | Resume | Library albums (not disc or music video album nodes) part-heard past their first track (`album_resume`, below) | [`play_album_resume`](#play_album_resume) with `resume=true` |
 | Mark as played | Library albums (not disc or music video album nodes) that aren't played through (`album_played`, below) | [`mark_album`](#mark_album) with `played=true` |
 | Mark as unplayed | Library albums (not disc or music video album nodes) that aren't unplayed (`album_unplayed`, below) | [`mark_album`](#mark_album) |
+| Stop rewatch | Library TV shows and seasons whose progress bar shows a [rewatch](../plugins/progressbar.md#rewatches) (`rewatch`, below) | [`stop_rewatch`](#stop_rewatch) |
 | Refresh cached data | Library films, sets, TV shows, seasons, episodes, music videos, artists, albums and songs | [`refresh_cached`](#refresh_cached) |
 | Look up art details | Folders in Pictures, not inside an archive, that aren't marked, nor inside a marked one (`art_details_unmarked`, below), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) with `mark=true` |
 | Stop looking up art details | Folders in Pictures that are marked (`art_details_marked`), while the `wikidata` setting is on | [`art_details_folder`](#art_details_folder) |
@@ -160,7 +162,7 @@ whose builder templates (`extras/templates/`) or `16x9/` XML name
 `info=speed_dial`, for example in a widget's content path. The service checks when
 the skin becomes active and again when it is updated, and sets
 `Window(home).Property(helper_speed_dial)` for it. A skin that opts in without speed
-dial gets the other eight items only.
+dial gets the other items only.
 
 **Pin to speed dial** and **Unpin** tell a pinned item by the speed dial window
 properties (see [Is this item pinned?](../plugins/speed_dial.md#is-this-item-pinned)),
@@ -1701,6 +1703,32 @@ A mix from a song, album or artist adds that item to the
 
 ```xml
 <onclick>RunScript(script.copacetic.helper,action=start_mix,type=artist,id=$INFO[ListItem.DBID])</onclick>
+```
+
+---
+
+## stop_rewatch
+
+Ends a TV show's [rewatch](../plugins/progressbar.md#rewatches) on this device: its
+bars (the show's and its seasons') show it fully watched again until one of its
+episodes is played after this. Nothing is written to the library, so other devices
+sharing it keep their own rewatch. The mark is the time, per show, in the add-on's
+own `rewatch_stopped.json` (`special://profile/addon_data/script.copacetic.helper/`).
+
+The context menu's **Stop rewatch** item runs this action. It shows on a library TV
+show or season while its bar shows a rewatch: the
+[progress bar serve](../plugins/progressbar.md#rewatches) writes the focused item's id
+to `Window(home).Property(rewatch)` (and its show's to `rewatch_show`), or clears
+both, and the item compares `rewatch` with `ListItem.DBID`. The action marks the show
+in `rewatch_show`, so a skin button can run it too wherever that serve ran.
+
+No params.
+
+**Sets:** clears `rewatch` and `rewatch_show`, then the service serves the bar again
+(the window's served progress bar, and `progress_version` for a plugin bar).
+
+```xml
+<onclick>RunScript(script.copacetic.helper,action=stop_rewatch)</onclick>
 ```
 
 ---

@@ -692,6 +692,21 @@ class PlayedVersion(unittest.TestCase):
         self.assertIn("Container(9123)", read[0])
         self.assertIn(f"Container({monitor.PLUGIN_BAR})", read[1])
 
+    def test_stop_rewatch_serves_the_bar_again(self):
+        service = object.__new__(monitor.Monitor)
+        service.server = Mock(**{"served.return_value": 9010})
+        word = f"Other.{monitor.REWATCH_STOPPED}"
+        with patch.object(monitor, "window_property") as prop:
+            service.onNotification("someone.else", word, "null")  # not the action's
+            service.server.again.assert_not_called()
+            service.onNotification(monitor.log.ADDON_ID, word, "null")
+            service.server.again.assert_called_once_with(9010)  # its served list
+            service.server = None  # the skin left: a plugin bar's version alone
+            service.onNotification(monitor.log.ADDON_ID, word, "null")
+        self.assertEqual(
+            [c.args[0] for c in prop.call_args_list], ["progress_version"] * 2
+        )
+
     def test_an_update_keeps_a_pending_close_waiting(self):
         service = object.__new__(monitor.Monitor)
         service.closed, service.player_monitor = {7: 3}, Mock()

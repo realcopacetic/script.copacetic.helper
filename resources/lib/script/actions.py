@@ -1238,6 +1238,25 @@ def mark_album(id: str = "", played: str = "", **kwargs: str) -> None:
 
 
 @action
+def stop_rewatch(**kwargs: str) -> None:
+    """
+    Stop rewatch: the focused show's or season's rewatch hides on this device until
+    a later play, by a mark on its show (rewatch_show, which the progress serve
+    published); then the service serves the bar again. Nothing goes to the library.
+    """
+    from resources.lib.shared.helpers import REWATCH_STOPPED, stop_rewatch  # here only
+
+    stop_rewatch(to_int(xbmcgui.Window(10000).getProperty("rewatch_show")))
+    window_property("rewatch")  # the menu item hides at once
+    window_property("rewatch_show")
+    json_call(
+        "JSONRPC.NotifyAll",
+        params={"sender": log.ADDON_ID, "message": REWATCH_STOPPED},
+        parent="stop_rewatch",
+    )
+
+
+@action
 def rate_song(id: str = "", rating: str = "", **kwargs: str) -> None:
     """
     Sets a song's user rating; Kodi updates the playing song's tag itself. Then

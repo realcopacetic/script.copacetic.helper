@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import posixpath
 import random
 import re
@@ -11,6 +12,7 @@ from datetime import datetime, timedelta
 from functools import cached_property
 from itertools import takewhile
 from operator import itemgetter
+from pathlib import Path
 from threading import Lock
 from typing import Any, Callable, Collection, Iterable, Mapping, NamedTuple
 
@@ -26,6 +28,7 @@ from resources.lib.shared import logger as log
 from resources.lib.shared.text import KodiMetric, fit_lines, load_font, skin_font
 from resources.lib.shared.utilities import (
     ADDON,
+    ADDONDATA,
     clamp,
     condition,
     infolabel,
@@ -34,6 +37,7 @@ from resources.lib.shared.utilities import (
     plugin_path,
     session_salt,
     split,
+    replace_file,
     split_random,
     to_int,
     topmost_window_id,
@@ -631,6 +635,32 @@ def album_progress(album_id: int, days: int, *fields: str) -> AlbumProgress:
         return AlbumProgress(0, total, "unplayed", {}, 0, songs)
     state = "played" if len(played) == len(songs) else ""
     return AlbumProgress(0, total, state, {}, 0, songs)
+
+
+# This device's Stop rewatch marks (rewatch_stops), in the add-on's own storage
+REWATCH_STOPS = Path(ADDONDATA, "rewatch_stopped.json")
+REWATCH_STOPPED = "rewatch_stopped"  # the action's word to the service: serve the bar
+
+
+def rewatch_stops() -> dict[str, str]:
+    """
+    This device's Stop rewatch marks, by show dbid: when each was stopped, as
+    JSON-RPC writes lastplayed ("YYYY-MM-DD HH:MM:SS"), so string order is time's.
+    """
+    return (
+        json.loads(REWATCH_STOPS.read_text("utf-8")) if REWATCH_STOPS.exists() else {}
+    )
+
+
+def stop_rewatch(show_id: int) -> None:
+    """
+    Mark a show's rewatch stopped now on this device: its bars show none until an
+    episode is played after this (decision 17B). Never written to the library.
+
+    :param show_id: The show's library id.
+    """
+    stops = rewatch_stops() | {str(show_id): f"{datetime.now():%Y-%m-%d %H:%M:%S}"}
+    replace_file(REWATCH_STOPS, json.dumps(stops, indent=1).encode())
 
 
 class ShowItem(NamedTuple):

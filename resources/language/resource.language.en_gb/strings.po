@@ -1133,6 +1133,12 @@ msgctxt "#32849"
 msgid "Private collection"
 msgstr ""
 
+#. A context menu item: keep it short. For a TV show or season being watched again: hides that on this device until its next play.
+#: /addon.xml
+msgctxt "#32850"
+msgid "Stop rewatch"
+msgstr ""
+
 
 
 

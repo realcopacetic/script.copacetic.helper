@@ -292,7 +292,12 @@ bar moves; the Specials season is never a rewatch and makes no call. Then:
 - the pass is always the highest play count, so watching the first episode a third
   time while the rest have two starts a fresh pass at 1 of N;
 - it ends once the run's latest play (`lastplayed`) is more than `rewatch_days` days
-  ago (default 90): the item is then simply fully watched again.
+  ago (default 90): the item is then simply fully watched again;
+- the context menu's **Stop rewatch** ([`stop_rewatch`](../script/actions.md#stop_rewatch))
+  ends it on this device, for the show and its seasons, until an episode is played
+  after it. While a bar shows a rewatch, the serve writes the item's id to
+  `Window(home).Property(rewatch)` and its show's to `rewatch_show` (cleared on any
+  other show or season), for the menu item.
 
 The airing (`next_air` …) and a show's news are still served beside it; which row
 shows is the skin's choice. Nothing is ever written to the library.
