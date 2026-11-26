@@ -10,7 +10,6 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta
 from functools import cached_property
-from itertools import takewhile
 from operator import itemgetter
 from pathlib import Path
 from threading import Lock
@@ -35,9 +34,9 @@ from resources.lib.shared.utilities import (
     json_call,
     named,
     plugin_path,
+    replace_file,
     session_salt,
     split,
-    replace_file,
     split_random,
     to_int,
     topmost_window_id,
@@ -644,8 +643,10 @@ REWATCH_STOPPED = "rewatch_stopped"  # the action's word to the service: serve t
 
 def rewatch_stops() -> dict[str, str]:
     """
-    This device's Stop rewatch marks, by show dbid: when each was stopped, as
+    This device's Stop rewatch marks: when each show's rewatch was stopped, as
     JSON-RPC writes lastplayed ("YYYY-MM-DD HH:MM:SS"), so string order is time's.
+
+    :return: The times by show dbid; none before the first stop.
     """
     return (
         json.loads(REWATCH_STOPS.read_text("utf-8")) if REWATCH_STOPS.exists() else {}
@@ -695,21 +696,33 @@ class Rewatch(NamedTuple):
 
     percent: float
     left: int
-    next: dict
+    following: dict
 
 
 def rewatch_pass(episodes: list[dict]) -> int:
     """
-    How far a rewatch has got: the episodes on the highest play count, when they run
-    unbroken from the first and some are below it (decision 15A); 0 for none.
+    How far a rewatch has got (15A): the run from the first episode played in order
+    (lastplayed never falling; a part-played one ends it), each later than every play
+    after it but a part-played next one's; 0 for none, or a show watched in order.
 
-    :param episodes: A watched show's or season's episodes in order, specials out.
+    :param episodes: A watched show's or season's regular episodes, in order.
     :return: The run's length; 0 when it is no rewatch.
     """
-    counts = [ep["playcount"] for ep in episodes]
-    top = max(counts, default=0)
-    run = sum(1 for _ in takewhile(top.__eq__, counts))
-    return run if run == counts.count(top) < len(counts) else 0
+    run = next(
+        (
+            i
+            for i, ep in enumerate(episodes)
+            if ep["resume"]["position"]
+            or (i and ep["lastplayed"] < episodes[i - 1]["lastplayed"])
+        ),
+        len(episodes),
+    )
+    if not 0 < run < len(episodes):
+        return 0
+    # A part-play moves its episode's lastplayed: the next one, so, isn't held against it
+    rest = episodes[run + bool(episodes[run]["resume"]["position"]) :]
+    first = episodes[0]["lastplayed"]
+    return run if all(ep["lastplayed"] < first for ep in rest) else 0
 
 
 class ProgressBarManager:

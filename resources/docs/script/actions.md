@@ -1720,15 +1720,20 @@ show or season while its bar shows a rewatch: the
 [progress bar serve](../plugins/progressbar.md#rewatches) writes the focused item's id
 to `Window(home).Property(rewatch)` (and its show's to `rewatch_show`), or clears
 both, and the item compares `rewatch` with `ListItem.DBID`. The action marks the show
-in `rewatch_show`, so a skin button can run it too wherever that serve ran.
+in `rewatch_show`; a skin button can run it too, passing `id=$INFO[ListItem.DBID]`.
 
-No params.
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `id` | the item's database id | — | Must equal `rewatch`, or nothing is done: a show's and a season's ids share one number space. The context item passes it |
+
+A part-play of the next episode moves its last play, so it brings a stopped rewatch
+back.
 
 **Sets:** clears `rewatch` and `rewatch_show`, then the service serves the bar again
 (the window's served progress bar, and `progress_version` for a plugin bar).
 
 ```xml
-<onclick>RunScript(script.copacetic.helper,action=stop_rewatch)</onclick>
+<onclick>RunScript(script.copacetic.helper,action=stop_rewatch,id=$INFO[ListItem.DBID])</onclick>
 ```
 
 ---
