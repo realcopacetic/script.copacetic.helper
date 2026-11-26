@@ -868,6 +868,7 @@ class ProgressBarManager:
         btn_id: int | None = None,
         img_id: int | None = None,
         img_h: int | None = None,
+        centre_id: int | None = None,
     ) -> None:
         """
         Resolve rect, move/size controls, and position the thumb.
@@ -878,6 +879,7 @@ class ProgressBarManager:
         :param btn_id: Optional override for thumb button ID.
         :param img_id: Optional override for track image ID.
         :param img_h: Track image height, centred on the bar; defaults to the bar height.
+        :param centre_id: A control in the group centred on the bar across, y kept.
         """
         base_id = self.base_id
         progress_id = to_int(progress_id, self.progress_id)
@@ -934,6 +936,16 @@ class ProgressBarManager:
             img.setWidth(width)
             img.setHeight(img_h)
             img.setPosition(img.getX(), align_y(0, height, img_h, "center", 0))
+
+        if centre_id is not None:  # opt-in: a pill on the bar, at any bar's width
+            try:
+                centre = self.window.getControl(centre_id)
+            except RuntimeError:
+                log.debug(
+                    f"{self.__class__.__name__} → centre_id {centre_id} not found."
+                )
+            else:
+                centre.setPosition(int((width - centre.getWidth()) / 2), centre.getY())
 
         cur_w, cur_h = base.getWidth(), base.getHeight()
         new_w, new_h = max(cur_w, width), max(cur_h, height)

@@ -110,5 +110,35 @@ class PictureBarTest(unittest.TestCase):
         self.assertNotIn("picture_size", self.serve()["properties"])
 
 
+class CentreTest(unittest.TestCase):
+    """centre_id: the control's centre on the bar's, across; its y kept."""
+
+    def test_centred_on_the_bar(self):
+        controls = {
+            4010: mock.Mock(getWidth=lambda: 0, getHeight=lambda: 0),
+            4011: mock.Mock(),
+            4016: mock.Mock(getWidth=lambda: 400, getY=lambda: 7),
+        }
+
+        def control(cid):
+            if cid not in controls:
+                raise RuntimeError(cid)
+            return controls[cid]
+
+        window = mock.Mock(getControl=control)
+        rect = lambda **kwargs: (20, 30, 300, 4)
+        with (
+            mock.patch.object(helpers, "Window", lambda wid: window),
+            mock.patch.object(helpers, "get_infolabels", lambda t, keys: {}),
+            mock.patch.object(helpers, "compute_rect", rect),
+        ):
+            pb = helpers.ProgressBarManager("ListItem", 4010, 12003, 14)
+            pb.update(50, opts=None, centre_id=4016)
+            controls[4016].setPosition.assert_called_once_with(-50, 7)  # 400 on 300
+            pb.update(50, opts=None, centre_id=4099)  # none such: nothing else moves
+            pb.update(50, opts=None)
+        controls[4016].setPosition.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

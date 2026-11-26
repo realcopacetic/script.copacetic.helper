@@ -1477,6 +1477,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             btn_id=to_int(self.params.get("btn_id"), None),
             img_id=to_int(self.params.get("img_id"), None),
             img_h=to_int(self.params.get("img_h"), None),
+            centre_id=to_int(self.params.get("centre_id"), None),
         )
         # The bar is placed first, but it appears only when the item returns, so any
         # item adds at most one library call to that. A superseded serve makes none.

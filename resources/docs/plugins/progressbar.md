@@ -39,6 +39,7 @@ to it:
 | Button | `target_id + 2`, or `btn_id` | no | Centred in the unwatched part of the bar (between the played point and the end), kept inside the bar, and centred vertically. Needs an explicit `<width>` and `<height>`. |
 | Image | `target_id + 3`, or `img_id` | no | Set to the rectangle's width and `img_h` tall, centred vertically on the bar. |
 | Extra control | `target_id + 4` | no | Set to the rectangle's width and height. |
+| Centred control | `centre_id` | no (opt-in) | Moved across so its centre is the bar's centre (its x only; its y kept), as the button is placed: e.g. a pill on a full bar, centred at any bar width. Needs an explicit `<width>`. |
 
 Put the other controls inside the group. Their positions are relative to the group.
 
@@ -53,6 +54,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `btn_id` | control id | `target_id + 2` | Button id. |
 | `img_id` | control id | `target_id + 3` | Image id. |
 | `img_h` | whole number | the bar height | Height of the image. |
+| `centre_id` | control id | none | A control in the group to centre across on the bar (see the table above). |
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, an episode first aired, or for a show or season (see `new_kind`) the show was added or its unwatched episodes first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
