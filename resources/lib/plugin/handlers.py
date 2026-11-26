@@ -553,12 +553,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param target: Infolabel prefix of the item; the serve's target item if None.
         :param aside: Read the cache, fetching on a thread that calls this on news.
         :param show: A season's or episode's show entry, in place of its own.
-        :param follow: Told when a fetch another serve asked aside for it ends.
-        :return: canonical item dict or None, and whether it was asked aside (followed).
+        :param follow: Missing or stale: told when another serve's fetch of it ends.
+        :return: The canonical item or None, and whether it was asked aside or followed.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
-        from resources.lib.apis.tmdb.transform import tmdb_follow, tmdb_lookup
+        from resources.lib.apis.tmdb.transform import tmdb_lookup
 
         if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
             return None, False
@@ -566,26 +566,22 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
         kind = "tvshow" if show else ctx.get("kind") or self.dbtype
-        season = None if show else ctx.get("season_number")
-        # Before the read: a fetch that ends between them still tells the follower
-        followed = bool(follow) and tmdb_follow(
-            kind, tmdb_id, season, self.params.get("language"), follow
-        )
         item, asked = tmdb_lookup(
             kind=kind,
             tmdb_id=tmdb_id,
-            season_number=season,
+            season_number=None if show else ctx.get("season_number"),
             language=self.params.get("language"),
             append_artwork=append_artwork,
             cache_only=cache_only,
             aside=aside,
+            follow=follow,
         )
         if not item:
             log.debug(
                 f"{self.__class__.__name__} → tmdb: no data for "
                 f"type={kind!r}, tmdb_id={tmdb_id}"
             )
-        return item or None, asked or followed
+        return item or None, asked
 
     def _probe_text(self, param: str) -> str:
         """The label of the probe control a URL param names; empty if it names none.
