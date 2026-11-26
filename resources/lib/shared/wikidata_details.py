@@ -10,8 +10,10 @@ album's producers; the soundtrack albums and films they link. Kept per item.
 from functools import partial
 from typing import Any, Callable
 
+from xbmc import Monitor
+
 from resources.lib.apis import wikidata
-from resources.lib.apis.cache import Asides
+from resources.lib.apis.cache import Asides, busy
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON, fold, named
 
@@ -214,10 +216,16 @@ def kept(key: tuple[str, ...]) -> tuple[dict[str, Any] | None, bool]:
 
 
 def _answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
-    """A request's answer, while the look-up is live; raises _Unanswered otherwise."""
-    if not live() or (answer := call(*args)) is None:
-        raise _Unanswered
-    return answer
+    """
+    A request's answer, while the look-up is live, waiting out a busy queue (which
+    cached skips: the look-up runs aside); raises _Unanswered otherwise.
+    """
+    while live():
+        if (answer := call(*args)) is not None:
+            return answer
+        if not busy(wikidata.NEXT_CALL) or Monitor().waitForAbort(1):
+            break
+    raise _Unanswered
 
 
 def details(key: tuple[str, ...], live: Callable[[], bool]) -> dict[str, Any] | None:

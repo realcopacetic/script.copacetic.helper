@@ -519,7 +519,7 @@ class ArtDetailsTest(unittest.TestCase):
         gone = mock.Mock(current=lambda: False)
         art.ASIDES.ask(path, gone)
         art.ASIDES._drain()
-        self.assertEqual((self.asked, gone.call_count), ([], 0))
+        self.assertEqual((self.asked, gone.call_count), ([], 1))  # owed, not fetched
         art.mark(FOLDER, False)  # unmarked while it waited: still nothing sent
         waiting = mock.Mock(current=lambda: True)
         art.ASIDES.ask(path, waiting)
