@@ -2,8 +2,10 @@
 
 """
 Wikidata, keyless: a painter by name, its works and a painting's fields by SPARQL,
-an artist's page and rails, and English Wikipedia summaries. Every request waits its
-turn in one queue, a second apart; a 429's Retry-After holds the queue.
+an artist's page and rails, and English Wikipedia summaries; items by an external id
+and their entity data from the wiki's own API, which answered while the query service
+was throttled (25 Nov 2026). Every request waits its turn in one queue, a second
+apart; a 429's Retry-After holds the queue.
 """
 
 import re
@@ -17,6 +19,7 @@ from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import fold
 
 SPARQL = "https://query.wikidata.org/sparql"
+API = "https://www.wikidata.org/w/api.php"
 SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/"
 NEXT_CALL = "copacetic.wikidata_next"  # home property: epoch of the next free slot
 TTL_HIT, TTL_EMPTY = 30 * DAY, 7 * DAY
@@ -154,6 +157,14 @@ ORDER BY DESC(?links) LIMIT 30""",
   ?item rdfs:label ?name FILTER(LANG(?name) = "en")
 } GROUP BY ?item ?links ORDER BY DESC(?links) LIMIT 30""",
 }
+HITS = 10  # items a statement search keeps, best first
+BATCH = 50  # the most ids wbgetentities answers in one request
+# The statements an item is kept with: the details' (wikidata_details.py) and the
+# external ids that lead back to the library
+CLAIMS = frozenset(
+    "P19 P31 P50 P86 P144 P162 P264 P345 P406 P434 P436 P740 P840 P4947 P4983 "
+    "P7937 P9899".split()
+)
 YEARS = 35  # the most a similar painter's birth year is from the artist's
 PAINTINGS = 5  # the fewest paintings a similar painter has on Wikidata
 CANDIDATES = 60  # similar painters' paintings counted, the most sitelinks first
@@ -421,3 +432,112 @@ def summary(title: str) -> str | None:
     return cached(
         f"wikidata:summary:{fold(title)}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL
     )
+
+
+def having(prop: str, value: str) -> list[str] | None:
+    """
+    The items with a statement of a value, by the wiki's search (haswbstatement):
+    a film by its TMDb id, an artist by its MusicBrainz id. Cached and queued.
+
+    :param prop: The property, e.g. P4947.
+    :param value: Its value: an external id or a Q-id, with no space.
+    :return: Their Q-ids, best first, possibly none; None if not asked.
+    """
+
+    def fetch() -> list[str]:
+        answer = http.get_json(
+            API,
+            {
+                "action": "query",
+                "list": "search",
+                "srsearch": f"haswbstatement:{prop}={value}",
+                "srlimit": HITS,
+                "srprop": "",
+                "format": "json",
+            },
+            timeout=TIMEOUT,
+        )
+        return [hit["title"] for hit in answer["query"]["search"]]
+
+    key = f"wikidata:having:{prop}={value}"
+    return cached(key, fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def items(qids: list[str]) -> dict[str, dict] | None:
+    """
+    Items' labels and the CLAIMS statements' best-rank values (a Q-id or a string),
+    by wbgetentities; the first BATCH, one request. Cached and queued.
+
+    :param qids: Q-ids; none asks nothing.
+    :return: Each one's {"label", "claims"}, empty for a missing item; None if not asked.
+    """
+    return _entities("items", qids, "labels|claims")
+
+
+def labels(qids: list[str]) -> dict[str, str] | None:
+    """
+    Items' labels alone (a city's statements run to megabytes), as items reads them.
+
+    :param qids: Q-ids; none asks nothing.
+    :return: Each one's label, "" for none; None if not asked.
+    """
+    found = _entities("labels", qids, "labels")
+    return found and {qid: item["label"] for qid, item in found.items()}
+
+
+def _entities(kind: str, qids: list[str], props: str) -> dict[str, dict] | None:
+    """
+    wbgetentities' answer for items, shaped as items gives it; cached and queued.
+
+    :param kind: items or labels, the cache key's kind.
+    :param qids: Q-ids, each asked once.
+    :param props: Its props parameter.
+    :return: Each one's {"label", "claims"}; None if not asked.
+    """
+    if not (qids := [*dict.fromkeys(qids)][:BATCH]):
+        return {}
+
+    def fetch() -> dict[str, dict]:
+        answer = http.get_json(
+            API,
+            {
+                "action": "wbgetentities",
+                "ids": "|".join(qids),
+                "props": props,
+                "format": "json",
+            },
+            timeout=TIMEOUT,
+        )
+        found = answer["entities"]
+        return {qid: _shape(found.get(qid, {})) for qid in qids}
+
+    key = f"wikidata:{kind}:{'|'.join(qids)}"
+    return cached(key, fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def _shape(item: dict) -> dict[str, Any]:
+    """
+    An entity as kept: its label (English, else multilingual, else any: Pharrell
+    Williams' item had no English one) and its CLAIMS' best-rank values.
+    """
+    names = item.get("labels", {})
+    label = names.get("en") or names.get("mul") or next(iter(names.values()), {})
+    claims = {}
+    for prop, statements in item.get("claims", {}).items():
+        if prop not in CLAIMS:
+            continue
+        ranked = [s for s in statements if s["rank"] == "preferred"] or [
+            s for s in statements if s["rank"] == "normal"
+        ]
+        values = [
+            (
+                value["id"]
+                if isinstance(value := snak["datavalue"]["value"], dict)
+                else value
+            )
+            for snak in (s["mainsnak"] for s in ranked)
+            if "datavalue" in snak  # an unknown or no value has none
+        ]
+        if values:
+            claims[prop] = values
+    return {"label": label.get("value", ""), "claims": claims}
