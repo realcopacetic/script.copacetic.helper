@@ -242,12 +242,24 @@ class DetailsTest(WikidataCase):
         found = wd.details(("movie", "900", ""), ALIVE)
         self.assertIsNone(found["source"])
         self.assertEqual(wd.properties("movie", found, "Game Movie"), {})
+        # a novel series is a written work
+        self.entities |= {
+            "Q904": item("Q904", "Series Movie", P4947=["904"], P144=["Q905"]),
+            "Q905": item("Q905", "The Saga", P31=["Q1667921"]),
+        }
+        found = wd.details(("movie", "904", ""), ALIVE)
+        self.assertEqual(
+            wd.properties("movie", found, "Series Movie")["wikidata_based_on"],
+            "The Saga, novel series",
+        )
 
     def test_the_type_word(self):
         self.assertEqual(
             wd._kind({"P31": ["Q7725634"], "P7937": ["Q149537"]}), "novella"
         )
         self.assertEqual(wd._kind({"P31": ["Q14406742"]}), "comic")
+        self.assertEqual(wd._kind({"P31": ["Q1667921"]}), "novel series")
+        self.assertEqual(wd._kind({"P31": ["Q277759"]}), "book series")
         self.assertEqual(wd._kind({"P31": ["Q7725634"], "P7937": ["Q1"]}), "book")
         source = {"title": "Room", "type": "novel", "authors": []}
         self.assertEqual(wd.based_on("Room", source), "the novel")

@@ -30,6 +30,7 @@ VIDEO_IDS = {
 # with the form novel (Dune, Slow Horses); games, toys, characters and films are out
 WRITTEN = {
     "Q8261": "novel",
+    "Q1667921": "novel series",
     "Q149537": "novella",
     "Q49084": "short story",
     "Q5185279": "poem",
@@ -37,6 +38,7 @@ WRITTEN = {
     "Q7725634": "book",  # literary work
     "Q47461344": "book",  # written work
     "Q571": "book",
+    "Q277759": "book series",
     "Q1004": "comic",
     "Q14406742": "comic",  # comic book series
     "Q725377": "graphic novel",
