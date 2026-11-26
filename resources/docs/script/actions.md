@@ -223,8 +223,10 @@ run this action.
 ## art_details_refresh
 
 Looks one picture up on Wikidata again: its kept verdict is dropped and the answers it
-came from (the artist's works, the painting, its summary) are asked afresh. Then, if
-you pass one, your served ring, so the focused item is served again. Nothing is sent
+came from (the artist's works, the painting, its summary) are asked afresh; its
+[artist page](../plugins/art_details.md#the-artist-page) is marked stale, for its next
+serve to ask again. Then, if you pass one, your served ring, so the focused item is
+served again. Nothing is sent
 while the `wikidata` setting is off or the picture's folder isn't marked.
 
 | Param | Accepted values | Default | What it does |

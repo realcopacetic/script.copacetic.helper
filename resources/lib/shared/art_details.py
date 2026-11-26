@@ -13,6 +13,7 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 from functools import cache
+from operator import itemgetter
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
@@ -55,7 +56,7 @@ YEAR_SAME, YEAR_NEAR, YEAR_FAR = 0.15, 0.05, -0.1  # in the file's years, one of
 DEPICTS = 3  # values kept
 NAMES = 2  # teachers and influences named on the artist page, the rest counted
 # A demonym's adjective endings: Wikidata lists a country's noun too, in no set order
-# (Briton before British, Spaniard after Spanish)
+# (Briton before British, Spaniard after Spanish); the shortest of them wins
 ADJECTIVES = ("sh", "ch", "an", "ese", "ic", "i")
 # Widths Commons scales a picture to, two of its standard thumbnail steps: the 600
 # squares (portrait, rails) at a 4K GUI's 1200 near enough, and full screen
@@ -324,7 +325,7 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
 def forget(path: str) -> None:
     """
     Drop a file's verdict, and mark the answers it came from stale (its artist's
-    works, the painting, the summary), so a look-up asks again.
+    works, the painting, the summary) and its artist's page, so both ask again.
 
     :param path: The picture's path.
     """
@@ -332,7 +333,12 @@ def forget(path: str) -> None:
     row = cache.get(_key(path))
     found = row and row[0] and row[0]["fields"] or {}
     artist = name.artist if name else ""
-    wikidata.forget(artist, found.get("qid", ""), found.get("enwiki", ""))
+    wikidata.forget(
+        artist,
+        found.get("qid", ""),
+        found.get("enwiki", ""),
+        found.get("artist_qid", ""),
+    )
     cache.drop(_key(path))  # exactly: a path's % or _ would match other files
 
 
@@ -485,7 +491,8 @@ def _date(time: str, precision: int) -> str:
 def artist_fields(found: dict[str, Any]) -> dict[str, str]:
     """
     An artist's page as served, one string each: the first NAMES teachers and
-    influences named and the rest counted (_more), the first movement likewise.
+    influences named and the rest counted (_more), the first movement likewise, the
+    first country's demonym.
 
     :param found: page's answer for the painter.
     :return: Fields by name; the portrait a TILE-wide URL, or "".
@@ -510,19 +517,23 @@ def artist_fields(found: dict[str, Any]) -> dict[str, str]:
     occupation = occupations.get(wikidata.PAINTER) or next(
         iter(occupations.values()), ""
     )
-    years = (_date(time[0], 9) for time in (first("born"), first("died")) if time)
+    born, died = (first(kind) and _date(first(kind)[0], 9) for kind in ("born", "died"))
+    # Each country's demonyms, the earliest citizenship first (one with no start first)
+    countries = {}
+    for country, _, name in sorted(found.get("nationality", []), key=itemgetter(1)):
+        countries.setdefault(country, []).append(name)
     portrait = first("portrait")
     return {
         "name": first("name"),
         "occupation": occupation[:1].upper() + occupation[1:],
-        "life": "–".join(years),
+        "life": f"{born}–{died}" if died else born,  # –1851: the death year alone
         "born": event("born", "birthplace"),
         "died": event("died", "deathplace"),
         **named("teacher", NAMES),
         **named("movement", 1),
         **named("influence", NAMES),
         "nationality": min(
-            found.get("nationality", [""]),
+            next(iter(countries.values()), [""]),
             key=lambda name: (not name.endswith(ADJECTIVES), len(name)),
         ),
         "paintings": str(first("paintings") or ""),

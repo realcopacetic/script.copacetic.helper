@@ -82,7 +82,7 @@ the helper's contact User-Agent; no key is needed.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `folder` | the listing's folder | empty | Published as `art_details_folder` while it is marked |
+| `folder` | the listing's folder | none | Published as `art_details_checked`, and as `art_details_folder` while it is marked; leave it out where there is no listing (picture info over the slideshow), and both stay as they are |
 | `path` | a picture's or folder's path | required | The file to look up; a folder (its path ends in a separator) publishes its mark state |
 | `chip_row` | pixels | none | Fit the chips to a row this wide: `art_chip1` … hold only the chips that fit, from the first |
 | `chip_font` | a font in your `Font.xml` | none | The chips' font, measured as Kodi lays it out |
@@ -163,11 +163,11 @@ item with no properties.
 |---|---|
 | `art_name` | The artist's English name |
 | `art_occupation` | *Painter* where Wikidata lists it, else the first occupation |
-| `art_life` | Birth and death years, as `1775–1851`; the birth year alone for a living artist |
+| `art_life` | Birth and death years, as `1775–1851`; the birth year alone for a living artist, `–1851` with only the death known |
 | `art_born`, `art_died` | The date to Wikidata's precision (`23 April 1775`, `April 1775`, `1775`), then the place |
 | `art_teacher`, `art_teacher_more` | The first two teachers (*student of*), and how many more |
 | `art_movement`, `art_movement_more` | The first movement, and how many more |
-| `art_nationality` | The countries of citizenship's English demonym, the adjective (`British`) where Wikidata lists a noun (`Briton`) too |
+| `art_nationality` | The first country of citizenship's English demonym (the one with no start date, else the earliest: `Russian` for Kandinsky), the adjective (`British`) where Wikidata lists a noun (`Briton`) too |
 | `art_paintings` | How many paintings Wikidata credits to the artist |
 | `art_influence`, `art_influence_more` | The first two the artist was influenced by, and how many more |
 | `art_biography` | The English Wikipedia summary, whole: pass it to [`text`](text.md) to draw it as a page |
@@ -198,4 +198,9 @@ work's earliest inception year, its picture 1280 pixels wide as `thumb`, and:
 | `full` | The picture 1920 pixels wide, for `ShowPicture` |
 
 `ShowPicture` takes the URL as a path: Kodi asks the server for its type, then loads
-it as any picture, in a slideshow of one that replaces the one running.
+it as any picture, in a slideshow of one that replaces the one running. The slideshow
+opens as a dialog over what is open, so close your own dialogs first, at once
+(`Dialog.Close(…,true)`), keeping the URL in a property for the call after them.
+
+[`art_details_refresh`](../script/actions.md#art_details_refresh) marks the artist's
+page stale too: its next serve asks again.

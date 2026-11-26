@@ -83,8 +83,9 @@ _PAINTING = """SELECT ?kind ?value ?valueLabel ?part WHERE {
 }"""
 
 # An artist's page, a row per value as a painting's: dates with their precision, the
-# nationality as its countries' English demonyms, and its paintings counted
-_ARTIST = """SELECT ?kind ?value ?valueLabel ?precision WHERE {
+# nationality as its countries' English demonyms, each with its country and the
+# citizenship's start year (0 for none), and its paintings counted
+_ARTIST = """SELECT ?kind ?value ?valueLabel ?precision ?country ?since WHERE {
   VALUES ?artist { wd:%(qid)s }
   { ?artist rdfs:label ?value FILTER(LANG(?value) = "en") BIND("name" AS ?kind) }
   UNION { ?artist p:P569 ?s . ?s a wikibase:BestRank; psv:P569 ?v .
@@ -96,8 +97,10 @@ _ARTIST = """SELECT ?kind ?value ?valueLabel ?precision WHERE {
   UNION { ?artist wdt:P106 ?value BIND("occupation" AS ?kind) }
   UNION { ?artist wdt:P1066 ?value BIND("teacher" AS ?kind) }
   UNION { ?artist wdt:P135 ?value BIND("movement" AS ?kind) }
-  UNION { ?artist wdt:P27/wdt:P1549 ?value FILTER(LANG(?value) = "en")
-    BIND("nationality" AS ?kind) }
+  UNION { ?artist p:P27 ?s . ?s a wikibase:BestRank; ps:P27 ?country .
+    OPTIONAL { ?s pq:P580 ?start }
+    ?country wdt:P1549 ?value FILTER(LANG(?value) = "en")
+    BIND(COALESCE(YEAR(?start), 0) AS ?since) BIND("nationality" AS ?kind) }
   UNION { ?artist wdt:P737 ?value BIND("influence" AS ?kind) }
   UNION { ?artist wdt:P18 ?value BIND("portrait" AS ?kind) }
   UNION { SELECT ("paintings" AS ?kind) (COUNT(DISTINCT ?work) AS ?value) WHERE {
@@ -237,24 +240,31 @@ def _works(qid: str) -> list[list] | None:
     return cached(f"wikidata:works:{qid}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
 
 
-def forget(artist: str = "", qid: str = "", article: str = "") -> None:
+def forget(
+    artist: str = "", qid: str = "", article: str = "", painter: str = ""
+) -> None:
     """
     Mark a look-up's answers stale, so the next one asks again: an artist's
-    searches and its painter's works, a painting, an article's summary.
+    searches and its painter's works, a painting, an article's summary, and the
+    matched painter's page, its biography and its rails.
 
     :param artist: The artist's name, as a file gives it.
     :param qid: The painting's Q-id.
     :param article: Its English Wikipedia article's title.
+    :param painter: The matched painter's Q-id.
     """
     cache, name = ApiCacheHandler(), fold(artist)
     searches = [f"wikidata:artist:{name}", f"wikidata:fuzzy:{name}"] if name else []
-    painters = [row[0]["qid"] for key in searches if (row := cache.get(key)) and row[0]]
+    found = [row[0]["qid"] for key in searches if (row := cache.get(key)) and row[0]]
+    page = (kept("painter", painter)[0] or {}) if painter else {}
+    articles = [article] * bool(article) + page.get("enwiki", [])
     # Patterns, but folded names, Q-ids and folded titles hold no % or _
     cache.expire(
         *searches,
-        *(f"wikidata:works:{painter}" for painter in painters),
+        *(f"wikidata:works:{searched}" for searched in found),
         *([f"wikidata:painting:{qid}"] if qid else []),
-        *([f"wikidata:summary:{fold(article)}"] if article else []),
+        *(f"wikidata:summary:{fold(title)}" for title in articles),
+        *(f"wikidata:{kind}:{painter}" for kind in ("painter", *RAILS) if painter),
     )
 
 
@@ -319,6 +329,9 @@ def artist(qid: str) -> dict[str, list] | None:
                 value = [_qid(value), label]
             elif kind in _DATES:
                 value = [value, int(row["precision"]["value"])]
+            elif kind == "nationality":
+                country = _qid(row["country"]["value"])
+                value = [country, int(row["since"]["value"]), value]
             elif kind == "paintings":
                 value = int(value)
             fields.setdefault(kind, []).append(value)
