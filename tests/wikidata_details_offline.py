@@ -422,8 +422,8 @@ class ServeTest(WikidataCase):
         details = {"albumid": 4, "label": "Dune", "musicbrainzreleasegroupid": group}
         return json.dumps({"result": {"albumdetails": details}})
 
-    def served(self, dbtype, again):
-        params = {"info": "metadata", "target": "item", "type": dbtype, "id": "4"}
+    def served(self, dbtype, again, **params):
+        params |= {"info": "metadata", "target": "item", "type": dbtype, "id": "4"}
         plugin = handlers.PluginHandlers(params | {"wikidata": "true"}, again=again)
         return plugin._wikidata("Dune")
 
@@ -464,6 +464,17 @@ class ServeTest(WikidataCase):
             "Soma Quality Recordings, Virgin Records +2",
         )
         self.assertEqual(self.served("album", None), {"wikidata_producer": "Toto"})
+
+    def test_the_place_fits_beside_the_date(self):
+        wd.details(("artist", DAFT_PUNK), ALIVE)
+        place = lambda: self.served("artist", None, place_chips="22")["wikidata_place"]
+        self.labels["ListItem.Property(artist_formed)"] = "1993"
+        self.assertEqual(place(), "Paris")
+        self.labels["ListItem.Property(artist_born)"] = "21 March 1974 in a town"
+        self.assertEqual(place(), "")  # no room: no chip
+        self.labels["ListItem.Property(artist_born)"] = "21st of March 1974"  # 18
+        self.assertEqual(place(), "Par…")
+        self.assertEqual(self.served("artist", None)["wikidata_place"], "Paris")
 
 
 class CompilationTest(unittest.TestCase):
