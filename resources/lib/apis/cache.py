@@ -100,13 +100,16 @@ def cached(
         if exc.status == 401:  # the one failure the user can fix
             log.warning(f"{source} → refused the token (401)")
         wait = failure_ttl(exc)
-        if exc.status == 429 and queue and exc.code != ONE_MEDIA:
+        if held := exc.status == 429 and queue and exc.code != ONE_MEDIA:
             home.setProperty(queue, f"{slot + wait}")
         # A racing call's fresh answer stands; its failure row holds the same stale
         # read as this call's payload, so that one is simply stored again
         if (row := cache.get(key)) and row[1] and row[0] != payload:
             return row[0]
-        cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
+        # The queue holds this key with the rest: no row, so a call waiting the queue
+        # out asks again once it frees, not a row that outlives the slot
+        if not held:
+            cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
         return payload
     cache.put(key, payload, ttl[0] if payload else ttl[1])
     return payload

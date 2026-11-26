@@ -374,6 +374,33 @@ class DetailsTest(WikidataCase):
         self.assertEqual(waits.count(1), 1)
         self.assertEqual(self.asked[0], "having P4947=438631")
 
+    def test_a_429_is_waited_out_then_asked_again(self):
+        # no failure row outlives the queue's slot: once it frees the look-up asks
+        # again, after a long wait a second at a time, a short one in cached's wait
+        home, queue = cache.Window(10000), "test.wikidata_next"
+
+        def free(monitor, seconds=0):
+            home.setProperty(queue, "0")
+            return False
+
+        for wait in (30, 2):
+            ApiCacheHandler().clear("wikidata:%")
+            home.setProperty(queue, "0")
+            refused = iter([HttpError(429, wait)])
+
+            def answer(*args, **kwargs):
+                if failure := next(refused, None):
+                    raise failure
+                return self.answer(*args, **kwargs)
+
+            with (
+                mock.patch.object(wikidata, "NEXT_CALL", queue),
+                mock.patch.object(Monitor, "waitForAbort", free),
+                mock.patch.object(wikidata.http, "get_json", answer),
+            ):
+                found = wd.details(DUNE, ALIVE)
+            self.assertEqual(found["music_by"], ["Hans Zimmer"])
+
     def test_the_setting(self):
         self.assertEqual(wd.linked(DUNE, "composers"), [])  # kept only: never asked
         self.assertEqual(self.asked, [])

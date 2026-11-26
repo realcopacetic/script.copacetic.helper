@@ -224,12 +224,16 @@ def kept(key: tuple[str, ...]) -> tuple[dict[str, Any] | None, bool]:
 def _answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
     """
     A request's answer, while the look-up is live, waiting out a busy queue (which
-    cached skips: the look-up runs aside); raises _Unanswered otherwise.
+    cached skips: the look-up runs aside), then once more (a 429's short wait, which
+    cached waits out); raises _Unanswered otherwise.
     """
-    while live():
+    tries = 2
+    while tries and live():
         if (answer := call(*args)) is not None:
             return answer
-        if not busy(wikidata.NEXT_CALL) or Monitor().waitForAbort(1):
+        if not busy(wikidata.NEXT_CALL):
+            tries -= 1
+        elif Monitor().waitForAbort(1):
             break
     raise _Unanswered
 
