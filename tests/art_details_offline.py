@@ -8,7 +8,8 @@ path and mtime, a miss kept too, none kept when Wikidata isn't asked or refuses,
 429 holding the queue); the marked folders; the serve's properties and Home
 properties; chips fitted to a row. The artist page (art_artist, art_rail and the
 art_artist action): its fields, kept answers served and stale ones asked aside, the
-setting tested before each request, the rails, and the Back history.
+setting tested before each request, the rails, and the Back history. The search
+(art_search): kept verdicts in marked folders, ranked, with no request.
 
 Network calls are replaced by answers in the query service's and Wikipedia's shapes,
 built from tests/fixtures/wikidata_works.json and wikidata_artist.json (hand-written:
@@ -739,6 +740,54 @@ class ArtDetailsTest(unittest.TestCase):
             art._ask(("painter", TURNER), ALIVE)
             self.assertIsNone(art._ask(("gallery", TURNER), ALIVE))
         self.assertEqual(self.asked, [f"artist {TURNER}"])  # no summary, no rail
+
+    # Search
+
+    def found(self, query):
+        """The search's hits, by file name."""
+        return [Path(path).name for path, _ in art.search(query)]
+
+    def test_search_reads_kept_verdicts_only(self):
+        art.mark(FOLDER, True)
+        starry, tiger, gatos = (
+            "Vincent Van Gogh - 'Starry Night' (1890).jpg",
+            "Franz Marc - 'Tiger' (1912).jpg",
+            "Natalia Goncharova - Los Gatos (1913).jpg",  # a miss
+        )
+        for name in (starry, tiger, gatos):
+            art.look_up(f"{FOLDER}{name}", ALIVE)
+        page = {"movement": [["Q1", "Der Blaue Reiter"]]}
+        ApiCacheHandler().put("wikidata:painter:Q44054", page, 600)
+        self.asked = []
+        self.assertEqual(self.found("starry"), [starry])  # the title
+        self.assertEqual(self.found("van gogh"), [starry])  # the artist, word by word
+        self.assertEqual(self.found("moon"), [starry])  # what it depicts
+        self.assertEqual(self.found("modern art"), [starry])  # its collection
+        self.assertEqual(self.found("blaue"), [tiger])  # its artist's kept movement
+        self.assertEqual(self.found("gatos"), [gatos])  # a miss, by its file name
+        # title, then artist, then the details, then the name; matches first
+        self.assertEqual(self.found("a"), [starry, tiger, gatos])
+        self.assertEqual(
+            self.found(""), [tiger, starry]
+        )  # no words: matches, by artist
+        self.assertEqual(self.found("cypress tiger"), [])  # every word, in one tier
+        self.assertEqual(self.asked, [])  # nothing asked
+        art.mark(FOLDER, False)
+        self.assertEqual(self.found("starry"), [])  # marked folders only
+
+    def test_search_serve(self):
+        art.mark(FOLDER, True)
+        path = f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg"
+        art.look_up(path, ALIVE)
+        plugin = handlers.PluginHandlers({"info": "art_search", "query": "starry"})
+        (item,) = plugin.art_search()
+        self.assertEqual(item["file"], path)  # Kodi's select shows the picture
+        self.assertEqual(
+            (item["label"], item["label2"]), ("The Starry Night", "Vincent van Gogh")
+        )
+        self.assertEqual(item["properties"]["art_year"], "1889")
+        with mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: False):
+            self.assertEqual(list(plugin.art_search()), [])
 
     def test_rails(self):
         self.asides()

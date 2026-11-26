@@ -58,6 +58,7 @@ EXCLUDED = {
     "art_artist",
     "art_details",
     "art_rail",
+    "art_search",
     "artist_credits",
     "artwork",
     "broadcasts",

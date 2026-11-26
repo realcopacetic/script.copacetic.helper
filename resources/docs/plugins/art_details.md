@@ -133,6 +133,32 @@ A skin can hold a picture's text until the serve answers where it may match, so 
 own labels never show first and change: while `art_details_checked` isn't the
 listing (a listing not served yet) or `art_details_folder` is.
 
+## Search
+
+`info=art_search&query=…` finds pictures for a search rail, from what is already kept
+and nothing else: each looked-up picture's verdict, in folders marked now. It never
+sends a request and lists no folder, so a picture shows only once a serve has looked
+it up.
+
+```xml
+<content>plugin://script.copacetic.helper/?info=art_search&amp;query=$INFO[Window(home).Property(search_query)]</content>
+```
+
+Every word of the query (case, accents and punctuation aside) must be in one of these,
+tried in turn; the first that holds them all ranks the picture:
+
+1. the painting's title;
+2. its artist;
+3. its details: title, artist, collection, what it depicts, and the artist's movements
+   where the [artist page](#the-artist-page) has been kept;
+4. the file's name (a picture with no match too).
+
+Within a rank, matches come before misses, then by artist, year and title. With no
+query, every match, by artist, year and title. Each item's path is the picture, so
+Kodi's own select shows it full screen; it is labelled with the title (else the file
+name), `label2` the artist, the picture as `thumb`, and the [item's](#the-item)
+`art_*` properties. Nothing while the `wikidata` setting is off.
+
 ## The artist page
 
 A matched painting's `art_artist_qid` opens its artist: `info=art_artist` for the
