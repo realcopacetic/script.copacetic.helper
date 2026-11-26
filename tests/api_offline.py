@@ -623,6 +623,43 @@ class TmdbTest(Base):
         self.assertEqual(self.tmdb_row(), (item, 7 * DAY))
         self.assertEqual(len(self.net.requests), 3)
 
+    def test_a_shows_past_airing_is_stale(self):
+        def cached(days):  # a week-fresh entry whose next airing is days from today
+            day = str(date.today() + timedelta(days=days))
+            item = {"properties": {"tmdb_next_air_date": day}}
+            self.cache.put("tmdb:tvshow:1399:en-US", item, 7 * DAY)
+            return item
+
+        for days in (0, 3):  # today's, or to come: fresh
+            item = cached(days)
+            self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), item)
+        self.cache.put("tmdb:tvshow:1399:en-US", {"properties": {}}, 7 * DAY)
+        transform.tmdb_to_canonical("tvshow", 1399)  # none: ended, or between seasons
+        self.assertEqual(self.net.requests, [])
+        yesterday = {"air_date": str(date.today() - timedelta(1))}
+        lagging = json.loads(TMDB_TV) | {"next_episode_to_air": yesterday}
+        self.net.answers = [json.dumps(lagging).encode(), TimeoutError()]
+        cached(-1)  # yesterday's: asked again, though the week isn't out
+        renewed = transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertEqual(renewed["Title"], "Game of Thrones")
+        # TMDb still names it (a day late): asked once today, not on every read
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), renewed)
+        self.assertEqual(len(self.net.requests), 1)
+        self.cache.clear_all()
+        stale = cached(-1)
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), stale)  # offline
+        self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), stale)
+        self.assertEqual(len(self.net.requests), 2)  # the failure's wait holds it
+        self.cache.clear_all()
+        self.aside_queue()
+        stale, landed = cached(-1), self.asker()
+        args = "tvshow", 1399, None, None, True, False
+        self.assertEqual(transform.tmdb_lookup(*args, landed), (stale, True))  # served
+        self.assertEqual(len(transform.ASIDES.queue), 1)
+        self.cache.put("tmdb:tvshow:1399:en-US|noart", {"properties": {}}, 7 * DAY)
+        no_art = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
+        self.assertEqual(no_art, {"properties": {}})  # the art entry's airing is past
+
     def aside_queue(self):
         """Workers not started, the queue drained by hand (cache.Asides)."""
         started = []
@@ -831,13 +868,14 @@ class TmdbTest(Base):
         self.assertEqual(len(self.net.requests), 2)  # no retry inside the 5 minutes
 
     def test_failed_fetch_prefers_a_stale_art_entry(self):
+        renewed = {"Title": "renewed", "properties": {}}
         self.cache.put("tmdb:tvshow:1399:en-US|noart", {"Title": "older"}, DAY)
-        self.cache.put("tmdb:tvshow:1399:en-US", {"Title": "renewed"}, DAY)
+        self.cache.put("tmdb:tvshow:1399:en-US", renewed, DAY)
         self.tick(2 * DAY)
         self.net.answers = [TimeoutError()]
         for _ in range(2):  # the second read, inside the wait, serves the same
             item = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
-            self.assertEqual(item, {"Title": "renewed"})
+            self.assertEqual(item, renewed)
         self.assertEqual(len(self.net.requests), 1)
 
     def test_next_air_reads_the_cache_only(self):

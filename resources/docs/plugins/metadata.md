@@ -191,7 +191,10 @@ same rule when they are in the lists, and stay first when they aren't (so `poste
 Results are cached for 7 days, an id TMDB doesn't know for a day, a "too many
 requests" answer for as long as TMDB asks, and any other failed request (offline,
 timeout, server error, a refused token) for 5 minutes; until the retry, the last
-details fetched are still returned. *Clear add-on cache* empties it. The art is then
+details fetched are still returned. A TV show's entry is also stale once the next
+episode's air date it names is past (from the day after), however young it is, so the
+episode after is fetched; asked once a day, as TMDB can still name the past airing a
+day on, or the request fails. *Clear add-on cache* empties it. The art is then
 available to the artwork helper's `get_extra_multiart`
 (see [Artwork](artwork.md#multiart)).
 
