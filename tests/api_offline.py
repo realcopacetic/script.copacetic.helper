@@ -94,7 +94,15 @@ FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
 TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
 TMDB_CREATOR = (FIXTURES / "tmdb_person_tv_credits_9813.json").read_bytes()
-NEWS = ("new_episode", "next_air", "next_air_episode", "show_status")  # _show_news
+NEWS = (  # _show_news
+    "new_episode",
+    "new_episode_aired",
+    "new_episode_today",
+    "next_air",
+    "next_air_episode",
+    "next_air_today",
+    "show_status",
+)
 DEEZER_SEARCH = (FIXTURES / "deezer_search_qotsa.json").read_bytes()
 DEEZER_TOP = (FIXTURES / "deezer_top_1177.json").read_bytes()
 DEEZER_QUOTA = (
@@ -3170,11 +3178,13 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("next_air", **show), "")  # not cached
         cached["item"] = {"properties": {}}  # ended, or between seasons
         self.assertEqual(self.prop("next_air", **show), "")
-        for days, shown in ((23, True), (0, True), (-1, False)):
+        for days, shown, today in ((23, True, ""), (0, True, "true"), (-1, False, "")):
             day = date.today() + timedelta(days=days)
             cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
             expected = f"{day:%d} #{50 + day.month}" if shown else ""  # Kodi's %b
-            self.assertEqual(self.prop("next_air", **show), expected)
+            properties = self.prop_all(**show)
+            self.assertEqual(properties["next_air"], expected)
+            self.assertEqual(properties["next_air_today"], today)  # 5A: AIRS TODAY
         self.handler.params["date_format"] = "%A %d %B, %b"
         self.assertEqual(self.prop("next_air", **show), "")  # still yesterday
         day = date.today() + timedelta(days=2)
@@ -3228,7 +3238,17 @@ class ProgressbarTest(unittest.TestCase):
         )
         self.assertEqual(asked["sort"], {"method": "episode", "order": "descending"})
         props["tmdb_last_air_episode"] = "2"
-        self.assertEqual(self.prop("new_episode", **show), "3x02")
+        properties = self.prop_all(**show)
+        day = date.today()
+        self.assertEqual(properties["new_episode"], "3x02")
+        self.assertEqual(properties["new_episode_aired"], f"{day:%d} #{50 + day.month}")
+        self.assertEqual(properties["new_episode_today"], "true")  # 5A: AIRED TODAY
+        day -= timedelta(days=5)
+        props["tmdb_last_air_date"] = day.isoformat()  # 2A: AIRED 21 Nov → 3x02
+        properties = self.prop_all(**show)
+        self.assertEqual(properties["new_episode_aired"], f"{day:%d} #{50 + day.month}")
+        self.assertEqual(properties["new_episode_today"], "")
+        props["tmdb_last_air_date"] = date.today().isoformat()
         props |= {"tmdb_last_air_season": "2", "tmdb_last_air_episode": "12"}
         self.assertEqual(self.prop("new_episode", **show), "")  # missing, but older
         props["tmdb_last_air_season"] = "4"  # a season the library lacks
