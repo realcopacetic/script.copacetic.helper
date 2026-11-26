@@ -531,7 +531,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         target: str | None = None,
         aside: Asker | None = None,
         show: bool = False,
-    ) -> dict[str, Any] | None:
+    ) -> tuple[dict[str, Any] | None, bool]:
         """Resolve TMDb canonical item for the current listitem.
 
         :param append_artwork: Whether to include TMDb artwork fields.
@@ -539,20 +539,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param target: Infolabel prefix of the item; the serve's target item if None.
         :param aside: Read the cache, fetching on a thread that calls this on news.
         :param show: A season's or episode's show entry, in place of its own.
-        :return: canonical item dict or None.
+        :return: canonical item dict or None, and whether it was asked aside.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
-        from resources.lib.apis.tmdb.transform import tmdb_to_canonical
+        from resources.lib.apis.tmdb.transform import tmdb_lookup
 
         if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
-            return
+            return None, False
 
         ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
         kind = "tvshow" if show else ctx.get("kind") or self.dbtype
 
-        item = tmdb_to_canonical(
+        item, asked = tmdb_lookup(
             kind=kind,
             tmdb_id=tmdb_id,
             season_number=None if show else ctx.get("season_number"),
@@ -566,9 +566,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 f"{self.__class__.__name__} → tmdb: no data for "
                 f"type={kind!r}, tmdb_id={tmdb_id}"
             )
-            return
-
-        return item
+        return item or None, asked
 
     def _probe_text(self, param: str) -> str:
         """The label of the probe control a URL param names; empty if it names none.
@@ -797,7 +795,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         tmdb_item = (
             self._get_tmdb_item(
                 append_artwork=True, cache_only=True, target=item, aside=self.again
-            )
+            )[0]
             if extra
             else None
         )
@@ -1229,7 +1227,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             # tmdb_art: the one request also caches the art-bearing entry (a superset)
             # that the artwork serve's get_extra_multiart reads. Served, a stale entry
             # is fetched aside, and its news serves this list again (decision 2A)
-            tmdb_item = self._get_tmdb_item(append_artwork=tmdb_art, aside=self.again)
+            tmdb_item, asked = self._get_tmdb_item(
+                append_artwork=tmdb_art, aside=self.again
+            )
             if tmdb_item:
                 trailers = tmdb_item["properties"].pop("tmdb_trailers", "")
                 if trailers and parse_bool(self.params.get("random_trailer")):
@@ -1256,22 +1256,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     fill_only=fill_only,
                     ignore_keys=("art", "file"),
                 )
+            # A show's TMDb details (tagline, creators, genres, network) asked aside,
+            # missing or stale: the skin can mask their re-serve, as wikidata_pending
+            if asked and self.dbtype == "tvshow":
+                data["properties"]["tmdb_pending"] = "true"
         if self.dbtype == "season" and parse_bool(self.params.get("show_creators")):
             # Kodi keeps no writers for a season: its show's TMDb creators, alone
             show = self._get_tmdb_item(
                 append_artwork=False, aside=self.again, show=True
-            )
+            )[0]
             data["Writers"] = data["Writers"] or (show or {}).get("Writers", [])
         # Omega's library keeps no show tagline (Kodi 22 scrapes one): TMDb's, if any
         if self.dbtype == "tvshow" and not own_tagline and data["TagLine"]:
             data["properties"]["tagline"] = data["TagLine"]
-        # A show's TMDb details (tagline, creators, genres, network) asked aside: the
-        # skin can mask their re-serve, as wikidata_pending
-        if self.dbtype == "tvshow" and enrich_with_tmdb and self.again:
-            from resources.lib.apis.tmdb.transform import ASIDES
-
-            if ASIDES.pending(self.again):
-                data["properties"]["tmdb_pending"] = "true"
         if parse_bool(self.params.get("wikidata")):
             data["properties"] |= self._wikidata(data["Title"])
 
@@ -1567,7 +1564,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
         # entry can win until the art-less one is renewed on the next focus)
-        tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)
+        tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)[0]
         props = tmdb["properties"] if tmdb else {}
         news = {
             "new_episode": "",

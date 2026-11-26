@@ -666,17 +666,21 @@ class TmdbTest(Base):
         landed.assert_called_once()  # its list is owed: its next ring asks again
         self.assertEqual(transform.ASIDES.asked, {})
 
-    def test_an_askers_fetch_is_pending_until_it_ends(self):
+    def test_the_lookup_tells_whether_it_asked_aside(self):
         self.aside_queue()
-        landed, other = self.asker(), self.asker()
+        landed = self.asker()
         self.net.answers = [TMDB_TV]
-        transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
-        self.assertEqual(
-            (transform.ASIDES.pending(landed), transform.ASIDES.pending(other)),
-            (True, False),
-        )
-        transform.ASIDES._drain()
-        self.assertFalse(transform.ASIDES.pending(landed))
+        args = "tvshow", 1399, None, None, True, False
+        self.assertEqual(transform.tmdb_lookup(*args, landed), ({}, True))  # missing
+        transform.ASIDES._drain()  # the fetch ends: the serve still knows it asked
+        item = transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertEqual(transform.tmdb_lookup(*args, landed), (item, False))  # fresh
+        self.tick(8 * DAY)
+        self.assertEqual(transform.tmdb_lookup(*args, landed), (item, True))  # stale
+        plugin = transform.tmdb_lookup(*args[:5], True, None)  # cache only
+        self.assertEqual(plugin, (item, False))
+        episode = transform.tmdb_lookup("episode", *args[1:], landed)
+        self.assertTrue(episode[1])  # under its show's key
 
     def test_a_fetch_stopped_for_want_of_an_asker_tells_them(self):
         self.aside_queue()
@@ -907,8 +911,9 @@ class TmdbTest(Base):
         handler.dialog, handler.again = False, None
         handler.target_item = "Container(50).ListItem"
         handler._guard = lambda: mock.Mock(alive=lambda: True)
-        handler._get_tmdb_item = lambda **kwargs: transform.tmdb_to_canonical(
-            "tvshow", 1399
+        handler._get_tmdb_item = lambda **kwargs: (
+            transform.tmdb_to_canonical("tvshow", 1399),
+            False,
         )
         probes = []
         handler._apply_truncated_label = lambda *a, **kw: probes.append(kw["probe"])
@@ -938,12 +943,33 @@ class TmdbTest(Base):
             handler.metadata()
             handler.params["truncate_probe"] = "false"  # a favourite: video skips
             handler.metadata()
-            handler._get_tmdb_item, library["Plot"] = lambda **kwargs: {}, ""
+            handler._get_tmdb_item, library["Plot"] = lambda **kwargs: ({}, False), ""
             handler.dbtype = "season"  # a favourite season, no plot: still skips
             handler.metadata()
             handler.params["truncate_probe"], handler.dbtype = "false", "album"
             handler.metadata()  # music keeps the probe (an album caption: description)
         self.assertEqual(probes, [True, False, True, False, True, False, False, True])
+
+    def test_a_shows_tmdb_ask_marks_the_serve(self):
+        patch(
+            self,
+            (sys.modules["xbmc"], "executeJSONRPC", lambda request: "{}"),
+            (handlers, "set_items", lambda items, **kwargs: items),
+            (helpers, "infolabel", lambda path: ""),
+        )
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {"enrich_with_tmdb": "true"}
+        handler.item, handler.dbid, handler.dialog = False, "7", False
+        handler.target_item, handler.again = "Container(50).ListItem", mock.Mock()
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        handler._apply_truncated_label = lambda *args, **kwargs: None
+        # asked aside (missing or stale), however soon the fetch ends; a show's alone
+        for dbtype, asked in (("tvshow", True), ("tvshow", False), ("movie", True)):
+            handler.dbtype = dbtype
+            handler._get_tmdb_item = lambda **kwargs: ({}, asked)
+            (item,) = handler.metadata()
+            marked = item["properties"].get("tmdb_pending") == "true"
+            self.assertEqual(marked, asked and dbtype == "tvshow")
 
     def test_season_takes_its_shows_creators(self):
         library = {"Plot": "The show's plot", "Studio": "HBO", "Season": "5"}
@@ -1094,6 +1120,7 @@ class TmdbTest(Base):
         def follow_rail(**kwargs):
             shown.update({"6009": "Rail plot", "6036": "Rail title"})
             asides.append(kwargs["aside"])
+            return None, False
 
         handler._get_tmdb_item = follow_rail
         probe = lambda path: shown.get(path[17:21], "")
@@ -2806,7 +2833,7 @@ class ProgressbarTest(unittest.TestCase):
         self.handler.dialog = False
         self.alive = lambda: True
         self.handler._guard = lambda: mock.Mock(alive=lambda: self.alive())
-        self.handler._get_tmdb_item = lambda **kwargs: None
+        self.handler._get_tmdb_item = lambda **kwargs: (None, False)
         self.handler.filter_unwatched = {}
 
     def label(self, path):
@@ -3075,7 +3102,7 @@ class ProgressbarTest(unittest.TestCase):
 
         def tmdb(**kwargs):
             asks.append(kwargs)
-            return cached.get("item")
+            return cached.get("item"), False
 
         self.handler._get_tmdb_item = tmdb
         show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "9"}
@@ -3118,7 +3145,7 @@ class ProgressbarTest(unittest.TestCase):
 
     def test_show_news(self):
         props = {}
-        self.handler._get_tmdb_item = lambda **kwargs: {"properties": props}
+        self.handler._get_tmdb_item = lambda **kwargs: ({"properties": props}, False)
         show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "9"}
         show["Property(UnwatchedEpisodes)"] = "0"  # fully watched
         for status, shown in (

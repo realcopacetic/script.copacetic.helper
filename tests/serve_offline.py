@@ -1165,7 +1165,7 @@ class ArtworkTest(unittest.TestCase):
             patch.object(
                 handlers.PluginHandlers,
                 "_get_tmdb_item",
-                lambda self, **kwargs: asked.update(kwargs),
+                lambda self, **kwargs: (asked.update(kwargs), False),
             ),
             patch.object(handlers, "infolabel", return_value=""),
             patch("resources.lib.art.multiart.build_multiart_dict", return_value={}),
