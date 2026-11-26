@@ -137,6 +137,11 @@ class WikidataCase(unittest.TestCase):
                 entity = {
                     key: value for key, value in entity.items() if key != "claims"
                 }
+            if "labels" in entity and "languages" in params:
+                languages = params["languages"].split("|")
+                names = entity["labels"].items()
+                labels = {code: name for code, name in names if code in languages}
+                entity = entity | {"labels": labels}
             entities[qid] = entity
         return {"entities": entities, "success": 1}
 
@@ -252,6 +257,25 @@ class DetailsTest(WikidataCase):
         found = wd.details(("artist", DAFT_PUNK), ALIVE)
         self.assertEqual(found["place"], "Paris")
         self.assertEqual(wikidata._shape({})["label"], "")
+
+    def test_items_kept_one_by_one(self):
+        wd.details(DUNE, ALIVE)
+        self.asked.clear()
+        # Inception's composer was kept with Dune: only its own items are asked
+        found = wd.details(("movie", "999999", "tt1160419"), ALIVE)
+        self.assertEqual(found["music_by"], ["Hans Zimmer"])
+        zimmer = next(q for q, e in self.entities.items() if ZIMMER in str(e))
+        self.assertFalse(any(zimmer in asked for asked in self.asked))
+        # past BATCH, a request a batch; a missing item is an empty one
+        qids = [f"Q{n}" for n in range(1, 2 * wikidata.BATCH + 2)]
+        self.asked.clear()
+        found = wikidata.items(qids)
+        self.assertEqual(len(found), len(qids))
+        self.assertEqual(found["Q1"], {"label": "", "claims": {}})
+        self.assertEqual(len(self.asked), 3)
+        self.asked.clear()
+        self.assertEqual(wikidata.items(qids), found)  # kept
+        self.assertEqual(self.asked, [])
 
     def test_an_album_linked_both_ways_once(self):
         found = wd.details(("movie", "519182", ""), ALIVE)

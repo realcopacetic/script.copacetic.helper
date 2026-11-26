@@ -466,54 +466,81 @@ def having(prop: str, value: str) -> list[str] | None:
 
 def items(qids: list[str]) -> dict[str, dict] | None:
     """
-    Items' labels and the CLAIMS statements' best-rank values (a Q-id or a string),
-    by wbgetentities; the first BATCH, one request. Cached and queued.
+    Items' English or multilingual labels and the CLAIMS statements' best-rank values
+    (a Q-id or a string), by wbgetentities. Kept per item, cached and queued.
 
     :param qids: Q-ids; none asks nothing.
     :return: Each one's {"label", "claims"}, empty for a missing item; None if not asked.
     """
-    return _entities("items", qids, "labels|claims")
+    return _entities("items", qids, {"props": "labels|claims", "languages": "en|mul"})
 
 
 def labels(qids: list[str]) -> dict[str, str] | None:
     """
-    Items' labels alone (a city's statements run to megabytes), as items reads them.
+    Items' labels alone (a city's statements run to megabytes), as items reads them,
+    else in any language: Paris may have only its French one.
 
     :param qids: Q-ids; none asks nothing.
     :return: Each one's label, "" for none; None if not asked.
     """
-    found = _entities("labels", qids, "labels")
+    found = _entities("labels", qids, {"props": "labels"})
     return found and {qid: item["label"] for qid, item in found.items()}
 
 
-def _entities(kind: str, qids: list[str], props: str) -> dict[str, dict] | None:
+def _entities(
+    kind: str, qids: list[str], params: dict[str, str]
+) -> dict[str, dict] | None:
     """
-    wbgetentities' answer for items, shaped as items gives it; cached and queued.
+    wbgetentities' answers, shaped as items gives them: each item kept on its own (a
+    composer once across films), the stale ones asked BATCH a request.
 
-    :param kind: items or labels, the cache key's kind.
+    :param kind: items or labels, the cache keys' kind.
     :param qids: Q-ids, each asked once.
-    :param props: Its props parameter.
-    :return: Each one's {"label", "claims"}; None if not asked.
+    :param params: Its props parameter, and languages to limit the labels to.
+    :return: Each one's {"label", "claims"}; None if one is not asked.
     """
-    if not (qids := [*dict.fromkeys(qids)][:BATCH]):
-        return {}
+    cache = ApiCacheHandler()
+    keys = {qid: f"wikidata:{kind}:{qid}" for qid in qids}
+    rows = {qid: cache.get(key) or (None, False) for qid, key in keys.items()}
+    found = {qid: payload for qid, (payload, _) in rows.items()}
+    stale = [qid for qid, (_, fresh) in rows.items() if not fresh]
+    for start in range(0, len(stale), BATCH):
+        found |= _batch(stale[start : start + BATCH], keys, params)
+    return None if None in found.values() else found
 
-    def fetch() -> dict[str, dict]:
+
+def _batch(
+    qids: list[str], keys: dict[str, str], params: dict[str, str]
+) -> dict[str, Any]:
+    """
+    One request for up to BATCH items, each kept: the first through cached, which
+    holds the queue and keeps a failure, the others as the answer comes.
+
+    :param qids: Q-ids, BATCH at most.
+    :param keys: Each one's cache key.
+    :param params: As _entities takes them.
+    :return: Each one's payload as now kept (a stale one on a failure); None for none.
+    """
+    cache, (first, *others) = ApiCacheHandler(), qids
+
+    def fetch() -> dict[str, Any]:
         answer = http.get_json(
             API,
             {
                 "action": "wbgetentities",
                 "ids": "|".join(qids),
-                "props": props,
+                **params,
                 "format": "json",
             },
             timeout=API_TIMEOUT,
         )
-        found = answer["entities"]
-        return {qid: _shape(found.get(qid, {})) for qid in qids}
+        shaped = {qid: _shape(answer["entities"].get(qid, {})) for qid in qids}
+        for qid in others:
+            cache.put(keys[qid], shaped[qid], TTL_HIT)
+        return shaped[first]
 
-    key = f"wikidata:{kind}:{'|'.join(qids)}"
-    return cached(key, fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+    found = {first: cached(keys[first], fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)}
+    return found | {qid: (cache.get(keys[qid]) or (None,))[0] for qid in others}
 
 
 def _shape(item: dict) -> dict[str, Any]:
