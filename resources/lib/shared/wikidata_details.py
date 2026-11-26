@@ -246,6 +246,32 @@ def wanted() -> bool:
     return ADDON.getSettingBool("wikidata")
 
 
+def video_key(type: str, uniqueid: dict[str, str]) -> tuple[str, ...] | None:
+    """
+    A library film's or show's details key, by its TMDb and IMDb ids.
+
+    :param type: movie or tvshow.
+    :param uniqueid: The library row's uniqueid.
+    :return: The key, as kept takes it; None with neither id.
+    """
+    ids = uniqueid.get("tmdb", ""), uniqueid.get("imdb", "")
+    return (type, *ids) if any(ids) else None
+
+
+def linked(key: tuple[str, ...] | None, field: str) -> list:
+    """
+    One of an item's details for a plugin call, which waits on Wikidata itself, while
+    the setting is on: kept, or asked now.
+
+    :param key: As kept takes it; None for an item with no id.
+    :param field: soundtracks, composers or films.
+    :return: Its values; none when off, unanswered, or for no item.
+    """
+    if not (key and wanted()):
+        return []
+    return (details(key, wanted) or {}).get(field, [])
+
+
 # Details looked up for served calls, one request at a time as the queue asks; before
 # each request the setting is still on and an asker still current
 ASIDES = Asides(lambda key, live: details(key, lambda: live() and wanted()))

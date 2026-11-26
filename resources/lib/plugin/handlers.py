@@ -3025,8 +3025,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def soundtracks(self) -> list[DirectoryItem] | None:
         """
         Build a container of the soundtrack albums of library film, show, season or
-        episode type= id=, matched by title; a season's own lead, other seasons' go.
-        With type=album, the film or show that soundtrack is from.
+        episode type= id=, by title and Wikidata's links (_soundtrack_links); a season's
+        own lead, other seasons' go. type=album: the film or show it's from.
 
         :return: List of directory items for Kodi, or None if none match.
         """
@@ -3045,12 +3045,20 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             media, dbid, season = "tvshow", parent["tvshowid"], parent["season"]
         if not (
             item := library_details(
-                media, dbid, ["title", "originaltitle", "year"], "soundtracks"
+                media,
+                dbid,
+                ["title", "originaltitle", "year", "uniqueid"],
+                "soundtracks",
             )
         ):
             return
         names = {item["title"], item["originaltitle"]}
         keys = set(map(title_key, filter(None, names)))
+        properties = [
+            *ALBUM_RANK_PROPERTIES,
+            "originaldate",
+            "musicbrainzalbumartistid",
+        ]
         albums = library_rows(
             "album",
             {
@@ -3062,32 +3070,51 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             None,
             None,
             "soundtracks",
-            [*ALBUM_RANK_PROPERTIES, "originaldate"],
+            properties,
         )
         claims = {album["albumid"]: claim(album["title"]) for album in albums}
-        if not (
-            albums := [a for a in albums if claims[a["albumid"]].fits(keys, season)]
-        ):
-            return
-        # same-titled films and shows: each album goes to the nearest one
-        rivals = [
-            (type, row)
-            for type in ("movie", "tvshow")
-            for row in fetch_raw(
-                f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
-                type,
-                [{"or": [title_filter(names), title_filter(names, "originaltitle")]}],
-                None,
-                "soundtracks",
-                properties=["title", "originaltitle", "year"],
-            )
-        ]
+        albums = [a for a in albums if claims[a["albumid"]].fits(keys, season)]
+        # same-titled films and shows, read for an album only: each album goes to the
+        # nearest one, or the one its artist scored
+        titled = {"or": [title_filter(names), title_filter(names, "originaltitle")]}
+        rivals = cache(
+            lambda: [
+                (type, row)
+                for type in ("movie", "tvshow")
+                for row in fetch_raw(
+                    f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
+                    type,
+                    [titled],
+                    None,
+                    "soundtracks",
+                    properties=["title", "originaltitle", "year", "uniqueid"],
+                )
+            ]
+        )
         albums = [
             album
             for album in albums
-            if (found := owner(claims[album["albumid"]], release_year(album), rivals))
+            if (
+                found := owner(
+                    claims[album["albumid"]],
+                    release_year(album),
+                    rivals(),
+                    partial(self._scored, album),
+                )
+            )
             and (found[0], found[1][f"{found[0]}id"]) == (media, dbid)
         ]
+        # Albums Wikidata links to it, whatever their tags or title say; a season's
+        # only if they name it or no season
+        known = {album["albumid"] for album in albums}
+        for album in self._soundtrack_links(media, item["uniqueid"], properties):
+            if album["albumid"] not in known and (
+                linked := claim(album["title"])
+            ).covers(season):
+                claims[album["albumid"]] = linked
+                albums.append(album)
+        if not albums:
+            return
         albums.sort(
             key=lambda album: (
                 season not in claims[album["albumid"]].seasons,
@@ -3099,41 +3126,56 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _soundtrack_source(self, albumid: int) -> list[DirectoryItem] | None:
         """
-        The film or show soundtrack album albumid is from, matched by title; a show
-        carries the seasons the album names in soundtrack_seasons ("3, 4").
+        The film or show soundtrack album albumid is from: the one Wikidata links it
+        to while its setting is on, else matched by title; a show carries the seasons
+        the album names in soundtrack_seasons ("3, 4").
 
         :param albumid: Library album id.
         :return: List of one directory item, or None if not a soundtrack or no match.
         """
-        properties = ["genre", "originaldate", "style", "title", "type", "year"]
+        properties = [
+            "genre",
+            "musicbrainzalbumartistid",
+            "musicbrainzreleasegroupid",
+            "originaldate",
+            "style",
+            "title",
+            "type",
+            "year",
+        ]
         album = library_details("album", albumid, properties, "soundtracks")
         if not album:  # gone from the library
             return
-        tags = (album["type"], album["title"], *album["genre"], *album["style"])
-        if not any(SOUNDTRACK in tag.casefold() for tag in tags):
-            return
         album_claim = claim(album["title"])
-        # search the lead only; owner compares keys, so separators may differ
-        prefix = lead(album["title"])
-        rule = {
-            "or": [
-                {"field": field, "operator": "startswith", "value": prefix}
-                for field in ("title", "originaltitle")
+        if not (found := self._soundtrack_film(album["musicbrainzreleasegroupid"])):
+            tags = (album["type"], album["title"], *album["genre"], *album["style"])
+            if not any(SOUNDTRACK in tag.casefold() for tag in tags):
+                return
+            # search the lead only; owner compares keys, so separators may differ
+            prefix = lead(album["title"])
+            rule = {
+                "or": [
+                    {"field": field, "operator": "startswith", "value": prefix}
+                    for field in ("title", "originaltitle")
+                ]
+            }
+            candidates = [
+                (type, row)
+                for type in ("movie", "tvshow")
+                for row in fetch_raw(
+                    f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
+                    type,
+                    [rule],
+                    None,
+                    "soundtracks",
+                    properties=[*JSON_PROPERTIES[type], "uniqueid"],
+                )
             ]
-        }
-        candidates = [
-            (type, row)
-            for type in ("movie", "tvshow")
-            for row in fetch_raw(
-                f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
-                type,
-                [rule],
-                None,
-                "soundtracks",
-            )
-        ]
-        if not (found := owner(album_claim, release_year(album), candidates)):
-            return
+            scored = partial(self._scored, album)
+            if not (
+                found := owner(album_claim, release_year(album), candidates, scored)
+            ):
+                return
         type, row = found
         set_plugincontent(content=f"{type}s")
         items = build_items([row], type, apply_videoinfotag)
@@ -3141,6 +3183,79 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         for _, li, _ in items:
             li.setProperty("soundtrack_seasons", named)
         return items
+
+    @staticmethod
+    def _scored(album: dict, fit: tuple[str, dict]) -> bool:
+        """
+        Whether a library film or show had the album's artist among its composers,
+        by their MusicBrainz ids on Wikidata (wikidata_details.linked).
+
+        :param album: AudioLibrary row with musicbrainzalbumartistid.
+        :param fit: (movie or tvshow, row with uniqueid).
+        :return: True when one of them scored it.
+        """
+        from resources.lib.shared import wikidata_details as wd
+
+        composers = wd.linked(wd.video_key(fit[0], fit[1]["uniqueid"]), "composers")
+        return not set(album["musicbrainzalbumartistid"]).isdisjoint(composers)
+
+    @staticmethod
+    def _soundtrack_links(
+        media: str, uniqueid: dict[str, str], properties: list[str]
+    ) -> list[dict]:
+        """
+        The library albums Wikidata links to a film or show, by their release groups
+        (its P406 albums', and albums whose P9899 names it).
+
+        :param media: movie or tvshow.
+        :param uniqueid: Its library row's uniqueid.
+        :param properties: The album properties to read.
+        :return: AudioLibrary rows; none with the setting off or no link.
+        """
+        from resources.lib.shared import wikidata_details as wd
+
+        if not (groups := set(wd.linked(wd.video_key(media, uniqueid), "soundtracks"))):
+            return []
+        # No release group filter: every album's, then the linked ones' details
+        rows = library_rows(
+            "album", None, None, None, "soundtracks", ["musicbrainzreleasegroupid"]
+        )
+        return [
+            library_details("album", row["albumid"], properties, "soundtracks")
+            for row in rows
+            if row["musicbrainzreleasegroupid"] in groups
+        ]
+
+    @staticmethod
+    def _soundtrack_film(group: str) -> tuple[str, dict] | None:
+        """
+        The library film or show Wikidata says a soundtrack album was made for, by
+        their TMDb and IMDb ids: the first one found.
+
+        :param group: The album's MusicBrainz release group id; "" for none.
+        :return: The (type, row) pair; None with the setting off or no link.
+        """
+        from resources.lib.shared import wikidata_details as wd
+
+        if not (films := wd.linked(("album", group) if group else None, "films")):
+            return None
+        for type in ("movie", "tvshow"):
+            rows = fetch_raw(  # no uniqueid filter: every id, then the one's details
+                f"VideoLibrary.Get{_VIDEO_METHODS[type]}s",
+                type,
+                [],
+                None,
+                "soundtracks",
+                properties=["uniqueid"],
+            )
+            for row in rows:
+                if any(
+                    kind in (type, "") and row["uniqueid"].get(name) == value
+                    for kind, name, value in films
+                ):
+                    dbid, properties = row[f"{type}id"], JSON_PROPERTIES[type]
+                    return type, library_details(type, dbid, properties, "soundtracks")
+        return None
 
     @role_endpoint(
         field="studio",
