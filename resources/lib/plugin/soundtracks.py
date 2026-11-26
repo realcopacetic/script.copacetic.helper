@@ -142,17 +142,17 @@ def owner(
     claim: Claim,
     album_year: int,
     candidates: list[tuple[str, dict]],
-    scored: Callable[[tuple[str, dict]], bool] = lambda fit: False,
+    rank: Callable[[tuple[str, dict]], tuple[bool, bool]],
 ) -> tuple[str, dict] | None:
     """
     The film or show an album belongs to among library rows sharing its title:
-    its wording's medium if both kinds match, then one scored by the album's artist
-    (asked only of a choice), then the nearest year.
+    its wording's medium if both kinds match, then the best ranked (asked only of a
+    choice), then the nearest year.
 
     :param claim: The album's claim.
     :param album_year: The album's first release year, 0 when undated.
     :param candidates: (movie or tvshow, row with title, originaltitle and year).
-    :param scored: Whether a (type, row) has the album's artist among its composers.
+    :param rank: A (type, row)'s ties to the album: (linked by id, its composer's).
     :return: The (type, row) pair, or None when none matches.
     """
     fits = [
@@ -161,8 +161,9 @@ def owner(
         if claim.keys & {title_key(row["title"]), title_key(row["originaltitle"])}
     ]
     fits = [fit for fit in fits if fit[0] == claim.medium] or fits
-    if len(fits) > 1:  # Dune (1984) and Dune (2021): the one its composer scored
-        fits = [fit for fit in fits if scored(fit)] or fits
+    if len(fits) > 1:  # Dune (1984) and Dune (2021): the one it's linked to or scored
+        ranks = [rank(fit) for fit in fits]
+        fits = [fit for fit, ties in zip(fits, ranks) if ties == max(ranks)]
     return min(
         fits,
         key=lambda fit: abs(fit[1]["year"] - album_year) if album_year else 0,

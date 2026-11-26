@@ -635,6 +635,20 @@ class SoundtracksTest(WikidataCase):
         self.assertEqual(self.listing("movie", 1), [12])  # 1984's by its link alone
         self.assertEqual(self.listing("album", 10)[0][0], "movie 2")
 
+    def test_the_id_link_before_the_composer(self):
+        # Zimmer's "Dune" album, which Wikidata links to the 1984 film: that one, both
+        # ways (by the composer alone, 2021's would list it too)
+        link = item("Q114819", "Dune", P406=["Q930"])["claims"]["P406"]
+        self.entities["Q114819"]["claims"]["P406"] += link
+        self.entities["Q930"] = item("Q930", "Dune", P436=["rg-dune-zimmer"])
+        self.library["album"].append(
+            album_row(16, "Dune", ["Soundtrack"], ZIMMER, "rg-dune-zimmer")
+        )
+        self.keep()
+        self.assertCountEqual(self.listing("movie", 1), [12, 16])
+        self.assertEqual(self.listing("movie", 2), [10])
+        self.assertEqual(self.listing("album", 16)[0][0], "movie 1")
+
     def test_id_link_whatever_the_tags(self):
         self.keep()
         self.assertEqual(self.listing("movie", 3), [11])

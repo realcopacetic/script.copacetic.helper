@@ -3060,6 +3060,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             *ALBUM_RANK_PROPERTIES,
             "originaldate",
             "musicbrainzalbumartistid",
+            "musicbrainzreleasegroupid",
         ]
         albums = library_rows(
             "album",
@@ -3077,7 +3078,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         claims = {album["albumid"]: claim(album["title"]) for album in albums}
         albums = [a for a in albums if claims[a["albumid"]].fits(keys, season)]
         # same-titled films and shows, read for an album only: each album goes to the
-        # nearest one, or the one its artist scored
+        # nearest one, or the one Wikidata links it to or its artist scored
         titled = {"or": [title_filter(names), title_filter(names, "originaltitle")]}
         rivals = cache(
             lambda: [
@@ -3101,7 +3102,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     claims[album["albumid"]],
                     release_year(album),
                     rivals(),
-                    partial(self._scored, album),
+                    partial(self._rank, album),
                 )
             )
             and (found[0], found[1][f"{found[0]}id"]) == (media, dbid)
@@ -3173,10 +3174,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     properties=[*JSON_PROPERTIES[type], "uniqueid"],
                 )
             ]
-            scored = partial(self._scored, album)
-            if not (
-                found := owner(album_claim, release_year(album), candidates, scored)
-            ):
+            rank = partial(self._rank, album)
+            if not (found := owner(album_claim, release_year(album), candidates, rank)):
                 return
         type, row = found
         set_plugincontent(content=f"{type}s")
@@ -3187,19 +3186,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         return items
 
     @staticmethod
-    def _scored(album: dict, fit: tuple[str, dict]) -> bool:
+    def _rank(album: dict, fit: tuple[str, dict]) -> tuple[bool, bool]:
         """
-        Whether a library film or show had the album's artist among its composers,
-        by their MusicBrainz ids on Wikidata (wikidata_details.linked).
+        A library film's or show's ties to an album in its kept Wikidata details: its
+        soundtracks list the album's release group; its composers, the album's artist.
 
-        :param album: AudioLibrary row with musicbrainzalbumartistid.
+        :param album: AudioLibrary row with its MusicBrainz release group and artists.
         :param fit: (movie or tvshow, row with uniqueid).
-        :return: True when one of them scored it.
+        :return: (linked by id, scored by the album's artist), the link first.
         """
         from resources.lib.shared import wikidata_details as wd
 
-        composers = wd.linked(wd.video_key(fit[0], fit[1]["uniqueid"]), "composers")
-        return not set(album["musicbrainzalbumartistid"]).isdisjoint(composers)
+        key = wd.video_key(fit[0], fit[1]["uniqueid"])
+        composers = wd.linked(key, "composers")
+        return (
+            album["musicbrainzreleasegroupid"] in wd.linked(key, "soundtracks"),
+            not set(album["musicbrainzalbumartistid"]).isdisjoint(composers),
+        )
 
     @staticmethod
     def _soundtrack_links(
