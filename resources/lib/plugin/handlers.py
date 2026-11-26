@@ -1295,7 +1295,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         """
         Wikidata details of a film, show, artist or album as wikidata_* properties,
         while the wikidata setting is on: kept ones only, a missing or stale answer
-        asked aside for a served call, whose news serves the list again.
+        asked aside for a served call (wikidata_pending), whose news serves it again.
 
         :param title: The item's title, for the based-on wording.
         :return: The properties; none for an item with no TMDb, IMDb or MusicBrainz id.
@@ -1305,9 +1305,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (wd.wanted() and (key := self._wikidata_key())):
             return {}
         found, fresh = wd.kept(key)
+        properties = wd.properties(self.dbtype, found or {}, title)
         if not fresh and self.again:
             wd.ASIDES.ask(key, self.again, found)
-        return wd.properties(self.dbtype, found or {}, title)
+            properties["wikidata_pending"] = "true"  # the skin can mask the re-serve
+        return properties
 
     def _wikidata_key(self) -> tuple[str, ...] | None:
         """
