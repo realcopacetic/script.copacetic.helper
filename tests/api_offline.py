@@ -180,7 +180,8 @@ class Base(unittest.TestCase):
         )
         self.cache = ApiCacheHandler()
         self.cache.clear_all()
-        sys.modules["xbmcgui"].Window().clearProperty(listenbrainz.NEXT_CALL)
+        for queue in (listenbrainz.NEXT_CALL, f"{listenbrainz.NEXT_CALL}.held"):
+            sys.modules["xbmcgui"].Window().clearProperty(queue)
 
     def row(self, mbid=GORILLAZ, key="listenbrainz:top-recordings:"):
         """The api_cache row for mbid: (payload, seconds left)."""
@@ -3218,7 +3219,8 @@ SHOW = {"tmdb": "1396", "tvdb": "81189", "imdb": "tt0903747"}
 class TheIntroDbTest(Base):
     def setUp(self):
         super().setUp()
-        sys.modules["xbmcgui"].Window().clearProperty(theintrodb.NEXT_CALL)
+        for queue in (theintrodb.NEXT_CALL, f"{theintrodb.NEXT_CALL}.held"):
+            sys.modules["xbmcgui"].Window().clearProperty(queue)
 
     def lookup(self, ids=SHOW):
         return theintrodb.segments(ids, 3_481_234, 1, 1)

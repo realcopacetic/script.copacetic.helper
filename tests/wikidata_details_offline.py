@@ -376,6 +376,23 @@ class DetailsTest(WikidataCase):
                 wd._answer(ALIVE, wikidata.items, ["Q1", "Q2", "Q3"])
         self.assertEqual(len(calls), 1)
 
+    def test_a_hold_during_the_wait_sends_nothing(self):
+        # a call waiting its slot finds a 429 held the queue meanwhile: no request
+        home, queue = cache.Window(10000), "test.wikidata_next"
+        home.setProperty(queue, f"{time.time() + 2}")
+
+        def hold(monitor, seconds=0):
+            home.setProperty(f"{queue}.held", f"{time.time() + 30}")
+            return False
+
+        with (
+            mock.patch.object(wikidata, "NEXT_CALL", queue),
+            mock.patch.object(Monitor, "waitForAbort", hold),
+        ):
+            self.assertIsNone(wikidata.having("P4947", "438631"))
+        self.assertEqual(self.asked, [])
+        home.setProperty(f"{queue}.held", "0")
+
     def test_a_busy_queue_is_waited_out(self):
         # cached skips a request over MAX_WAIT ahead: the look-up, aside, waits a
         # second at a time while it is live, and asks once the queue frees
@@ -401,8 +418,9 @@ class DetailsTest(WikidataCase):
         # again, after a long wait a second at a time, a short one in cached's wait
         home, queue = cache.Window(10000), "test.wikidata_next"
 
-        def free(monitor, seconds=0):
+        def free(monitor, seconds=0):  # the wait's end: the slot and the hold pass
             home.setProperty(queue, "0")
+            home.setProperty(f"{queue}.held", "0")
             return False
 
         for wait in (30, 2):
