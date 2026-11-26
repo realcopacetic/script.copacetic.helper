@@ -86,8 +86,8 @@ def cached(
         home.setProperty(queue, f"{slot + 1}")
         if slot > now:
             log.debug(f"{source} → queued {slot - now:.1f}s {key}")
-            if Monitor().waitForAbort(slot - now):
-                return payload
+            if Monitor().waitForAbort(slot - now) or busy(queue):
+                return payload  # Kodi's exit, or a 429 held the queue while waiting
             payload, fresh = cache.get(key) or (payload, False)
             if fresh:  # another plugin call fetched it while this one waited
                 return payload
@@ -115,9 +115,14 @@ def cached(
     return payload
 
 
+def ahead(queue: str) -> float:
+    """Seconds to a queue's next free slot: over 1 only while a 429 holds it."""
+    return float(Window(10000).getProperty(queue) or 0) - time.time()
+
+
 def busy(queue: str) -> bool:
     """Whether a queue's next free slot is over MAX_WAIT away: cached skips a call."""
-    return float(Window(10000).getProperty(queue) or 0) - time.time() > MAX_WAIT
+    return ahead(queue) > MAX_WAIT
 
 
 class Asker(Protocol):
