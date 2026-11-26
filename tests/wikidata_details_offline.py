@@ -322,6 +322,15 @@ class DetailsTest(WikidataCase):
             wd.properties("artist", singer, "Singer"),
             {"wikidata_labels": "Daft Life", "wikidata_place": "Paris"},
         )
+        # an unlabelled one of the first two counts in +N
+        self.entities |= {
+            "Q912": item("Q912", "Trio", P434=["m-912"], P264=["Q913", "Q54860"]),
+            "Q913": item("Q913", ""),
+        }
+        trio = wd.details(("artist", "m-912"), ALIVE)
+        self.assertEqual(
+            wd.properties("artist", trio, "Trio"), {"wikidata_labels": "Daft Life +1"}
+        )
 
     def test_album_producer_and_films(self):
         found = wd.details(("album", "baf438d5-47ce-399c-9389-40a5d5f14632"), ALIVE)
