@@ -185,7 +185,7 @@ for them too. The library calls they add, per focus:
 
 | Focused item | Calls | Which |
 |---|---|---|
-| Show or season with episodes left, started or not (a favourite's season and the Specials season too) | 1 to 2 | `GetEpisodes`; `GetTVShowDetails` for the show's TMDB id, only with a TMDB token and no `UniqueID(tmdb)` (a season has none: always, unless the URL passes `tmdb_id`) |
+| Show or season with episodes left, started or not (a favourite's season and the Specials season too) | 1 to 2 | `GetEpisodes`; `GetTVShowDetails` for the show's TMDB id, only with a TMDB token and no `UniqueID(tmdb)` (a season has none), once per show until Kodi restarts: the id found is kept, for the metadata serve too |
 | Fully watched show | 1 to 2 | `GetEpisodes` for its episodes outside the specials, before the bar moves ([rewatches](#rewatches)); `GetTVShowDetails` for its TMDB id, as above |
 | Fully watched season (the Specials season: no `GetEpisodes`) | 1 to 2 | The same, for the season's episodes and its show's TMDB id |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
@@ -274,8 +274,9 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   TMDB language, so a `metadata` call with a `language` fills it for a `progressbar`
   call with the same `language` only.
   A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
-  default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDB id, as
-  the metadata plugin does.
+  default id), and every season, costs one `VideoLibrary.GetTVShowDetails` call to
+  find its TMDB id, as the metadata plugin does; once found, the id is kept until Kodi
+  restarts, for both.
 
 ## Rewatches
 
