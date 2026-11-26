@@ -272,39 +272,42 @@ def verdict(path: str) -> dict[str, Any] | None:
     return None
 
 
-def look_up(path: str) -> dict[str, Any] | None:
+def look_up(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
     Match a file to its painting and keep the verdict; a request not answered
-    (busy, refused, failed) keeps none, so the next visit asks again.
+    (busy, refused, failed), or a look-up no longer live, keeps none.
 
     :param path: The picture's path.
-    :return: Its fields; {} for a miss; None when a request wasn't answered.
+    :param live: Tested before each request; False stops the look-up.
+    :return: Its fields; {} for a miss; None when unanswered or stopped.
     """
-    found = _found(path)
+    found = _found(path, live)
     if found is not None:
         kept = {"mtime": _mtime(path), "fields": found}
         ApiCacheHandler().put(_key(path), kept, TTL_FILE)
     return found
 
 
-def _found(path: str) -> dict[str, Any] | None:
+def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
     look_up's answer, asked of Wikidata and Wikipedia in turn.
 
     :param path: The picture's path.
-    :return: Its fields; {} for a miss; None when a request wasn't answered.
+    :param live: Tested before each request; False stops the look-up.
+    :return: Its fields; {} for a miss; None when unanswered or stopped.
     """
     if not (name := parse(path)):
         return {}
-    if not (artist := wikidata.works(name.artist)):
+    if not (artist := wikidata.works(name.artist, live)):
         return artist  # None: not answered; {}: no such painter
     if not (best := match(name, artist["works"])):
         return {}
     qid, score = best
-    if (work := wikidata.painting(qid)) is None:
+    if not live() or (work := wikidata.painting(qid)) is None:
         return None
     article = next(iter(work.get("enwiki", [])), "")
-    if (text := wikidata.summary(article) if article else "") is None:
+    text = (wikidata.summary(article) if live() else None) if article else ""
+    if text is None:
         return None
     log.debug(f"art_details → {qid} at {score} for {path}")
     return fields(name, artist, qid, work, text)
@@ -357,8 +360,8 @@ def without_user(path: str) -> str:
 
 def wanted(path: str) -> bool:
     """
-    Whether a picture may be looked up now: the setting on and its folder marked,
-    tested again before any request, so none goes out once either is undone.
+    Whether a picture may be looked up now: the setting on and its folder marked.
+    A look-up tests it before each of its requests: none goes out once either is undone.
 
     :param path: The picture's path.
     """
@@ -403,9 +406,10 @@ def mark(path: str, on: bool) -> list[str]:
     return folders
 
 
-# Files looked up for served calls, one at a time as the query service asks, each
-# still wanted when its turn comes; a verdict, a match or a miss, is news
-ASIDES = Asides(lambda path: look_up(path) if wanted(path) else None)
+# Files looked up for served calls, one at a time as the query service asks; before
+# each request the file is still wanted and an asker still current. A verdict, a
+# match or a miss, is news
+ASIDES = Asides(lambda path, live: look_up(path, lambda: live() and wanted(path)))
 
 
 def fit_chips(

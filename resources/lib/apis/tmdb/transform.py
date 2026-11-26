@@ -164,7 +164,7 @@ def creator_shows(person_id: str) -> list[dict[str, Any]]:
 
 # Items fetched for served calls: tmdb_to_canonical's positional args are the key; a
 # dead network keeps the stale answer, which is no news
-ASIDES = Asides(lambda args: tmdb_to_canonical(*args), ASIDE_WORKERS)
+ASIDES = Asides(lambda args, live: tmdb_to_canonical(*args), ASIDE_WORKERS)
 
 
 def _build_tmdb_canonical_item(

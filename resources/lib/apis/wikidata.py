@@ -7,7 +7,7 @@ queue, a second apart; a 429's Retry-After holds the queue.
 """
 
 import re
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 
 from resources.lib.apis import http
@@ -105,22 +105,27 @@ def _qid(uri: str) -> str:
     return uri.removeprefix(ENTITY) if uri.startswith(f"{ENTITY}Q") else ""
 
 
-def works(artist: str) -> dict[str, Any] | None:
+def works(artist: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
     A painter's works, by the name a file gives: the search's best painter, else
     one found fuzzily, word by word ("Kandinksy~"); each a request of its own. Each
     work is [qid, sitelinks, inception years, labels and aliases].
 
     :param artist: Artist name.
+    :param live: Tested before each request; False stops, with no answer.
     :return: The painter's qid and label, and works; {} for none; None if not asked.
     """
+    if not live():
+        return None
     painter = _painter(f"wikidata:artist:{fold(artist)}", artist)
     if painter == {}:
+        if not live():
+            return None
         fuzzy = " ".join(f"{word}~" for word in artist.split())
         painter = _painter(f"wikidata:fuzzy:{fold(artist)}", fuzzy)
     if not painter:  # {}: none; None: not asked
         return painter
-    if (found := _works(painter["qid"])) is None:
+    if not live() or (found := _works(painter["qid"])) is None:
         return None
     return painter | {"works": found} if found else {}
 

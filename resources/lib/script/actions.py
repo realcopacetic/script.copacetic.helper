@@ -173,7 +173,7 @@ def art_details_refresh(
     if not art.wanted(path):  # the setting off or the folder unmarked: nothing sent
         return
     art.forget(path)
-    art.look_up(path)
+    art.look_up(path, lambda: art.wanted(path))
     if ring:
         from resources.lib.service.serve import ring as send
 

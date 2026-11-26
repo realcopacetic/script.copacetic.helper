@@ -5,6 +5,7 @@ from collections import deque
 from collections.abc import Hashable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from functools import partial
 from threading import Lock, Thread
 from typing import Any, Callable, Protocol
 
@@ -126,11 +127,13 @@ class Asides:
     threads, which end with the queue: a dead network queues, and holds no exit.
     """
 
-    def __init__(self, fetch: Callable[[Hashable], Any], workers: int = 1) -> None:
+    def __init__(
+        self, fetch: Callable[[Hashable, Callable[[], bool]], Any], workers: int = 1
+    ) -> None:
         """
         A queue with no worker yet.
 
-        :param fetch: Fetches a key's answer; None for no answer.
+        :param fetch: Fetches a key's answer, given a test of its askers; None for none.
         :param workers: Threads at most.
         """
         self.fetch, self.workers, self.running = fetch, workers, 0
@@ -166,7 +169,10 @@ class Asides:
                     self.running -= 1
                     return
                 key = self.queue.popleft()
-            self._turn(key)
+            try:
+                self._turn(key)
+            except Exception:  # anything _turn's own tries miss: the worker goes on
+                log.exception(f"Asides → {key!r}")
 
     def _turn(self, key: Hashable) -> None:
         """
@@ -180,7 +186,7 @@ class Asides:
                 if not any(asker.current() for asker in self.asked[key][0]):
                     del self.asked[key]
                     return
-            answer = self.fetch(key)
+            answer = self.fetch(key, partial(self._wanted, key))
         except Exception:  # its own thread: nothing above it would log
             log.exception(f"Asides → {key!r}")
             answer = None
@@ -192,3 +198,8 @@ class Asides:
                     asker()
                 except Exception:  # one asker's error: the others are still told
                     log.exception(f"Asides → {key!r}: an asker")
+
+    def _wanted(self, key: Hashable) -> bool:
+        """Whether any asker of a running key still wants it: a fetch's live test."""
+        with self.lock:
+            return any(asker.current() for asker in self.asked[key][0])
