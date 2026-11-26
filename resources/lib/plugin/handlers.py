@@ -147,6 +147,15 @@ _VIDEO_METHODS = {
 _MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
 # TMDb's show status as _show_news's show_status: no more episodes, or more to come
 _SHOW_STATUS = {"Canceled": "ended", "Ended": "ended", "Returning Series": "returning"}
+# A show's or season's progress properties beside its airing's, each "" unless set
+_SHOW_CONTEXT = (
+    "next_episode",
+    "next_special",
+    "next_runtime",
+    "new",
+    "new_kind",
+    "rewatch",
+)
 _LABEL = "popularity_label"  # the handler's name: its item's path, its calls' parent
 
 
@@ -1599,10 +1608,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :return: Properties for the progress item.
         """
         props, followed = self._show_tmdb(show.dbtype == "season")
-        keys = "next_episode", "next_special", "next_runtime", "new", "new_kind"
-        context = self._next_air(props, show.season) | dict.fromkeys(  # 6B, 13A
-            (*keys, "rewatch"), ""
-        )
+        airing = self._next_air(props, show.season)  # 6B, 13A
+        context = dict.fromkeys(_SHOW_CONTEXT, "") | airing
         # The skin's mask: TMDb's answer is coming, and the bar with it (12A)
         context["tmdb_pending"] = "true" if followed else ""
         if show.dbtype == "tvshow" and show.done:
