@@ -55,7 +55,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `img_h` | whole number | the bar height | Height of the image. |
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
-| `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
+| `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, an episode first aired, or for a show or season (see `new_kind`) the show was added or its unwatched episodes first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air` and `new_episode_aired`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDB data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDB lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -151,9 +151,11 @@ One list item in the helper container:
 | `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies. Empty when the item is watched. |
 | `ListItem.Property(plays)` | A film or episode played twice or more: its play count, e.g. `3`. Empty below 2, and for every other type (an album's `ListItem.PlayCount` is its songs' average). |
 | `ListItem.Property(time_left)` | A part-watched movie or episode, or a part-heard album: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. The units are the add-on's strings 32615 (`h`) and 32616 (`m`), so they follow Kodi's language; `next_runtime` and `epg_time_left` use them too. |
-| `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `2x10` (`1x01` for a show not yet begun, `3x01` for a Season 3 not yet begun). |
-| `ListItem.Property(next_runtime)` | That episode's library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
-| `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
+| `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `2x10` (`1x01` for a show not yet begun, `3x01` for a Season 3 not yet begun). Empty when only specials are left (see `next_special`). |
+| `ListItem.Property(next_special)` | `true` when the only unwatched episodes of a show or season are specials (season 0), or for the Specials season itself with any left: the next is then its lowest unwatched special, for a label such as *Special next*. Empty otherwise. |
+| `ListItem.Property(next_runtime)` | That episode's (or special's) library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
+| `ListItem.Property(new)` | `true` for a TV show or season with a `new_kind`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
+| `ListItem.Property(new_kind)` | A TV show or season with unwatched episodes: `show` for a show added within `new_days` (its earliest episode's date added) and not started (no episode watched or part-watched); else, of its unwatched episodes that first aired within `new_days`, `season` when one is a season's first episode (season 2 or later; shows only), `episodes` for more than one and `episode` for one, specials counted. A season counts its own episodes and is never `show` or `season`. Empty for none, and for every other type. For pills such as *New*, *New season*, *New episodes* and *New episode*. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDB data, in `date_format`. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDB data predates it (see below). |
 | `ListItem.Property(next_air_today)` | With `next_air`: `true` when that episode airs today, for a label such as *Airs today*; empty otherwise. |
@@ -176,12 +178,12 @@ for them too. The library calls they add, per focus:
 
 | Focused item | Calls | Which |
 |---|---|---|
-| Show or season with episodes left, started or not (a favourite's season too) | 1 | `GetEpisodes` |
+| Show or season with episodes left, started or not (a favourite's season and the Specials season too) | 1 | `GetEpisodes` |
 | Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDB id, only with a TMDB token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDB's cached data has a last aired episode |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Album none of whose songs has played | 1 | `GetAlbumDetails` (`dateadded`) |
-| Watched or part-watched film or episode, fully watched or Specials season, set, album with a song played, plugin item | 0 | |
+| Watched or part-watched film or episode, fully watched season, set, album with a song played, plugin item | 0 | |
 
 A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), and an
 album's one `GetSongs` call, both made before the bar moves.
@@ -203,23 +205,31 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   percent. `ListItem.PercentPlayed` is the resume point over its total in Kodi, so it
   is the same whole number in either form; with no runtime the item keeps the
   out-of-100 form. No library call: the runtime is the one `time_left` reads.
-- **`next_episode`** and **`new`** (shows and seasons): one
-  `VideoLibrary.GetEpisodes` call for the unwatched episodes of a show or season with
-  any left, started or not (a season's own, or the whole show for *All seasons*,
-  which sends no `season`: `GetEpisodes` rejects `-1`). A show or season with none
-  left, and anything not in the library, make no episode call. A favourite's season
-  (an add-on item, with no `TvShowDBID`) is found by its `Property(tvshowid)`.
-  `next_episode` is the episode [`next_up`](library.md#next_up) lists for the show,
-  or the season's lowest unwatched one: its first episode if it isn't started, and
-  `next_runtime` is its `runtime` from the same call (seconds in JSON-RPC; without
-  `streamdetails` asked for, that's the library's runtime alone). The
-  Specials season (season 0) has none and makes no call. `new` needs the newest
-  `firstaired` among those unwatched episodes, specials included, on or after the
-  date `new_days` before today, started or not: a part-watched episode still counts,
-  as it has no play count. So a show stays new while you start its new episodes,
-  and a show added with its back catalogue isn't new however recently it was added.
-  A special counts by its air date like any episode: an old one is never new, a
-  recently aired one is. Seasons get no `new`.
+- **`next_episode`**, **`next_special`**, **`new_kind`** and **`new`** (shows and
+  seasons): one `VideoLibrary.GetEpisodes` call for the unwatched episodes of a show
+  or season with any left, started or not (a season's own, or the whole show for
+  *All seasons*, which sends no `season`: `GetEpisodes` rejects `-1`). A show or
+  season with none left, and anything not in the library, make no episode call. A
+  favourite's season (an add-on item, with no `TvShowDBID`) is found by its
+  `Property(tvshowid)`. `next_episode` is the episode [`next_up`](library.md#next_up)
+  lists for the show, or the season's lowest unwatched one: its first episode if it
+  isn't started, and `next_runtime` is its `runtime` from the same call (seconds in
+  JSON-RPC; without `streamdetails` asked for, that's the library's runtime alone).
+  Regular episodes always come first: only when specials alone are left (and in the
+  Specials season, season 0) is the next the lowest-numbered unwatched special, with
+  `next_special` `true`, `next_episode` empty and `next_runtime` the special's.
+  `new_kind`, in order: `show` when the show's date added (the earliest `dateadded`
+  of its episodes, all of them unwatched as it isn't started) is within `new_days`
+  of now and no episode is watched or part-watched; then, among the unwatched
+  episodes whose `firstaired` is on or after the date `new_days` before today (a
+  part-watched episode still counts, as it has no play count; a future date, a file
+  released early, too), `season` when one is episode 1 of season 2 or later (a show
+  only), else `episodes` for two or more and `episode` for one. Specials count by
+  their air date like any episode, but never as a new season. So a show stays new
+  while you start its new episodes, and a back catalogue isn't new by air date
+  however recently it was added (only a show not yet begun is, as `show`). A
+  season's are its own episodes, and a season is never `show` or `season`. `new` is
+  `true` whenever `new_kind` is set.
 - **`new`** (films and episodes): a film or episode with no resume point and no play
   count, read with one `VideoLibrary.GetMovieDetails` or
   `VideoLibrary.GetEpisodeDetails` call. A film's `dateadded` must be within

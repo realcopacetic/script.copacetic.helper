@@ -1487,9 +1487,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
-        An unfinished show's or season's next_episode (as next_up) and next_runtime,
-        and a show's new, from one GetEpisodes call; a fully watched show's
-        _show_news.
+        An unfinished show's or season's next_episode (as next_up; with specials alone
+        left, next_special), next_runtime, new_kind and new, from one GetEpisodes
+        call; a fully watched show's _show_news.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -1500,6 +1500,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         labels = labels | get_infolabels(
             self.target_item,
             [
+                "Property(InProgressEpisodes)",
                 "Property(WatchedEpisodes)",
                 "Property(tvshowid)",
                 "Season",
@@ -1521,13 +1522,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 labels["TvShowDBID"]
                 or (labels["DBID"] and labels["Property(tvshowid)"])
             )
-        # A show's Season is its season count; "* All seasons" has none
-        season = to_int(labels["Season"], None) if dbtype == "season" else None
+        context = dict.fromkeys(
+            ("next_episode", "next_special", "next_runtime", "new", "new_kind"), ""
+        )
         # Started or not: an unwatched show's or season's next is its first episode
-        if not (show_id and left) or season == 0:
-            return {"next_episode": "", "next_runtime": "", "new": ""}  # 0: Specials
+        if not (show_id and left):
+            return context
 
+        # A show's Season is its season count; "* All seasons" has none, and
         # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
+        season = to_int(labels["Season"], None) if dbtype == "season" else None
         scope = {"tvshowid": show_id} | ({} if season is None else {"season": season})
         unwatched = fetch_raw(
             "VideoLibrary.GetEpisodes",
@@ -1536,21 +1540,21 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             sort=None,
             parent="progressbar",
             params=scope,
-            properties=["episode", "firstaired", "runtime", "season"],
+            properties=["dateadded", "episode", "firstaired", "runtime", "season"],
         )
-        # As next_up's episode sort, which orders non-specials by season then episode
+        # As next_up's episode sort, which orders non-specials by season then episode;
+        # specials only (a Specials season's too): the first of them (8A)
+        regular = [ep for ep in unwatched if ep["season"]]
         first = min(
-            (ep for ep in unwatched if ep["season"] > 0),
-            key=itemgetter("season", "episode"),
-            default=None,
+            regular or unwatched, key=itemgetter("season", "episode"), default=None
         )
-        # By air date, specials too, started or not: a back catalogue isn't new
-        aired = max((ep["firstaired"] for ep in unwatched), default="")
-        new = dbtype == "tvshow" and aired >= self._new_since("firstaired")
-        return {
+        started = bool(watched or to_int(labels["Property(InProgressEpisodes)"]))
+        kind = self._new_kind(dbtype == "tvshow", started, unwatched)
+        return context | {
             "next_episode": (
-                "{season}x{episode:02d}".format_map(first) if first else ""
+                "{season}x{episode:02d}".format_map(first) if regular else ""
             ),
+            "next_special": "true" if first and not regular else "",
             # JSON-RPC's runtime: seconds, 0 when the library has none. To the nearest
             # minute: a runtime, not time left
             "next_runtime": (
@@ -1558,8 +1562,32 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 if first and first["runtime"]
                 else ""
             ),
-            "new": "true" if new else "",
+            "new": "true" if kind else "",
+            "new_kind": kind,
         }
+
+    def _new_kind(self, show: bool, started: bool, unwatched: list[dict]) -> str:
+        """
+        Decision 7's pill: a show added within new_days and not started; else, of its
+        unwatched episodes aired within new_days, a new season's first (shows only),
+        or how many (specials too). A season counts its own and is never "show".
+
+        :param show: A show, not a season.
+        :param started: Any of its episodes watched or part-watched.
+        :param unwatched: Its unwatched episodes: all of them, for a show not started.
+        :return: "show", "season", "episode", "episodes" or "".
+        """
+        # A show's date added is its earliest episode's
+        added = min((ep["dateadded"] for ep in unwatched), default="")
+        if show and not started and added >= self._new_since("dateadded"):
+            return "show"
+        # By air date, started or not: a back catalogue, or a binge, isn't new; a
+        # future date (a pre-release file) is
+        since = self._new_since("firstaired")
+        aired = [ep for ep in unwatched if ep["firstaired"] >= since]
+        if show and any(ep["season"] > 1 and ep["episode"] == 1 for ep in aired):
+            return "season"
+        return ("", "episode", "episodes")[min(len(aired), 2)]
 
     def _unwatched_new(self, pb: ProgressBarManager, resume: float) -> dict[str, str]:
         """
