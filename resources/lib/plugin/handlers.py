@@ -1275,12 +1275,15 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             # missing or stale: the skin can mask their re-serve, as wikidata_pending
             if asked and self.dbtype == "tvshow":
                 data["properties"]["tmdb_pending"] = "true"
-        if self.dbtype == "season" and parse_bool(self.params.get("show_creators")):
-            # Kodi keeps no writers for a season: its show's TMDb creators, alone
+        # A season's show entry, asked aside when missing or stale: its creators, and
+        # with enrich_with_tmdb its season bars' airing renewed (11A, 12A's follow)
+        creators = parse_bool(self.params.get("show_creators"))
+        if self.dbtype == "season" and (creators or enrich_with_tmdb):
             show = self._get_tmdb_item(
                 append_artwork=False, aside=self.again, show=True
             )[0]
-            data["Writers"] = data["Writers"] or (show or {}).get("Writers", [])
+            if creators:  # Kodi keeps no writers for a season: its show's, alone
+                data["Writers"] = data["Writers"] or (show or {}).get("Writers", [])
         # Omega's library keeps no show tagline (Kodi 22 scrapes one): TMDb's, if any
         if self.dbtype == "tvshow" and not own_tagline and data["TagLine"]:
             data["properties"]["tagline"] = data["TagLine"]

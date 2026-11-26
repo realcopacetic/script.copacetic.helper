@@ -1106,6 +1106,16 @@ class TmdbTest(Base):
         self.assertFalse(plain["Writers"])
         self.assertEqual(rpcs, ["VideoLibrary.GetTVShowDetails"])
         handler.again.assert_not_called()
+        # Browsing seasons (enrich_with_tmdb, no show_creators): the show's entry is
+        # read too, asked aside, so its bar's airing renews (11A) and can follow (12A)
+        asks = []
+        handler._get_tmdb_item = lambda **kw: asks.append(kw) or (None, False)
+        handler.params["enrich_with_tmdb"] = "true"
+        with mock.patch.object(helpers, "infolabel", label):
+            (browsed,) = handler.metadata()
+        self.assertEqual([ask.get("show", False) for ask in asks], [False, True])
+        self.assertEqual(asks[1]["aside"], handler.again)
+        self.assertFalse(browsed["Writers"])  # creators only with show_creators
 
     def test_metadata_tagline_quotes(self):
         handler = object.__new__(handlers.PluginHandlers)
