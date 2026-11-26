@@ -34,8 +34,10 @@ SEPARATOR = "\t"  # between a work's labels in one answer row: never in a label
 _ITEMS = ("material", "genre", "collection", "depicts")  # kinds whose values are items
 # An artist's kinds whose values are items, kept as [qid, English label]
 _PEOPLE = ("birthplace", "deathplace", "occupation", "teacher", "movement", "influence")
-# Kept as [ISO time, precision]: 9 a year, 10 a month, 11 a day
+# Kept as [ISO time, precision, calendar]: 9 a year, 10 a month, 11 a day; the
+# calendar's Q-id (an answer kept before calendars has none: Gregorian)
 _DATES = ("born", "died")
+JULIAN = "Q1985786"  # the calendar model of a date entered as Julian
 
 # The first painter a search finds (srlimit doesn't limit the answer: the ordinal does)
 _SEARCH = """SELECT ?artist ?artistLabel WHERE {
@@ -82,16 +84,19 @@ _PAINTING = """SELECT ?kind ?value ?valueLabel ?part WHERE {
   OPTIONAL { ?value rdfs:label ?valueLabel FILTER(LANG(?valueLabel) = "en") }
 }"""
 
-# An artist's page, a row per value as a painting's: dates with their precision, the
-# nationality as its countries' English demonyms, each with its country and the
-# citizenship's start year (0 for none), and its paintings counted
-_ARTIST = """SELECT ?kind ?value ?valueLabel ?precision ?country ?since WHERE {
+# An artist's page, a row per value as a painting's: dates with their precision and
+# calendar, the nationality as its countries' English demonyms, each with its country
+# and the citizenship's start year (0 for none), and its paintings counted
+_ARTIST = """SELECT ?kind ?value ?valueLabel ?precision ?calendar ?country ?since
+WHERE {
   VALUES ?artist { wd:%(qid)s }
   { ?artist rdfs:label ?value FILTER(LANG(?value) = "en") BIND("name" AS ?kind) }
   UNION { ?artist p:P569 ?s . ?s a wikibase:BestRank; psv:P569 ?v .
-    ?v wikibase:timeValue ?value; wikibase:timePrecision ?precision BIND("born" AS ?kind) }
+    ?v wikibase:timeValue ?value; wikibase:timePrecision ?precision;
+      wikibase:timeCalendarModel ?calendar BIND("born" AS ?kind) }
   UNION { ?artist p:P570 ?s . ?s a wikibase:BestRank; psv:P570 ?v .
-    ?v wikibase:timeValue ?value; wikibase:timePrecision ?precision BIND("died" AS ?kind) }
+    ?v wikibase:timeValue ?value; wikibase:timePrecision ?precision;
+      wikibase:timeCalendarModel ?calendar BIND("died" AS ?kind) }
   UNION { ?artist wdt:P19 ?value BIND("birthplace" AS ?kind) }
   UNION { ?artist wdt:P20 ?value BIND("deathplace" AS ?kind) }
   UNION { ?artist wdt:P106 ?value BIND("occupation" AS ?kind) }
@@ -337,7 +342,8 @@ def artist(qid: str) -> dict[str, list] | None:
                     continue
                 value = [_qid(value), label]
             elif kind in _DATES:
-                value = [value, int(row["precision"]["value"])]
+                calendar = _qid(row["calendar"]["value"])
+                value = [value, int(row["precision"]["value"]), calendar]
             elif kind == "nationality":
                 country = _qid(row["country"]["value"])
                 value = [country, int(row["since"]["value"]), value]

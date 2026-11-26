@@ -480,13 +480,31 @@ def _ask(key: tuple[str, str], live: Callable[[], bool]) -> Any:
 PAGES = Asides(_ask)
 
 
-def _date(time: str, precision: int) -> str:
+def _julian(year: int, month: int, day: int) -> tuple[int, int, int]:
+    """A proleptic Gregorian date as the Julian calendar's, by its Julian Day Number."""
+    a = (14 - month) // 12
+    y, m = year + 4800 - a, month + 12 * a - 3
+    jdn = day + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045
+    c = jdn + 32082
+    y = (4 * c + 3) // 1461
+    e = c - 1461 * y // 4
+    m = (5 * e + 2) // 153
+    return y - 4800 + m // 10, m + 3 - 12 * (m // 10), e - (153 * m + 2) // 5 + 1
+
+
+def _date(time: str, precision: int, calendar: str = "", limit: int = 14) -> str:
     """
-    A Wikidata time to its precision: day, month and year in Kodi's month names; a
-    decade (1600s) or century (17th century, as Wikidata's own English labels); BC.
+    A Wikidata time to its precision, limit at the finest: day, month and year in
+    Kodi's month names; a decade (1600s) or century (17th century, as Wikidata's); BC.
     """
     year, month, day = map(int, re.match(r"(-?\d+)-(\d\d)-(\d\d)", time).groups())
-    era, year = (" BC", -year) if year < 0 else ("", year)  # Wikidata has no year 0
+    # The query service gives a Julian date as Gregorian from a day's precision on
+    if calendar == wikidata.JULIAN and precision >= 11:
+        year, month, day = _julian(year, month, day)
+    # From a year's precision on, years are astronomical (0 is 1 BC); coarser, not
+    bc = 1 - year if precision >= 9 else -year
+    era, year = (" BC", bc) if bc > 0 else ("", year)
+    precision = min(precision, limit)
     if precision == 7:
         century = -(-year // 100)  # 1601 to 1700: the 17th
         teens = century % 100 in (11, 12, 13)
@@ -534,8 +552,7 @@ def artist_fields(found: dict[str, Any]) -> dict[str, str]:
     )
     # Years, or a coarser precision's decade or century
     born, died = (
-        first(kind) and _date(first(kind)[0], min(first(kind)[1], 9))
-        for kind in ("born", "died")
+        first(kind) and _date(*first(kind), limit=9) for kind in ("born", "died")
     )
     # Each country's demonyms, the earliest citizenship first (one with no start first)
     countries = {}

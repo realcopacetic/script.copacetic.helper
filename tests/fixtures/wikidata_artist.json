@@ -1,10 +1,10 @@
 {
-  "note": "Hand-written in the query service's row shapes for J. M. W. Turner's artist page (the Figma mockup's): his page as [kind, value, value's English label, date precision, a demonym's country, its citizenship's start year], his three rails as [item, English label, P18 picture, year], and his article's summary. Turner's and the named people's Q-ids are real; Q9100xx are placeholders, and the counts approximate. The rows test a day-precise birth, a year-precise death, an unlabelled teacher and an unknown birthplace (both left out), two countries' demonyms with the later citizenship (the United Kingdom, from 1801) listed first and the noun Briton before British (as the live answer has it), the painter occupation picked over others, a second movement counted, and a gallery work with no English label.",
+  "note": "Hand-written in the query service's row shapes for J. M. W. Turner's artist page (the Figma mockup's): his page as [kind, value, value's English label, date precision, date calendar, a demonym's country, its citizenship's start year], his three rails as [item, English label, P18 picture, year], and his article's summary. Turner's and the named people's Q-ids are real; Q9100xx are placeholders, and the counts approximate. The rows test a day-precise birth, a year-precise death, an unlabelled teacher and an unknown birthplace (both left out), two countries' demonyms with the later citizenship (the United Kingdom, from 1801) listed first and the noun Briton before British (as the live answer has it), the painter occupation picked over others, a second movement counted, and a gallery work with no English label.",
   "pages": {
     "Q159758": [
       ["name", "J. M. W. Turner"],
-      ["born", "1775-04-23T00:00:00Z", "", "11"],
-      ["died", "1851-01-01T00:00:00Z", "", "9"],
+      ["born", "1775-04-23T00:00:00Z", "", "11", "http://www.wikidata.org/entity/Q1985727"],
+      ["died", "1851-01-01T00:00:00Z", "", "9", "http://www.wikidata.org/entity/Q1985727"],
       ["birthplace", "http://www.wikidata.org/entity/Q910101", "Maiden Lane, London"],
       ["birthplace", "http://www.wikidata.org/.well-known/genid/7c1e3a"],
       ["deathplace", "http://www.wikidata.org/entity/Q910102", "Cheyne Walk, London"],
@@ -16,10 +16,10 @@
       ["teacher", "http://www.wikidata.org/entity/Q910105", "Thomas Hardwick"],
       ["movement", "http://www.wikidata.org/entity/Q37068", "Romanticism"],
       ["movement", "http://www.wikidata.org/entity/Q910106", "Luminism"],
-      ["nationality", "Briton", "", "", "http://www.wikidata.org/entity/Q174193", "1801"],
-      ["nationality", "British", "", "", "http://www.wikidata.org/entity/Q174193", "1801"],
-      ["nationality", "Briton", "", "", "http://www.wikidata.org/entity/Q161885", "0"],
-      ["nationality", "British", "", "", "http://www.wikidata.org/entity/Q161885", "0"],
+      ["nationality", "Briton", "", "", "", "http://www.wikidata.org/entity/Q174193", "1801"],
+      ["nationality", "British", "", "", "", "http://www.wikidata.org/entity/Q174193", "1801"],
+      ["nationality", "Briton", "", "", "", "http://www.wikidata.org/entity/Q161885", "0"],
+      ["nationality", "British", "", "", "", "http://www.wikidata.org/entity/Q161885", "0"],
       ["influence", "http://www.wikidata.org/entity/Q130777", "Claude Lorrain"],
       ["influence", "http://www.wikidata.org/entity/Q910107", "Thomas Girtin"],
       ["portrait", "http://commons.wikimedia.org/wiki/Special:FilePath/Turner%20selfportrait.jpg"],
