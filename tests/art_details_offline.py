@@ -68,6 +68,7 @@ from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 FIXTURE = json.loads((HELPER / "tests/fixtures/wikidata_works.json").read_text("utf-8"))
 HOME = sys.modules["xbmcgui"].Window(10000)
 FOLDER = "/pictures/Art/"
+ALIVE = lambda: True  # a look-up's live test that never stops it
 NAMES = {  # the filename test's 16 files: the work each matches, or None
     "Edvard Munch - 'Madonna' (1894-1895).jpg": "Q1989780",
     "Edvard Munch - The 'Scream' (1893).jpg": "Q471379",
@@ -204,12 +205,12 @@ class ArtDetailsTest(unittest.TestCase):
     def test_the_sixteen_files(self):
         for name, qid in NAMES.items():
             with self.subTest(name=name):
-                artist = wikidata.works(art.parse(name).artist)
+                artist = wikidata.works(art.parse(name).artist, ALIVE)
                 found = art.match(art.parse(name), artist["works"])
                 self.assertEqual(found and found[0], qid)
 
     def test_fuzzy_artist(self):
-        artist = wikidata.works("Wassily Kandinksy")
+        artist = wikidata.works("Wassily Kandinksy", ALIVE)
         self.assertEqual(artist["label"], "Wassily Kandinsky")
         self.assertEqual(
             self.asked,
@@ -220,7 +221,7 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(cache_row("wikidata:artist:wassilykandinksy")[0], {})
         self.assertTrue(cache_row("wikidata:fuzzy:wassilykandinksy")[0])
         self.asked = []
-        wikidata.works("Wassily Kandinsky")  # the right spelling: the same works
+        wikidata.works("Wassily Kandinsky", ALIVE)  # the right spelling: the same works
         self.assertEqual(self.asked, ["search Wassily Kandinsky"])
 
     def test_label_words_in_the_title(self):
@@ -239,7 +240,7 @@ class ArtDetailsTest(unittest.TestCase):
         ):
             with self.subTest(name=name):
                 parsed = art.parse(name)
-                works = wikidata.works(parsed.artist)["works"]
+                works = wikidata.works(parsed.artist, ALIVE)["works"]
                 self.assertIsNone(art.match(parsed, works))
         # the re-review's probe: a Green Forest of the file's own year, 1912
         yellow = art.parse("Natalia Goncharova - 'Yellow and Green Forest' (1912).jpg")
@@ -267,7 +268,7 @@ class ArtDetailsTest(unittest.TestCase):
 
     def test_fields(self):
         path = f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg"
-        found = art.look_up(path)
+        found = art.look_up(path, ALIVE)
         self.assertEqual(
             {k: found[k] for k in ("title", "artist", "year", "medium", "genre")},
             {
@@ -286,7 +287,7 @@ class ArtDetailsTest(unittest.TestCase):
 
     def test_private_collection_and_no_article(self):
         path = f"{FOLDER}Vincent Van Gogh - The Bedroom (1888).jpg"
-        found = art.look_up(path)
+        found = art.look_up(path, ALIVE)
         self.assertIsNone(found["collection"])  # Wikidata's unknown value
         self.assertEqual((found["summary"], found["genre"]), ("", ""))
         self.assertEqual(found["dimensions"], "72 × 90 cm")
@@ -298,7 +299,9 @@ class ArtDetailsTest(unittest.TestCase):
 
     def test_an_unlabelled_collection_is_not_private(self):
         # The Starry Night's first collection has no English label: left out
-        found = art.look_up(f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg")
+        found = art.look_up(
+            f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg", ALIVE
+        )
         self.assertEqual(found["collection"], "Museum of Modern Art")
         name = art.Name("Vincent Van Gogh", "The Bedroom", (1888, 1888))
         artist = {"qid": "Q5582", "label": "Vincent van Gogh"}
@@ -316,7 +319,7 @@ class ArtDetailsTest(unittest.TestCase):
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
         MTIMES[path] = 100
         self.assertIsNone(art.verdict(path))
-        self.assertEqual(art.look_up(path)["qid"], "Q2358487")
+        self.assertEqual(art.look_up(path, ALIVE)["qid"], "Q2358487")
         asked = len(self.asked)
         self.assertEqual(art.verdict(path)["qid"], "Q2358487")
         self.assertEqual(len(self.asked), asked)  # from the cache
@@ -325,22 +328,26 @@ class ArtDetailsTest(unittest.TestCase):
 
     def test_a_miss_is_kept(self):
         path = f"{FOLDER}Natalia Goncharova - Los Gatos (1913).jpg"
-        self.assertEqual(art.look_up(path), {})
+        self.assertEqual(art.look_up(path, ALIVE), {})
         self.assertEqual(art.verdict(path), {})
-        self.assertEqual(art.look_up("/pictures/IMG_2041.jpg"), {})  # no artist: no ask
+        self.assertEqual(
+            art.look_up("/pictures/IMG_2041.jpg", ALIVE), {}
+        )  # no artist: no ask
         self.assertEqual(self.asked, ["search Natalia Goncharova", "works Q232391"])
-        self.assertEqual(art.look_up(f"{FOLDER}Nobody Known - Untitled.jpg"), {})
+        self.assertEqual(art.look_up(f"{FOLDER}Nobody Known - Untitled.jpg", ALIVE), {})
 
     def test_no_answer_keeps_no_verdict(self):
         path = f"{FOLDER}Franz Marc - 'Foxes' (1913).jpg"
         self.refuse = HttpError(None)  # unreachable
-        self.assertIsNone(art.look_up(path))
+        self.assertIsNone(art.look_up(path, ALIVE))
         self.assertIsNone(art.verdict(path))
         self.refuse, self.asked = None, []
-        self.assertIsNone(art.look_up(path))  # within the failure's wait: not asked
+        self.assertIsNone(
+            art.look_up(path, ALIVE)
+        )  # within the failure's wait: not asked
         self.assertEqual(self.asked, [])
         ApiCacheHandler().expire("wikidata:%")  # the wait is over
-        self.assertEqual(art.look_up(path)["qid"], "Q28839414")
+        self.assertEqual(art.look_up(path, ALIVE)["qid"], "Q28839414")
 
     def test_429_holds_the_queue(self):
         path = f"{FOLDER}Franz Marc - 'Foxes' (1913).jpg"
@@ -348,14 +355,16 @@ class ArtDetailsTest(unittest.TestCase):
         queue.start()
         self.addCleanup(queue.stop)
         self.refuse = HttpError(429, retry_after=60)
-        self.assertIsNone(art.look_up(path))
+        self.assertIsNone(art.look_up(path, ALIVE))
         self.refuse, self.asked = None, []
-        self.assertIsNone(art.look_up(f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"))
+        self.assertIsNone(
+            art.look_up(f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg", ALIVE)
+        )
         self.assertEqual(self.asked, [])  # nothing sent while the wait holds
 
     def test_refresh(self):
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
-        art.look_up(path)
+        art.look_up(path, ALIVE)
         self.asked = []
         actions.art_details_refresh(path)  # the folder isn't marked: nothing sent
         self.assertEqual(self.asked, [])
@@ -373,7 +382,7 @@ class ArtDetailsTest(unittest.TestCase):
     def test_forget_drops_its_own_file_only(self):
         mine, other = f"{FOLDER}Tiger_%.jpg", f"{FOLDER}TigerX12.jpg"  # LIKE would
         for path in (mine, other):
-            art.look_up(path)  # no " - ": a miss, kept
+            art.look_up(path, ALIVE)  # no " - ": a miss, kept
         art.forget(mine)
         self.assertIsNone(art.verdict(mine))
         self.assertEqual(art.verdict(other), {})
@@ -412,7 +421,7 @@ class ArtDetailsTest(unittest.TestCase):
         art.mark(FOLDER, True)
         self.assertEqual(self.serve(path), {})  # a plugin call: kept verdicts only
         self.assertEqual(self.asked, [])
-        art.look_up(path)
+        art.look_up(path, ALIVE)
         props = self.serve(path)
         self.assertEqual(HOME.getProperty("art_details_folder"), FOLDER)
         self.assertEqual(HOME.getProperty("art_details_checked"), FOLDER)
@@ -469,7 +478,7 @@ class ArtDetailsTest(unittest.TestCase):
 
     def test_an_asker_that_raises_spoils_no_other_ask(self):
         self.asides()
-        queue = cache.Asides(lambda key: key.upper())
+        queue = cache.Asides(lambda key, live: key.upper())
         later = mock.Mock(current=lambda: True)
 
         def boom():
@@ -486,6 +495,30 @@ class ArtDetailsTest(unittest.TestCase):
         other.assert_called_once()  # told, whatever the first did
         later.assert_called_once()  # its own fetch, in turn: not dropped
         self.assertEqual((queue.asked, queue.running), ({}, 0))
+
+    def test_a_look_up_stops_when_the_setting_turns_off(self):
+        self.asides()
+        art.mark(FOLDER, True)
+        on, answer = [True], self.answer
+
+        def then_off(*args, **kwargs):
+            found = answer(*args, **kwargs)
+            on[0] = False  # turned off once the search has answered
+            return found
+
+        path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
+        asker = mock.Mock(current=lambda: True)
+        with (
+            mock.patch.object(wikidata.http, "get_json", then_off),
+            mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: on[0]),
+        ):
+            art.ASIDES.ask(path, asker)
+            art.ASIDES._drain()
+        self.assertEqual(
+            self.asked, ["search Franz Marc"]
+        )  # no works, painting, summary
+        self.assertIsNone(art.verdict(path))  # no verdict: the next visit asks again
+        asker.assert_not_called()
 
     def test_only_pictures_are_looked_up(self):
         self.asides()
@@ -522,7 +555,7 @@ class ArtDetailsTest(unittest.TestCase):
             "&summary_lines=2"
         )
         path = f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg"
-        art.look_up(path)
+        art.look_up(path, ALIVE)
         with mock.patch.object(handlers, "skin_metric", lambda name: metric):
             props = self.serve(path, params)
         # 130 + 24 twice and a gap: 320; the collection's 224 would end at 556
