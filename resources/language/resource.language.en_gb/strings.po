@@ -415,12 +415,12 @@ msgctxt "#32136"
 msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr ""
 
-#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your most played album"
+#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your #1 album"
 #. (#32994), "Your #2 song" (#32993) and "Start mix" (#32821) are the helper's own labels: use the
 #. same words as those strings.
 #: /resources/settings.xml
 msgctxt "#32138"
-msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your #1 album or Your #2 song from your plays."
 msgstr ""
 
 #. "Play next" is the skin's own label. Keep theintrodb.org as it is.
@@ -1152,7 +1152,7 @@ msgstr ""
 #. By the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32994"
-msgid "Your most played album"
+msgid "Your #1 album"
 msgstr ""
 
 #. An artist in today's chart. A small label on music info: keep it short.
@@ -1176,7 +1176,7 @@ msgstr ""
 #. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32998"
-msgid "Most popular album"
+msgid "#1 album"
 msgstr ""
 
 #. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.

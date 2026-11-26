@@ -699,7 +699,7 @@ With **Rank music with Deezer** on:
 | Artist | *Charting* | Its Deezer artist is in Deezer's artist chart today (`/chart/0/artists`, 100 places) |
 | Artist | *Popular* | Otherwise, with 1,000,000 Deezer fans or more (`nb_fan`, from the artist search `top_songs` already makes) |
 | Song | *#2 song* | Its place in its first artist's [`top_songs`](#top_songs), within the first 10; songs only topping the list up by play count take no place |
-| Album | *Most popular album* | It leads its first artist's [`discography`](#discography) by popularity, alone, ahead of at least one other album of the artist's (a compilation never) |
+| Album | *#1 album* | It leads its first artist's [`discography`](#discography) by popularity, alone, ahead of at least one other album of the artist's (a compilation never) |
 
 With Deezer off, the library's play counts speak instead, summed over each one's
 songs:
@@ -707,7 +707,7 @@ songs:
 | Item | Label | When |
 |---|---|---|
 | Artist | *Your #3 artist* | Its place among the library's artists, within the first 10 |
-| Album | *Your most played album* | It leads its first artist's albums (as its folder lists them), ahead of at least one other (a compilation never) |
+| Album | *Your #1 album* | It leads its first artist's albums (as its folder lists them), ahead of at least one other (a compilation never) |
 | Song | *Your #2 song* | Its title's place among its first artist's song titles, a title's versions summed, within the first 10 |
 
 An album or song needs at least one play and a place no other holds: a tie on plays

@@ -415,13 +415,13 @@ msgctxt "#32136"
 msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr "Glöm alla sparade Deezer-svar (matchade artister, topplåtar, liknande artister, dagens topplista), så att vart och ett hämtas igen när det visas nästa gång. En artist: Uppdatera cachad data i dess innehållsmeny."
 
-#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your most played album"
+#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your #1 album"
 #. (#32994), "Your #2 song" (#32993) and "Start mix" (#32821) are the helper's own labels: use the
 #. same words as those strings.
 #: /resources/settings.xml
 msgctxt "#32138"
-msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
-msgstr "Ordnar Topplåtar och Diskografi (Popularitet) efter vad som strömmas på Deezer just nu, ensamt eller sammanvägt med ListenBrainz; hittar liknande artister (liknande-raderna, Starta mix, den oändliga kön och dagliga mixar); märker musikinfo med På listan eller Populär. Skickar artistens namn till Deezer och hämtar dess topplista en gång om dagen; inget konto behövs. Av: inget skickas, och musikinfo visar Din artist #3, Ditt mest spelade album eller Din låt #2 utifrån dina spelningar."
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your #1 album or Your #2 song from your plays."
+msgstr "Ordnar Topplåtar och Diskografi (Popularitet) efter vad som strömmas på Deezer just nu, ensamt eller sammanvägt med ListenBrainz; hittar liknande artister (liknande-raderna, Starta mix, den oändliga kön och dagliga mixar); märker musikinfo med På listan eller Populär. Skickar artistens namn till Deezer och hämtar dess topplista en gång om dagen; inget konto behövs. Av: inget skickas, och musikinfo visar Din artist #3, Ditt album #1 eller Din låt #2 utifrån dina spelningar."
 
 #. "Play next" is the skin's own label. Keep theintrodb.org as it is.
 #: /resources/settings.xml
@@ -1152,8 +1152,8 @@ msgstr "Din låt #%d"
 #. By the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32994"
-msgid "Your most played album"
-msgstr "Ditt mest spelade album"
+msgid "Your #1 album"
+msgstr "Ditt album #1"
 
 #. An artist in today's chart. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
@@ -1176,8 +1176,8 @@ msgstr "Låt #%d"
 #. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32998"
-msgid "Most popular album"
-msgstr "Mest populära album"
+msgid "#1 album"
+msgstr "Album #1"
 
 #. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py

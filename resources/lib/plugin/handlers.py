@@ -2862,8 +2862,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def popularity_label(self) -> list[DirectoryItem]:
         """
         One item labelled with how popular library artist, album or song ``self.dbid``
-        is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "Most
-        popular album"; with it off, by your plays ("Your #3 artist", "Your #2 song").
+        is, never a number: with Deezer on "Charting" or "Popular", "#2 song" or "#1
+        album"; with it off, by your plays ("Your #3 artist", "Your #2 song").
 
         :return: List of one directory item, or none with no label.
         """
@@ -2934,7 +2934,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _played_album(self, albumid: int) -> str:
         """
-        With Deezer off, "Your most played album" for the album that leads its first
+        With Deezer off, "Your #1 album" for the album that leads its first
         artist's albums by their songs' summed plays, clearly (play_place); none for a
         compilation (Various Artists).
 
@@ -2994,7 +2994,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _album_word(self, albumid: int) -> str:
         """
-        "Most popular album" for the album that leads Discography's popularity order
+        "#1 album" for the album that leads Discography's popularity order
         alone, of two or more; none for a compilation (Various Artists).
 
         :param albumid: Library album id.

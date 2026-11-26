@@ -415,13 +415,13 @@ msgctxt "#32136"
 msgid "Forget every saved Deezer answer (matched artists, top tracks, similar artists, today's chart), so each is fetched again when next shown. One artist: Refresh cached data in its context menu."
 msgstr "忘记所有已保存的 Deezer 响应（匹配的歌手、热门曲目、相似歌手、今日排行榜），每项将在下次显示时重新获取。单个歌手：在其上下文菜单中选择“刷新缓存数据”。"
 
-#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your most played album"
+#. "Charting" (#32995), "Popular" (#32996), "Your #3 artist" (#32999), "Your #1 album"
 #. (#32994), "Your #2 song" (#32993) and "Start mix" (#32821) are the helper's own labels: use the
 #. same words as those strings.
 #: /resources/settings.xml
 msgctxt "#32138"
-msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your most played album or Your #2 song from your plays."
-msgstr "按 Deezer 当前的播放热度为热门歌曲和唱片集（热度）排序，可单独使用或与 ListenBrainz 混合；查找相似歌手（相似栏、播放相似歌曲、无限队列和每日歌单）；在音乐信息上标注“上榜”或“热门”。会将歌手名称发送给 Deezer，并每天获取一次其排行榜；无需账户。关闭：不发送任何内容，音乐信息会根据你的播放记录显示“你的第 3 位歌手”、“你最常播放的专辑”或“你的第 2 首歌”。"
+msgid "Orders Top songs and Discography (Popularity) by what is streamed on Deezer now, alone or blended with ListenBrainz; finds similar artists (the similar rails, Start mix, the endless queue and daily mixes); labels music info Charting or Popular. Sends the artist's name to Deezer and asks for its chart once a day; no account needed. Off: nothing sent, and music info says Your #3 artist, Your #1 album or Your #2 song from your plays."
+msgstr "按 Deezer 当前的播放热度为热门歌曲和唱片集（热度）排序，可单独使用或与 ListenBrainz 混合；查找相似歌手（相似栏、播放相似歌曲、无限队列和每日歌单）；在音乐信息上标注“上榜”或“热门”。会将歌手名称发送给 Deezer，并每天获取一次其排行榜；无需账户。关闭：不发送任何内容，音乐信息会根据你的播放记录显示“你的第 3 位歌手”、“你的第 1 张专辑”或“你的第 2 首歌”。"
 
 #. "Play next" is the skin's own label. Keep theintrodb.org as it is.
 #: /resources/settings.xml
@@ -1152,8 +1152,8 @@ msgstr "你的第 %d 首歌"
 #. By the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32994"
-msgid "Your most played album"
-msgstr "你最常播放的专辑"
+msgid "Your #1 album"
+msgstr "你的第 1 张专辑"
 
 #. An artist in today's chart. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
@@ -1176,8 +1176,8 @@ msgstr "热门第 %d 首"
 #. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
 msgctxt "#32998"
-msgid "Most popular album"
-msgstr "最热门专辑"
+msgid "#1 album"
+msgstr "热门第 1 张专辑"
 
 #. %d is a place from 1 to 10 by the user's own plays. A small label on music info: keep it short.
 #: /resources/lib/plugin/handlers.py
