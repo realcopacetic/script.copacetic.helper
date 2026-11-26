@@ -56,6 +56,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, an episode first aired, or for a show or season (see `new_kind`) the show was added or its unwatched episodes first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
+| `follow_tmdb` | `true`, `false` | `false` | Served only: follow the metadata serve's TMDB fetch for the same show (asked on a thread of its own when its entry is missing or stale), so the airing, aired and returning rows come on a first focus with nothing cached. The bar's item carries `tmdb_pending` `true` meanwhile and is served again when the fetch ends, news or not. Turn it on only if the skin masks that re-serve (below): its labels change in place. |
 | `rewatch_days` | whole number | `90` | How long a [rewatch](#rewatches) lasts unplayed: it ends once its latest played episode was played more than this many days ago. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air` and `new_episode_aired`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDB data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDB lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
@@ -168,6 +169,7 @@ One list item in the helper container:
 | `ListItem.Property(new_episode_aired)` | With `new_episode`: its air date, in `date_format` as `next_air` is, e.g. `25 Nov`. |
 | `ListItem.Property(new_episode_today)` | With `new_episode`: `true` when it aired today, for a label such as *Aired today*; empty otherwise. |
 | `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDB's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDB's other states. |
+| `ListItem.Property(tmdb_pending)` | With `follow_tmdb=true`, on a TV show or season: `true` while the metadata serve's TMDB fetch for its show runs; the bar is then always served again without it when the fetch ends (news, no news, a failure, or dropped once focus moved on). Hide the rows that read TMDB (or the bar's labels) while it is `true` and fade them in when it empties, so their values never change while shown. Empty otherwise, and on a plugin call. |
 | `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
 | `ListItem.Property(picture_resolution)` | With `resolution_span` only: the focused item's `ListItem.PictureResolution`, e.g. `1920 x 1520`; empty when Kodi couldn't read it. |
 | `ListItem.Property(picture_size)` | With `resolution_span` only: the focused item's `ListItem.Size`, e.g. `1.4 MB`. |
@@ -251,9 +253,11 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   never asks TMDB. `next_air` and `next_air_episode` are served for any show (and a
   season's show, for a season the episode is in), with episodes left or not;
   `new_episode` and `show_status` only for a fully watched show (some episodes
-  watched, none left). *All seasons* has no TMDB entry of its own, so none. [Served](../service/serve.md#the-services-own-news),
-  the bar is served again when the metadata serve's fetch of the same show, asked on
-  a thread of its own, lands with news. `new_episode` compares the library's newest
+  watched, none left). *All seasons* has no TMDB entry of its own, so none. With
+  `follow_tmdb=true` in a [served](../service/serve.md#the-services-own-news) list,
+  a fetch the metadata serve asked on a thread of its own for the same show is
+  followed instead: `tmdb_pending` is `true` while it runs, and the bar is served
+  again once it ends, news or not (see `tmdb_pending`). `new_episode` compares the library's newest
   episode outside the specials, from the fully watched show's own `GetEpisodes` call
   (see [Rewatches](#rewatches)), and is set only when TMDB's is later: an episode
   missing mid-run, or one TMDB numbers differently (TVDB order, episode groups), is

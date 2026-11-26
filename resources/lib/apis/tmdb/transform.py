@@ -88,28 +88,23 @@ def tmdb_lookup(
     append_artwork: bool,
     cache_only: bool,
     aside: Asker | None,
-    follow: Asker | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """
     tmdb_to_canonical's item (the same arguments) and whether it was asked aside,
-    missing or stale: known as it asks, however soon that fetch ends. follow is told
-    when a fetch another serve asked aside for the item, with art or not, lands.
+    missing or stale: known as it asks, however soon that fetch ends.
     """
     if tmdb_id <= 0:
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}, False
     if kind == "episode":  # no episode lookup: never the show's Title or Plot
         show, asked = tmdb_lookup(
-            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside, follow
+            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside
         )
         return {key: show[key] for key in EPISODE_KEYS if key in show}, asked
 
     language_key = tmdb_language(language)
     if not (client := get_tmdb_client(language_key)):  # off: not even the cache
         return {}, False
-    if follow:  # before the read: a fetch that lands between them still tells it
-        for art in (True, False):
-            ASIDES.join((kind, tmdb_id, season_number, language, art), follow)
     cache_kind = (
         f"season_{season_number}"
         if kind == "season" and season_number is not None
@@ -182,6 +177,28 @@ def _cached(cache: ApiCacheHandler, key: str, kind: str) -> tuple[Any, bool]:
             # Asked once a day: TMDb can name a past airing a day on, offline keeps it
             fresh = (cache.get(f"{key}|asked") or (None,))[0] == today
     return payload, fresh
+
+
+def tmdb_follow(
+    kind: str,
+    tmdb_id: int,
+    season_number: int | None,
+    language: str | None,
+    asker: Asker,
+) -> bool:
+    """
+    Follow a fetch another serve asked aside for an item (its art entry's, else its
+    art-less one's): the asker is told once it ends, news or not (Asides.join).
+
+    :param kind: TMDb logical kind, as tmdb_lookup's.
+    :param tmdb_id: TMDb numeric identifier.
+    :param season_number: A season's number; None for others.
+    :param language: The TMDb language override, as the asking serve passed it.
+    :param asker: The follower's re-serve.
+    :return: Whether a fetch was running or queued to follow.
+    """
+    key = kind, tmdb_id, season_number, language
+    return any(ASIDES.join((*key, art), asker) for art in (True, False))
 
 
 def creator_shows(person_id: str) -> list[dict[str, Any]]:

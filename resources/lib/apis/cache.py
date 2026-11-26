@@ -142,8 +142,9 @@ class Asker(Protocol):
 class Asides:
     """
     Fetches for served calls, on threads of their own: one per key while it is queued
-    or running, its askers told when it brings news or is dropped. At most `workers`
-    daemon threads, which end with the queue: a dead network queues, holds no exit.
+    or running, its askers told when it brings news or is dropped, its followers when
+    it ends. At most `workers` daemon threads, which end with the queue: a dead
+    network queues, holds no exit.
     """
 
     def __init__(
@@ -157,6 +158,7 @@ class Asides:
         """
         self.fetch, self.workers, self.running = fetch, workers, 0
         self.asked = {}  # key → (its askers, the answer they were served meanwhile)
+        self.followers = {}  # key → the askers told when it ends, news or not
         self.queue = deque()
         self.lock = Lock()
 
@@ -180,17 +182,19 @@ class Asides:
             self.running += 1
         Thread(target=self._drain, daemon=True).start()
 
-    def join(self, key: Hashable, asker: Asker) -> None:
+    def join(self, key: Hashable, asker: Asker) -> bool:
         """
-        An asker joins a key's fetch while it is queued or running, told as its own
-        askers are; none starts for it.
+        Follow a key's fetch while it is queued or running: told once it ends, news or
+        not, so a serve that masked its wait can show; none starts for it.
 
         :param key: What is fetched.
         :param asker: A served call's re-serve.
+        :return: Whether it joined one.
         """
         with self.lock:
-            if key in self.asked:
-                self.asked[key][0].add(asker)
+            if joined := key in self.asked:
+                self.followers.setdefault(key, set()).add(asker)
+        return joined
 
     def _drain(self) -> None:
         """A worker: fetch queued keys in turn; it ends, in one hold, with the queue."""
@@ -209,7 +213,8 @@ class Asides:
         """
         One key's fetch, skipped once no asker's arrival is still current (the service
         stopping ends them all); then its askers, told once on news or when none
-        wanted it any more, which owes them their lists (serve.py's again).
+        wanted it any more, which owes them their lists (serve.py's again), and its
+        followers, told whatever came.
 
         :param key: What to fetch.
         """
@@ -218,6 +223,7 @@ class Asides:
             with self.lock:  # the skip and its drop in one hold: none joins between
                 if skipped := not any(asker.current() for asker in self.asked[key][0]):
                     askers, stale = self.asked.pop(key)
+                    followers = self.followers.pop(key, set())
             if not skipped:
                 answer = self.fetch(key, partial(self._wanted, key))
         except Exception:  # its own thread: nothing above it would log
@@ -225,16 +231,17 @@ class Asides:
         if not skipped:
             with self.lock:  # a later ask of the key, after this, queues its own fetch
                 askers, stale = self.asked.pop(key)
+                followers = self.followers.pop(key, set())
         # News; or none for want of a current asker: each records its list as owed, and
         # its arrival's next ring serves it, asking again (a current one failing isn't)
-        if (answer is not None and answer != stale) or (
+        news = (answer is not None and answer != stale) or (
             answer is None and (skipped or not any(asker.current() for asker in askers))
-        ):
-            for asker in askers:
-                try:
-                    asker()
-                except Exception:  # one asker's error: the others are still told
-                    log.exception(f"Asides → {key!r}: an asker")
+        )
+        for asker in (askers if news else set()) | followers:
+            try:
+                asker()
+            except Exception:  # one asker's error: the others are still told
+                log.exception(f"Asides → {key!r}: an asker")
 
     def _wanted(self, key: Hashable) -> bool:
         """Whether any asker of a running key still wants it: a fetch's live test."""
