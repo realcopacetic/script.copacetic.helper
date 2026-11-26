@@ -483,20 +483,24 @@ PAGES = Asides(_ask)
 def _date(time: str, precision: int) -> str:
     """
     A Wikidata time to its precision: day, month and year in Kodi's month names; a
-    decade (1600s) or century (17th century, as Wikidata's own English labels).
+    decade (1600s) or century (17th century, as Wikidata's own English labels); BC.
     """
     year, month, day = map(int, re.match(r"(-?\d+)-(\d\d)-(\d\d)", time).groups())
+    era, year = (" BC", -year) if year < 0 else ("", year)  # Wikidata has no year 0
     if precision == 7:
         century = -(-year // 100)  # 1601 to 1700: the 17th
         teens = century % 100 in (11, 12, 13)
-        suffix = "th" if teens else _ORDINALS.get(century % 10, "th")
-        return f"{century}{suffix} century"
-    if precision == 8:
-        return f"{year // 10 * 10}s"
-    if precision < 10:
-        return str(year)
-    month = getLocalizedString(20 + month)  # 21-32: January to December
-    return f"{day} {month} {year}" if precision > 10 else f"{month} {year}"
+        text = (
+            f"{century}{'th' if teens else _ORDINALS.get(century % 10, 'th')} century"
+        )
+    elif precision == 8:
+        text = f"{year // 10 * 10}s"
+    elif precision < 10:
+        text = str(year)
+    else:
+        name = getLocalizedString(20 + month)  # 21-32: January to December
+        text = f"{day} {name} {year}" if precision > 10 else f"{name} {year}"
+    return text + era
 
 
 def artist_fields(found: dict[str, Any]) -> dict[str, str]:

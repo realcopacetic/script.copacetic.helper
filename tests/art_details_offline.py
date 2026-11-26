@@ -793,6 +793,20 @@ class ArtDetailsTest(unittest.TestCase):
             fields = art.artist_fields(found | {"biography": ""})
         self.assertEqual(fields["life"], "1650s–1688")  # each to its precision
 
+    def test_dates_bc(self):
+        for year, century, decade in (
+            ("-0500", "5th century BC", "500s BC"),
+            ("-0501", "6th century BC", "500s BC"),
+            ("-0005", "1st century BC", "0s BC"),
+        ):
+            time = f"{year}-01-01T00:00:00Z"
+            with self.subTest(year=year):
+                self.assertEqual(art._date(time, 7), century)
+                self.assertEqual(art._date(time, 8), decade)
+                self.assertEqual(art._date(time, 9), f"{int(year[1:])} BC")
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            self.assertEqual(art._date("-0044-03-15T00:00:00Z", 11), "15 March 44 BC")
+
     def test_artist_history(self):
         sent = []
         HOME.setProperty("page_artist", TURNER)
