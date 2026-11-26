@@ -86,7 +86,7 @@ def cached(
         home.setProperty(queue, f"{slot + 1}")
         if slot > now:
             log.debug(f"{source} → queued {slot - now:.1f}s {key}")
-            if Monitor().waitForAbort(slot - now) or busy(queue):
+            if Monitor().waitForAbort(slot - now) or held(queue):
                 return payload  # Kodi's exit, or a 429 held the queue while waiting
             payload, fresh = cache.get(key) or (payload, False)
             if fresh:  # another plugin call fetched it while this one waited
@@ -100,29 +100,35 @@ def cached(
         if exc.status == 401:  # the one failure the user can fix
             log.warning(f"{source} → refused the token (401)")
         wait = failure_ttl(exc)
-        if held := exc.status == 429 and queue and exc.code != ONE_MEDIA:
+        if holding := exc.status == 429 and queue and exc.code != ONE_MEDIA:
             home.setProperty(queue, f"{slot + wait}")
+            home.setProperty(f"{queue}.held", f"{slot + wait}")
         # A racing call's fresh answer stands; its failure row holds the same stale
         # read as this call's payload, so that one is simply stored again
         if (row := cache.get(key)) and row[1] and row[0] != payload:
             return row[0]
         # The queue holds this key with the rest: no row, so a call waiting the queue
         # out asks again once it frees, not a row that outlives the slot
-        if not held:
+        if not holding:
             cache.put(key, payload, wait)  # keeps a stale answer, else a negative one
         return payload
     cache.put(key, payload, ttl[0] if payload else ttl[1])
     return payload
 
 
-def ahead(queue: str) -> float:
-    """Seconds to a queue's next free slot: over 1 only while a 429 holds it."""
-    return float(Window(10000).getProperty(queue) or 0) - time.time()
+def hold(queue: str) -> str:
+    """The end of a queue's last 429 hold, as cached recorded it; "" for none."""
+    return Window(10000).getProperty(f"{queue}.held")
+
+
+def held(queue: str) -> bool:
+    """Whether a 429 holds a queue now."""
+    return float(hold(queue) or 0) > time.time()
 
 
 def busy(queue: str) -> bool:
     """Whether a queue's next free slot is over MAX_WAIT away: cached skips a call."""
-    return ahead(queue) > MAX_WAIT
+    return float(Window(10000).getProperty(queue) or 0) - time.time() > MAX_WAIT
 
 
 class Asker(Protocol):

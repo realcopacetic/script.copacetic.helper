@@ -13,7 +13,7 @@ from typing import Any, Callable
 from xbmc import Monitor
 
 from resources.lib.apis import wikidata
-from resources.lib.apis.cache import Asides, ahead, busy
+from resources.lib.apis.cache import Asides, busy, hold
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON, fold, named
 
@@ -229,12 +229,13 @@ def _answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
     """
     tries = 2
     while tries and live():
+        last = hold(wikidata.NEXT_CALL)
         if (answer := call(*args)) is not None:
             return answer
         if busy(wikidata.NEXT_CALL):
             if Monitor().waitForAbort(1):
                 break
-        elif ahead(wikidata.NEXT_CALL) > 1:  # a 429's short hold
+        elif hold(wikidata.NEXT_CALL) != last:  # a 429 held the queue meanwhile
             tries -= 1
         else:  # refused, failed or timed out: not asked again
             break
