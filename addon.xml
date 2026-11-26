@@ -59,6 +59,13 @@
         <label>32843</label>
         <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Integer.IsGreater(ListItem.DBID,0) + String.IsEqual(ListItem.DBType,album) + String.IsEmpty(ListItem.Property(musicvideomediatype)) + String.IsEmpty(ListItem.DiscNumber) + !String.IsEqual(Window(home).Property(album_unplayed),ListItem.DBID)</visible>
       </item>
+      <!-- Rewatch: rewatch holds the focused show's or season's DBID while its bar shows a
+           rewatch, published by the progress serve (plugin/handlers.py progressbar), and
+           rewatch_show its show's, which the action marks stopped on this device -->
+      <item library="context.py" args="action=stop_rewatch">
+        <label>32850</label>
+        <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,tvshow) | String.IsEqual(ListItem.DBType,season)] + String.IsEqual(Window(home).Property(rewatch),ListItem.DBID)</visible>
+      </item>
       <item library="context.py" args="action=refresh_cached">
         <label>32835</label>
         <visible>!String.IsEmpty(Window(home).Property(helper_active)) + Integer.IsGreater(ListItem.DBID,0) + [String.IsEqual(ListItem.DBType,movie) | String.IsEqual(ListItem.DBType,set) | String.IsEqual(ListItem.DBType,tvshow) | String.IsEqual(ListItem.DBType,season) | String.IsEqual(ListItem.DBType,episode) | String.IsEqual(ListItem.DBType,musicvideo) | String.IsEqual(ListItem.DBType,artist) | String.IsEqual(ListItem.DBType,album) | String.IsEqual(ListItem.DBType,song)]</visible>
