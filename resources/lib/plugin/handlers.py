@@ -1262,16 +1262,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 append_artwork=False, aside=self.again, show=True
             )
             data["Writers"] = data["Writers"] or (show or {}).get("Writers", [])
-        # Omega's library keeps no show tagline (Kodi 22 scrapes one): TMDb's, if any,
-        # and tagline_pending while TMDb's answer is asked aside (as wikidata_pending)
-        if self.dbtype == "tvshow" and not own_tagline:
-            if data["TagLine"]:
-                data["properties"]["tagline"] = data["TagLine"]
-            if enrich_with_tmdb and self.again:
-                from resources.lib.apis.tmdb.transform import ASIDES
+        # Omega's library keeps no show tagline (Kodi 22 scrapes one): TMDb's, if any
+        if self.dbtype == "tvshow" and not own_tagline and data["TagLine"]:
+            data["properties"]["tagline"] = data["TagLine"]
+        # A show's TMDb details (tagline, creators, genres, network) asked aside: the
+        # skin can mask their re-serve, as wikidata_pending
+        if self.dbtype == "tvshow" and enrich_with_tmdb and self.again:
+            from resources.lib.apis.tmdb.transform import ASIDES
 
-                if ASIDES.pending(self.again):
-                    data["properties"]["tagline_pending"] = "true"
+            if ASIDES.pending(self.again):
+                data["properties"]["tmdb_pending"] = "true"
         if parse_bool(self.params.get("wikidata")):
             data["properties"] |= self._wikidata(data["Title"])
 
