@@ -4,7 +4,8 @@ shared/wikidata_details.py; the metadata serve's wikidata=true and
 compilation_artists=true; the soundtracks listing's second pass): items found by
 TMDb, IMDb and MusicBrainz ids, never by a query; labels in English, else
 multilingual, else any language; Based on from written works only, worded by the
-item's title; Set in; Music by; an artist's labels (+N) and place; an album's
+item's title; Set in; the story line on one row or two (story_*); Music by; an
+artist's labels (+N) and place; an album's
 producers; a compilation's track artists from the library; a served item's details
 kept, missing ones asked aside; the soundtrack id link both ways and the composer
 tie-break, and the title matching alone with the setting off or Wikidata down.
@@ -91,6 +92,14 @@ def item(qid, label, **claims):
     }
     labels = {"en": {"language": "en", "value": label}} if label else {}
     return {"type": "item", "id": qid, "labels": labels, "claims": statements}
+
+
+class TenWide:
+    """A font whose every character is 10 wide, measured as KodiMetric."""
+
+    @staticmethod
+    def getlength(text):
+        return 10 * len(text)
 
 
 class WikidataCase(unittest.TestCase):
@@ -489,10 +498,10 @@ class ServeTest(WikidataCase):
         details = {"albumid": 4, "label": "Dune", "musicbrainzreleasegroupid": group}
         return json.dumps({"result": {"albumdetails": details}})
 
-    def served(self, dbtype, again, **params):
+    def served(self, dbtype, again, title="Dune", **params):
         params |= {"info": "metadata", "target": "item", "type": dbtype, "id": "4"}
         plugin = handlers.PluginHandlers(params | {"wikidata": "true"}, again=again)
-        return plugin._wikidata("Dune")
+        return plugin._wikidata(title)
 
     def test_kept_only_then_aside(self):
         self.labels["ListItem.UniqueID(tmdb)"] = "438631"
@@ -542,6 +551,62 @@ class ServeTest(WikidataCase):
         self.labels["ListItem.Property(artist_born)"] = "21st of March 1974"  # 18
         self.assertEqual(place(), "Par…")
         self.assertEqual(self.served("artist", None)["wikidata_place"], "Paris")
+
+    def test_the_story_line_fits_its_row(self):
+        wd.details(SLOW_HORSES, ALIVE)
+        self.labels["ListItem.UniqueID(tmdb)"] = "95480"
+        self.labels["ListItem.UniqueID(imdb)"] = "tt5875444"
+        story = {
+            "story_based_on": "Based on",
+            "story_chip_font": "meta",
+            "story_chip_padding": "12",
+            "story_chip_upper": "true",
+            "story_font": "description_l",
+            "story_gap": "15",
+            "story_set_in": "•  Set in",
+        }
+        served = lambda width: self.served(
+            "tvshow", None, title="Slow Horses", story_width=width, **story
+        )
+        # "Based on the novel by Mick Herron" 330, Set in 90, LONDON's chip 84
+        with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+            one = served("534")
+            self.assertEqual(one["wikidata_based_on"], "the novel by Mick Herron")
+            self.assertNotIn("wikidata_story_rows", one)
+            self.assertEqual(served("533")["wikidata_story_rows"], "2")
+        with mock.patch.object(handlers, "skin_metric", lambda name: None):
+            self.assertNotIn("wikidata_story_rows", served("533"))  # no such font
+        self.assertNotIn("wikidata_story_rows", self.served("tvshow", None))
+
+
+class StoryTest(unittest.TestCase):
+    """fit_story: the Plot tab's story line on one row or two, cut past its own."""
+
+    def fit(self, based, place, width):
+        chip = lambda name: 10 * len(name) + 24
+        words = ("Based on", "•  Set in")
+        return wd.fit_story(based, place, TenWide, chip, words, width, 15)
+
+    def test_one_row_or_two(self):
+        based = "the novel by Mick Herron"
+        self.assertEqual(self.fit(based, "London", 600), {"wikidata_based_on": based})
+        self.assertEqual(
+            self.fit(based, "London", 500),
+            {"wikidata_based_on": based, "wikidata_story_rows": "2"},
+        )
+        # no place: one row, however full
+        self.assertEqual(self.fit(based, "", 330), {"wikidata_based_on": based})
+
+    def test_cut_only_past_its_own_row(self):
+        # "Based on the novel by Mick Herron" is 330: it ends cut at a word
+        self.assertEqual(
+            self.fit("the novel by Mick Herron", "London", 300),
+            {"wikidata_based_on": "the novel by Mick...", "wikidata_story_rows": "2"},
+        )
+        self.assertEqual(
+            self.fit("the novel by Mick Herron", "", 300),
+            {"wikidata_based_on": "the novel by Mick..."},
+        )
 
 
 class CompilationTest(unittest.TestCase):
