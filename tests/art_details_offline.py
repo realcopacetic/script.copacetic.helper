@@ -772,6 +772,9 @@ class ArtDetailsTest(unittest.TestCase):
         )  # no words: matches, by artist
         self.assertEqual(self.found("cypress tiger"), [])  # every word, in one tier
         self.assertEqual(self.asked, [])  # nothing asked
+        kept = ApiCacheHandler().get(f"wikidata:file:{FOLDER}{tiger}")[0]
+        ApiCacheHandler().put(f"wikidata:file:{FOLDER}Tiger.mp4", kept, 600)
+        self.assertEqual(self.found("tiger"), [tiger])  # a kept video never shows
         art.mark(FOLDER, False)
         self.assertEqual(self.found("starry"), [])  # marked folders only
 
@@ -786,8 +789,38 @@ class ArtDetailsTest(unittest.TestCase):
             (item["label"], item["label2"]), ("The Starry Night", "Vincent van Gogh")
         )
         self.assertEqual(item["properties"]["art_year"], "1889")
+        self.assertNotIn("art_summary", item["properties"])  # a rail shows none
         with mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: False):
             self.assertEqual(list(plugin.art_search()), [])
+
+    def test_search_query_and_limit(self):
+        art.mark(FOLDER, True)
+        rhone = f"{FOLDER}Vincent Van Gogh - 'Starry Night over The Rhone' (1888).jpg"
+        starry = f"{FOLDER}Vincent Van Gogh - 'Starry Night' (1890).jpg"
+        for path in (rhone, starry):
+            art.look_up(path, ALIVE)
+
+        def files(**params):
+            plugin = handlers.PluginHandlers({"info": "art_search"} | params)
+            return [item["file"] for item in plugin.art_search()]
+
+        # set_search_query's JSON escapes, once Kodi's percent-encoding is decoded
+        self.assertEqual(files(query="Rh\\u00f4ne"), [rhone])
+        self.assertEqual(len(files(query="starry")), 2)
+        self.assertEqual(len(files(query="starry", limit="1")), 1)  # the rail's limit
+
+    def test_refresh_pictures_only(self):
+        art.mark(FOLDER, True)
+        actions.art_details_refresh(f"{FOLDER}Franz Marc - 'Tiger' (1912).mp4")
+        self.assertEqual(self.asked, [])  # a video is never looked up
+
+    def test_prefix_rows_exactly(self):
+        cache = ApiCacheHandler()
+        for key in ("x:a_b", "x:a%b", "x:aXb", "x:b"):
+            cache.put(key, 1, 600)
+        self.assertEqual([k for k, _ in cache.starting("x:a_")], ["x:a_b"])
+        self.assertEqual([k for k, _ in cache.starting("x:a%")], ["x:a%b"])
+        cache.clear("x:%")
 
     def test_rails(self):
         self.asides()

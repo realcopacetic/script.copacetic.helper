@@ -141,8 +141,19 @@ sends a request and lists no folder, so a picture shows only once a serve has lo
 it up.
 
 ```xml
-<content>plugin://script.copacetic.helper/?info=art_search&amp;query=$INFO[Window(home).Property(search_query)]</content>
+<content>plugin://script.copacetic.helper/?info=art_search&amp;limit=30&amp;query=$INFO[Window(home).Property(search_query)]</content>
 ```
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `limit` | a number | `30` | The most pictures listed, the best first |
+| `query` | search text, last | none | The words to find; none lists every match |
+
+Kodi passes a plugin URL's options as written, still percent-encoded, so `query` is
+decoded once, then its JSON escapes are read (`ô`), as
+[`set_search_query`](../script/actions.md#set_search_query) writes them; plain text
+works too. Two things a skin can't pass: a `|` ends a plugin URL's options in Kodi, and
+text such as `&limit=` inside the query starts a param of its own. Pass the query last.
 
 Every word of the query (case, accents and punctuation aside) must be in one of these,
 tried in turn; the first that holds them all ranks the picture:
@@ -157,7 +168,13 @@ Within a rank, matches come before misses, then by artist, year and title. With 
 query, every match, by artist, year and title. Each item's path is the picture, so
 Kodi's own select shows it full screen; it is labelled with the title (else the file
 name), `label2` the artist, the picture as `thumb`, and the [item's](#the-item)
-`art_*` properties. Nothing while the `wikidata` setting is off.
+`art_*` properties but `art_summary`. Only pictures are listed (as the look-ups), and
+nothing while the `wikidata` setting is off.
+
+Kept verdicts aren't checked against the disk: a picture moved or deleted stays listed,
+and won't open, until its verdict ages out (a year). A
+[refresh](../script/actions.md#art_details_refresh) of the picture, or a visit to its
+new place, renews it.
 
 ## The artist page
 

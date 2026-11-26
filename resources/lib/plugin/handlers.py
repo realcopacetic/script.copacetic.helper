@@ -307,6 +307,9 @@ class _FocusGuard:
 # A library show's titles path: its id, then the listed season, if any
 _TITLES = "videodb://tvshows/titles/"
 _TITLES_PATH = re.compile(rf"{_TITLES}(\d+)/(?:(-?\d+)/)?")
+# A JSON escape in a search query, as set_search_query writes it (ô, \")
+_JSON_ESCAPE = re.compile(r"\\(?:u([0-9a-fA-F]{4})|(.))")
+SEARCH_LIMIT = 30  # pictures art_search lists with no limit=: search's longest rail
 
 
 class PluginHandlers(metaclass=PluginInfoRegistry):
@@ -1673,8 +1676,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def art_search(self) -> list[DirectoryItem]:
         """
-        Pictures in marked folders for a search (query=): kept art details and file
-        names only, never a request. An item's path is its picture's: select shows it.
+        Pictures in marked folders for a search (query=, limit=): kept art details
+        and file names only, never a request. Select shows an item: its path's a picture.
 
         :return: The pictures, best first; none with the wikidata setting off.
         """
@@ -1682,15 +1685,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         if not ADDON.getSettingBool("wikidata"):
             return []
+        # Decoded once, as Kodi passes the URL's options encoded; then set_search_query's
+        # JSON escapes, so "Rhône" is found as typed
+        query = _JSON_ESCAPE.sub(
+            lambda m: chr(int(m[1], 16)) if m[1] else m[2], self.params.get("query", "")
+        )
+        limit = to_int(self.params.get("limit"), SEARCH_LIMIT)
         return set_items(
             {
                 "file": path,
                 "label": fields.get("title") or file_label(path),
                 "label2": fields.get("artist", ""),
                 "art": {"thumb": path},
-                "properties": self._art_properties(fields),
+                "properties": {  # no summary: a rail shows none
+                    key: value
+                    for key, value in self._art_properties(fields).items()
+                    if key != "art_summary"
+                },
             }
-            for path, fields in art.search(self.params.get("query", ""))
+            for path, fields in art.search(query)[:limit]
         )
 
     def art_rail(self) -> list[DirectoryItem]:

@@ -358,7 +358,9 @@ def search(query: str) -> list[tuple[str, dict]]:
     prefix = _key("")
     for key, kept in ApiCacheHandler().starting(prefix):
         path, fields = key.removeprefix(prefix), kept["fields"]
-        if not covers(folders, path) or (tier := rank(path, fields)) is None:
+        if not (is_picture(path) and covers(folders, path)):
+            continue
+        if (tier := rank(path, fields)) is None:
             continue
         if fields or words:  # no words: the matches alone
             found.append((tier, path, fields))

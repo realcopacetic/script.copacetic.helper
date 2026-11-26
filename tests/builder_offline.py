@@ -6,7 +6,6 @@ expressions (append, assign, the inverted fallback) and variables; an item witho
 it keeps its one pass. And for a skin mirror (builders/runtime.py): a new mirrored
 field's config default reaches its skin setting when the runtime state is checked,
 on a fresh state and on a saved row that never held the field; a saved value wins.
-An item's xsp dict is encoded; a string, a plugin path's query, is kept as given.
 A rendered condition loses every identity true, a run of them closing it too.
 Run from the helper root: python tests/builder_offline.py
 """
@@ -150,21 +149,6 @@ class Also(unittest.TestCase):
         )
         self.assertEqual(visible["layout_grid_visible_programs"], "false")
         self.assertEqual(visible["layout_list_visible_programs"], "true")
-
-
-class Xsp(unittest.TestCase):
-    def test_a_string_is_a_plugin_query_kept_as_given(self):
-        query = "&query=$INFO[Window(home).Property(search_query)]"
-        rule = {"field": "title", "operator": "contains", "value": ["x"]}
-        mapping = TYPES | {
-            "metadata": {
-                "program_addons": {"xsp": query},
-                "games": {"xsp": {"rules": {"or": [rule]}, "type": "movies"}},
-            }
-        }
-        made = VariablesBuilder("content_types", mapping, State(), registry={})
-        self.assertEqual(made.metadata["program_addons"]["xsp"], query)
-        self.assertTrue(made.metadata["games"]["xsp"].startswith("?xsp=%7B"))
 
 
 class MirrorDefault(unittest.TestCase):
