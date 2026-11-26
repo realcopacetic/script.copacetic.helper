@@ -191,7 +191,8 @@ python tests/picture_bar_offline.py
 # their Home properties; chips fitted to a row; the summary cut at a sentence. The
 # artist page (info=art_artist, info=art_rail, the art_artist action): its fields,
 # kept answers served and stale ones asked aside, the setting tested before each
-# request, the rails, the Back history (Wikidata's and Wikipedia's answers stubbed
+# request, the first country's demonym, a death year alone, a refresh marking the page
+# stale, the rails, the Back history (Wikidata's and Wikipedia's answers stubbed
 # from tests/fixtures)
 python tests/art_details_offline.py
 

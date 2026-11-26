@@ -1586,11 +1586,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return set_items([item])
         # Raw, as clean_name's: a decode would split a name at its own encoded "?"
         raw = parse_plugin_argv(["", "", self.query], raw={"folder", "path"})
-        listing, path = raw.get("folder", ""), raw.get("path", "")
+        listing, path = raw.get("folder"), raw.get("path", "")
         folders = art.marked()
-        covered = art.covers(folders, art.folder(listing))
-        window_property("art_details_checked", value=listing)
-        window_property("art_details_folder", value=covered and listing)
+        if listing is not None:  # a listing's serve: none leaves its state as it is
+            covered = art.covers(folders, art.folder(listing))
+            window_property("art_details_checked", value=listing)
+            window_property("art_details_folder", value=covered and listing)
         if path.endswith(("/", "\\")):  # a folder: its state, for the context menu
             art.publish(folders, path)
         elif art.is_picture(path) and art.covers(folders, path):

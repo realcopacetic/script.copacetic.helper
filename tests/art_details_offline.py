@@ -195,7 +195,7 @@ class ArtDetailsTest(unittest.TestCase):
             qid = re.search(r"VALUES \?artist \{ wd:(Q\d+) \}", query)
             if '"born" AS ?kind' in query:
                 self.asked.append(f"artist {qid[1]}")
-                names = "kind", "value", "valueLabel", "precision"
+                names = "kind", "value", "valueLabel", "precision", "country", "since"
                 bindings = rows(names, ARTIST["pages"].get(qid[1], []))
                 return {"results": {"bindings": bindings}}
             if "wikibase:sitelinks ?links" in query and "?labels" not in query:
@@ -476,6 +476,14 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(props["art_depicts"], "star, Moon, cypress")
         with mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: False):
             self.assertEqual(self.serve(path), {})  # off: nothing
+        # no folder (picture info over the slideshow): the listing's state stays
+        query = f"info=art_details&path={path}"
+        plugin = handlers.PluginHandlers({"info": "art_details"}, query=query)
+        HOME.setProperty("art_details_checked", "/listing/")
+        self.assertEqual(
+            plugin.art_details()[0]["properties"]["art_title"], "The Starry Night"
+        )
+        self.assertEqual(HOME.getProperty("art_details_checked"), "/listing/")
 
     def asides(self):
         """The aside workers not started; the test drains them by hand."""
@@ -657,6 +665,44 @@ class ArtDetailsTest(unittest.TestCase):
             },
         )
         self.assertTrue(props["art_biography"].startswith("Joseph Mallord William"))
+
+    def test_first_country_and_a_death_alone(self):
+        found = {
+            "name": ["Wassily Kandinsky"],
+            "died": [["1944-12-13T00:00:00Z", 11]],
+            "nationality": [  # as the query answers: no set order
+                ["Q183", 1928, "German"],
+                ["Q34266", 0, "Russian"],
+                ["Q142", 1939, "French"],
+            ],
+            "biography": "",
+        }
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            fields = art.artist_fields(found)
+        self.assertEqual(fields["nationality"], "Russian")  # no start: the first
+        self.assertEqual(fields["life"], "–1944")  # the death year alone
+        self.assertEqual((fields["born"], fields["died"]), ("", "13 December 1944"))
+
+    def test_refresh_marks_the_artist_page_stale(self):
+        art.mark(FOLDER, True)
+        path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
+        art.look_up(path, ALIVE)
+        painter = art.verdict(path)["artist_qid"]
+        cache_put = ApiCacheHandler().put
+        cache_put(f"wikidata:painter:{painter}", {"enwiki": ["Franz Marc"]}, 600)
+        cache_put("wikidata:summary:franzmarc", "Franz Marc was a painter.", 600)
+        for kind in wikidata.RAILS:
+            cache_put(f"wikidata:{kind}:{painter}", [], 600)
+        page = [
+            ("painter", painter),
+            ("summary", "Franz Marc"),
+            *((kind, painter) for kind in wikidata.RAILS),
+        ]
+        self.assertTrue(all(wikidata.kept(*key)[1] for key in page))  # fresh
+        actions.art_details_refresh(path)
+        for key in page:
+            with self.subTest(key=key):
+                self.assertFalse(wikidata.kept(*key)[1])  # stale: asked again
 
     def test_served_artist_asks_aside_once(self):
         started = self.asides()
