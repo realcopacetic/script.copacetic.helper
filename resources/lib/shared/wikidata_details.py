@@ -260,16 +260,16 @@ def video_key(type: str, uniqueid: dict[str, str]) -> tuple[str, ...] | None:
 
 def linked(key: tuple[str, ...] | None, field: str) -> list:
     """
-    One of an item's details for a plugin call, which waits on Wikidata itself, while
-    the setting is on: kept, or asked now.
+    One of an item's details as kept, while the setting is on: never asked, as a
+    plugin call holds one of Kodi's three directory workers (the served call asks).
 
     :param key: As kept takes it; None for an item with no id.
     :param field: soundtracks, composers or films.
-    :return: Its values; none when off, unanswered, or for no item.
+    :return: Its values; none when off, not kept, or for no item.
     """
     if not (key and wanted()):
         return []
-    return (details(key, wanted) or {}).get(field, [])
+    return (kept(key)[0] or {}).get(field, [])
 
 
 # Details looked up for served calls, one request at a time as the queue asks; before

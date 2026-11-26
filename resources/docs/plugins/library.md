@@ -653,8 +653,11 @@ or show's soundtrack albums (P406), or an album "made for" it (P9899), matched t
 library by the album's MusicBrainz release group; the movie or show by its TMDB id,
 else its IMDb id. From an album, a linked movie or show comes first. A season keeps
 the seasons rule below. With the setting off, or Wikidata unreachable, the title
-matching works as above alone. The helper waits for Wikidata here (a list of its
-own), one request a second; the answers are kept for 30 days.
+matching works as above alone. This list never asks Wikidata itself (it would hold
+one of the three threads Kodi loads plugin lists on): it reads the details kept by
+`info=metadata&wikidata=true` for the movie, show or album (its info screen), so an
+item's links count once its details have been looked up there. They are kept for 30
+days.
 
 **Seasons.** An album's title can name seasons: "Season 3", "Season One", "Seasons 3 &
 4", "Seasons 1–3", "Series 2". A season (or episode) lists the albums naming it first,
