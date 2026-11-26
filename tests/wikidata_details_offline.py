@@ -380,6 +380,7 @@ class DetailsTest(WikidataCase):
         # a call waiting its slot finds a 429 held the queue meanwhile: no request
         home, queue = cache.Window(10000), "test.wikidata_next"
         home.setProperty(queue, f"{time.time() + 2}")
+        self.addCleanup(home.setProperty, f"{queue}.held", "0")
 
         def hold(monitor, seconds=0):
             home.setProperty(f"{queue}.held", f"{time.time() + 30}")
@@ -391,7 +392,6 @@ class DetailsTest(WikidataCase):
         ):
             self.assertIsNone(wikidata.having("P4947", "438631"))
         self.assertEqual(self.asked, [])
-        home.setProperty(f"{queue}.held", "0")
 
     def test_a_busy_queue_is_waited_out(self):
         # cached skips a request over MAX_WAIT ahead: the look-up, aside, waits a
