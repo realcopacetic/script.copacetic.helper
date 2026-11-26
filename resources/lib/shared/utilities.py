@@ -734,6 +734,17 @@ def fold(text: str) -> str:
     return "".join(c for c in text if c.isalnum())
 
 
+def named(names: list[str], more: int) -> str:
+    """
+    Names joined, and how many more: "Ed Banger Records, Because Music +2".
+
+    :param names: The names written out, in order.
+    :param more: How many more there are.
+    :return: The text; "" for none.
+    """
+    return ", ".join(names) + (f" +{more}" if more else "")
+
+
 def expand_index(index_obj: dict[str, Any]) -> list[str]:
     """
     Expands a dict with start/end/step into a list of string indices.

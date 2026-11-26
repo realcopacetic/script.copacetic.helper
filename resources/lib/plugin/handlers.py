@@ -1186,8 +1186,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def metadata(self) -> list[DirectoryItem] | None:
         """
         Cleaned metadata on a helper list item; aborts if focus changes. random_pick:
-        one director and genre (=genre, =director: that alone); genre_chips=N,
-        album_format, most_played: genre chips, format, top song; tmdb_art caches art.
+        one director and genre (=genre, =director: that alone); genre_chips=N (chips),
+        album_format, most_played, compilation_artists, wikidata; tmdb_art caches art.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -1215,12 +1215,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             genre_chips=to_int(self.params.get("genre_chips")),
             album_format=parse_bool(self.params.get("album_format")),
             most_played=parse_bool(self.params.get("most_played")),
+            compilation_artists=parse_bool(self.params.get("compilation_artists")),
         )
 
         if not guard.alive():
             return
 
-        own_plot = data["Plot"]
+        own_plot, own_tagline = data["Plot"], data["TagLine"]
         enrich_with_tmdb = parse_bool(self.params.get("enrich_with_tmdb"))
         tmdb_art = enrich_with_tmdb and parse_bool(self.params.get("tmdb_art"))
         if enrich_with_tmdb:
@@ -1260,6 +1261,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 append_artwork=False, aside=self.again, show=True
             )
             data["Writers"] = data["Writers"] or (show or {}).get("Writers", [])
+        # Omega's library keeps no show tagline (Kodi 22 scrapes one): TMDb's, if any
+        if self.dbtype == "tvshow" and not own_tagline and data["TagLine"]:
+            data["properties"]["tagline"] = data["TagLine"]
+        if parse_bool(self.params.get("wikidata")):
+            data["properties"] |= self._wikidata(data["Title"])
 
         if not guard.alive():
             return
@@ -1284,6 +1290,46 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             data["properties"]["clean_tagline"] = single_quotes(data["TagLine"])
 
         return set_items([data], tag_applier=apply_videoinfotag)
+
+    def _wikidata(self, title: str) -> dict[str, str]:
+        """
+        Wikidata details of a film, show, artist or album as wikidata_* properties,
+        while the wikidata setting is on: kept ones only, a missing or stale answer
+        asked aside for a served call, whose news serves the list again.
+
+        :param title: The item's title, for the based-on wording.
+        :return: The properties; none for an item with no TMDb, IMDb or MusicBrainz id.
+        """
+        from resources.lib.shared import wikidata_details as wd
+
+        if not (wd.wanted() and (key := self._wikidata_key())):
+            return {}
+        found, fresh = wd.kept(key)
+        if not fresh and self.again:
+            wd.ASIDES.ask(key, self.again, found)
+        return wd.properties(self.dbtype, found or {}, title)
+
+    def _wikidata_key(self) -> tuple[str, ...] | None:
+        """
+        The item's details key (wikidata_details.kept) by its ids: a film's or show's
+        TMDb and IMDb ids, an artist's MusicBrainz id, an album's release group.
+
+        :return: The key; None for another type or an item with no id.
+        """
+        if self.dbtype in ("movie", "tvshow"):
+            ids = [
+                infolabel(f"{self.target_item}.UniqueID({name})")
+                for name in ("tmdb", "imdb")
+            ]
+        elif self.dbtype == "artist":
+            ids = [(artist_identity(to_int(self.dbid), "metadata") or ("", ""))[1]]
+        elif self.dbtype == "album":
+            properties = ["musicbrainzreleasegroupid"]
+            album = library_details("album", to_int(self.dbid), properties, "metadata")
+            ids = [(album or {}).get("musicbrainzreleasegroupid", "")]
+        else:
+            return None
+        return (self.dbtype, *ids) if any(ids) else None
 
     @log.duration
     def progressbar(self) -> list[DirectoryItem] | None:

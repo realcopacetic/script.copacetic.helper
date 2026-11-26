@@ -6,7 +6,8 @@ apis/theintrodb.py (the ids tried in turn, best segment, TTLs, clearing),
 apis/lrclib.py (the search fallback's nearest hit, payload shapes, TTLs, clearing),
 the blended ranking of top_songs and discography, music info's popularity words
 (popularity_label), the TMDb client and cache (apis/tmdb) and creator_credits,
-metadata's tagline_quotes (shared/text.py single_quotes), its random_pick=genre with
+metadata's tagline_quotes (shared/text.py single_quotes) and a show's TMDb tagline
+property (Omega's library keeps none), its random_pick=genre with
 every director kept and director_credits matching any of them, the plugin URL parser
 (shared/parser.py) with a focus guard cut at a "|".
 
@@ -890,11 +891,14 @@ class TmdbTest(Base):
             (item,) = handler.metadata()
             self.assertEqual(item["Plot"], "Library plot")
             self.assertEqual(item["TagLine"], "Winter is coming.")  # library has none
+            # Omega keeps no show tagline: TMDb's as a property too
+            self.assertEqual(item["properties"]["tagline"], "Winter is coming.")
             self.assertNotEqual(item["Writers"], ["Library writer"])  # TMDb still wins
             library["Tagline"] = "Library tagline"
             library["Plot"] = ""
             (item,) = handler.metadata()  # a plot only TMDb has: skips the probe
         self.assertEqual(item["TagLine"], "Library tagline")
+        self.assertNotIn("tagline", item["properties"])  # Kodi's own (Kodi 22)
         self.assertTrue(item["Plot"].startswith("Seven noble families"))
         handler.dbtype, library["Plot"] = "season", "The show's plot"
         with mock.patch.object(helpers, "infolabel", label):
@@ -1069,7 +1073,10 @@ class TmdbTest(Base):
         probe = lambda path: shown.get(path[17:21], "")
         clamp = lambda text, **kwargs: f"{text}..."
         fetched = mock.Mock()
-        fetched.return_value.fetch_data.return_value = {"Plot": "This plot"}
+        fetched.return_value.fetch_data.return_value = {
+            "Plot": "This plot",
+            "TagLine": "",
+        }
         with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
             handlers, "clamp_text", clamp
         ), mock.patch.object(handlers, "DataHandler", fetched), mock.patch.object(

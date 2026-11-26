@@ -29,6 +29,7 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
+    named,
     plugin_path,
     session_salt,
     split,
@@ -45,6 +46,8 @@ LOSSLESS_EXTENSIONS = frozenset(
     {"aif", "aiff", "alac", "ape", "dff", "dsf", "flac", "tta", "wav", "wv"}
 )
 M4A_LOSSLESS_KBPS = 320
+VARIOUS_ARTISTS = "89ad4ac3-39f7-470e-963a-56509c546377"  # MusicBrainz's artist id
+COMPILATION_NAMES = 2  # a compilation's track artists named, the rest counted (+N)
 
 # Bump when fit_lines/wrap_text change so stale clamp results are superseded.
 _CLAMP_VERSION = "5"
@@ -259,6 +262,7 @@ class DataHandler:
         genre_chips: int = 0,
         album_format: bool = False,
         most_played: bool = False,
+        compilation_artists: bool = False,
     ) -> dict[str, object]:
         """
         Build a normalized metadata dictionary.
@@ -268,6 +272,7 @@ class DataHandler:
         :param genre_chips: Characters two genre chips may hold (genre_chip_names).
         :param album_format: An album's most common audio format (audio_format).
         :param most_played: An album's or artist's most played song (_most_played).
+        :param compilation_artists: A compilation's main track artists (its own).
         :return: Dictionary with art, resume, contributors, etc.
         """
         label = self.infolabels["Label"]
@@ -281,6 +286,8 @@ class DataHandler:
             properties |= self._album_format()
         if most_played and self.dbtype in ("album", "artist"):
             properties |= self._most_played()
+        if compilation_artists and self.dbtype == "album":
+            properties |= self._compilation_artists()
         if pick_genre or pick_director:
             # One pick per item and Kodi session, so a refire (closing info, back
             # from a rail) keeps the rails it fed. The genre is drawn first, so a
@@ -405,6 +412,41 @@ class DataHandler:
         ):
             found["most_played_artist"] = top["displayartist"]
         return found
+
+    def _compilation_artists(self) -> dict[str, str]:
+        """
+        A compilation's track artists, those on the most tracks first (ties in Kodi's
+        order): "Glorilla, Travis Scott +18". One by Kodi's flag or Various Artists.
+
+        :return: compilation_artists; {} for an album that isn't one.
+        """
+        album = json_call(
+            "AudioLibrary.GetAlbumDetails",
+            properties=["compilation", "musicbrainzalbumartistid"],
+            params={"albumid": to_int(self.dbid)},
+            parent=self.__class__.__name__,
+        )
+        found = album.get("result", {}).get("albumdetails", {})
+        if not (
+            found.get("compilation")
+            or VARIOUS_ARTISTS in found.get("musicbrainzalbumartistid", [])
+        ):
+            return {}
+        songs = json_call(
+            "AudioLibrary.GetSongs",
+            properties=["artist"],
+            query_filter={"albumid": to_int(self.dbid)},
+            parent=self.__class__.__name__,
+        )
+        tracks = Counter(
+            name
+            for song in songs.get("result", {}).get("songs", [])
+            for name in song["artist"]
+        )
+        if not (names := [name for name, _ in tracks.most_common()]):
+            return {}
+        shown = names[:COMPILATION_NAMES]
+        return {"compilation_artists": named(shown, len(names) - len(shown))}
 
     def _studio(self) -> str:
         """

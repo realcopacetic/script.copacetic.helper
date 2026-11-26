@@ -301,7 +301,7 @@ msgstr ""
 
 #: /resources/settings.xml
 msgctxt "#32048"
-msgid "Look up paintings on Wikidata"
+msgid "Look up details on Wikidata"
 msgstr ""
 
 #: /resources/settings.xml
@@ -454,7 +454,7 @@ msgstr ""
 #. "Look up art details" is string #32847: use the same words. Keep Wikidata and Wikipedia as they are.
 #: /resources/settings.xml
 msgctxt "#32148"
-msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia. Only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. No account needed. Off: nothing sent."
+msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia; for films, TV shows, artists and albums in your library, details such as who wrote the music, the book a story is based on, record labels and producers. Paintings only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. A library item is found by its TMDb, IMDb or MusicBrainz id, which is sent when the skin shows its details. No account needed. Off: nothing sent."
 msgstr ""
 
 #: /resources/settings.xml
