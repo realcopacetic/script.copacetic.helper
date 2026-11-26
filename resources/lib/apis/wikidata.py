@@ -2,8 +2,8 @@
 
 """
 Wikidata, keyless: a painter by name, its works and a painting's fields by SPARQL,
-and the painting's English Wikipedia summary. Every request waits its turn in one
-queue, a second apart; a 429's Retry-After holds the queue.
+an artist's page and rails, and English Wikipedia summaries. Every request waits its
+turn in one queue, a second apart; a 429's Retry-After holds the queue.
 """
 
 import re
@@ -23,6 +23,7 @@ TTL_HIT, TTL_EMPTY = 30 * DAY, 7 * DAY
 TIMEOUT = 15  # seconds: a longer request would hold Kodi's exit, which waits for it
 ENTITY = "http://www.wikidata.org/entity/"
 PAINTER = "Q1028181"  # occupation (P106) the artist search asks for
+PAINTING = "Q3305213"  # instance of (P31) an artist's paintings count
 SURFACE = f"{ENTITY}Q861259"  # painting surface, a material's applies-to-part (P518)
 # Labels and aliases scored against a file's title: the languages paintings are
 # named in, Norwegian under both its codes
@@ -31,6 +32,10 @@ LANGUAGES = ", ".join(
 )
 SEPARATOR = "\t"  # between a work's labels in one answer row: never in a label
 _ITEMS = ("material", "genre", "collection", "depicts")  # kinds whose values are items
+# An artist's kinds whose values are items, kept as [qid, English label]
+_PEOPLE = ("birthplace", "deathplace", "occupation", "teacher", "movement", "influence")
+# Kept as [ISO time, precision]: 9 a year, 10 a month, 11 a day
+_DATES = ("born", "died")
 
 # The first painter a search finds (srlimit doesn't limit the answer: the ordinal does)
 _SEARCH = """SELECT ?artist ?artistLabel WHERE {
@@ -76,6 +81,65 @@ _PAINTING = """SELECT ?kind ?value ?valueLabel ?part WHERE {
     schema:name ?value BIND("enwiki" AS ?kind) }
   OPTIONAL { ?value rdfs:label ?valueLabel FILTER(LANG(?valueLabel) = "en") }
 }"""
+
+# An artist's page, a row per value as a painting's: dates with their precision, the
+# nationality as its countries' English demonyms, and its paintings counted
+_ARTIST = """SELECT ?kind ?value ?valueLabel ?precision WHERE {
+  VALUES ?artist { wd:%(qid)s }
+  { ?artist rdfs:label ?value FILTER(LANG(?value) = "en") BIND("name" AS ?kind) }
+  UNION { ?artist p:P569 ?s . ?s a wikibase:BestRank; psv:P569 ?v .
+    ?v wikibase:timeValue ?value; wikibase:timePrecision ?precision BIND("born" AS ?kind) }
+  UNION { ?artist p:P570 ?s . ?s a wikibase:BestRank; psv:P570 ?v .
+    ?v wikibase:timeValue ?value; wikibase:timePrecision ?precision BIND("died" AS ?kind) }
+  UNION { ?artist wdt:P19 ?value BIND("birthplace" AS ?kind) }
+  UNION { ?artist wdt:P20 ?value BIND("deathplace" AS ?kind) }
+  UNION { ?artist wdt:P106 ?value BIND("occupation" AS ?kind) }
+  UNION { ?artist wdt:P1066 ?value BIND("teacher" AS ?kind) }
+  UNION { ?artist wdt:P135 ?value BIND("movement" AS ?kind) }
+  UNION { ?artist wdt:P27/wdt:P1549 ?value FILTER(LANG(?value) = "en")
+    BIND("nationality" AS ?kind) }
+  UNION { ?artist wdt:P737 ?value BIND("influence" AS ?kind) }
+  UNION { ?artist wdt:P18 ?value BIND("portrait" AS ?kind) }
+  UNION { SELECT ("paintings" AS ?kind) (COUNT(DISTINCT ?work) AS ?value) WHERE {
+    ?work wdt:P170 wd:%(qid)s; wdt:P31 wd:%(painting)s } }
+  UNION { ?article schema:about ?artist; schema:isPartOf <https://en.wikipedia.org/>;
+    schema:name ?value BIND("enwiki" AS ?kind) }
+  OPTIONAL { ?value rdfs:label ?valueLabel FILTER(LANG(?valueLabel) = "en") }
+}"""
+
+# An artist's rails, each row an item with a picture (P18): its English label, the
+# picture's Commons URL and, for a work, its first inception year
+RAILS = {
+    # Its works: the notable ones (the artist's P800) first, then by sitelinks
+    "gallery": """SELECT ?item ?links ?notable (SAMPLE(?name) AS ?label)
+  (SAMPLE(?picture) AS ?image) (MIN(?made) AS ?year) WHERE {
+  VALUES ?artist { wd:%(qid)s }
+  ?item wdt:P170 ?artist; wdt:P18 ?picture; wikibase:sitelinks ?links .
+  BIND(EXISTS { ?artist wdt:P800 ?item } AS ?notable)
+  OPTIONAL { ?item rdfs:label ?name FILTER(LANG(?name) = "en") }
+  OPTIONAL { ?item wdt:P571 ?date BIND(YEAR(?date) AS ?made) }
+} GROUP BY ?item ?links ?notable ORDER BY DESC(?notable) DESC(?links) LIMIT 30""",
+    # Painters of its movements born within YEARS of it, with a painting on Wikidata:
+    # an occupation alone lets in a writer who also painted (E. T. A. Hoffmann)
+    "similar": """SELECT ?item ?links (SAMPLE(?name) AS ?label)
+  (SAMPLE(?picture) AS ?image) WHERE {
+  VALUES ?artist { wd:%(qid)s }
+  ?artist wdt:P135 ?movement; wdt:P569 ?birth .
+  ?item wdt:P135 ?movement; wdt:P106 wd:%(painter)s; wdt:P569 ?born;
+    wdt:P18 ?picture; wikibase:sitelinks ?links .
+  FILTER(?item != ?artist && ABS(YEAR(?born) - YEAR(?birth)) <= %(years)s)
+  FILTER EXISTS { ?work wdt:P170 ?item; wdt:P31 wd:%(painting)s }
+  OPTIONAL { ?item rdfs:label ?name FILTER(LANG(?name) = "en") }
+} GROUP BY ?item ?links ORDER BY DESC(?links) LIMIT 30""",
+    # Those it influenced: their own influenced by (P737) names it
+    "influenced": """SELECT ?item ?links (SAMPLE(?name) AS ?label)
+  (SAMPLE(?picture) AS ?image) WHERE {
+  VALUES ?artist { wd:%(qid)s }
+  ?item wdt:P737 ?artist; wdt:P18 ?picture; wikibase:sitelinks ?links .
+  OPTIONAL { ?item rdfs:label ?name FILTER(LANG(?name) = "en") }
+} GROUP BY ?item ?links ORDER BY DESC(?links) LIMIT 30""",
+}
+YEARS = 35  # the most a similar painter's birth year is from the artist's
 
 
 def sparql(query: str) -> list[dict[str, dict[str, str]]]:
@@ -232,6 +296,78 @@ def painting(qid: str) -> dict[str, Any] | None:
         return fields
 
     return cached(f"wikidata:painting:{qid}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def artist(qid: str) -> dict[str, list] | None:
+    """
+    An artist's page: name, birth and death (dates and places), occupations,
+    teachers, movements, nationality, influences, portrait, paintings, article.
+    An item with no English label, and an unknown value, is left out.
+
+    :param qid: The artist's Q-id.
+    :return: Lists of values by kind; None if not asked.
+    """
+
+    def fetch() -> dict[str, list]:
+        fields = {}
+        query = _ARTIST % {"qid": qid, "painting": PAINTING}
+        for row in sparql(query):
+            kind, value = row["kind"]["value"], row["value"]["value"]
+            if kind in _PEOPLE:
+                if not (label := row.get("valueLabel", {}).get("value")):
+                    continue
+                value = [_qid(value), label]
+            elif kind in _DATES:
+                value = [value, int(row["precision"]["value"])]
+            elif kind == "paintings":
+                value = int(value)
+            fields.setdefault(kind, []).append(value)
+        return fields
+
+    return cached(f"wikidata:painter:{qid}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def rail(kind: str, qid: str) -> list[list] | None:
+    """
+    An artist's rail, ranked: its works (gallery), painters like it (similar), or
+    those it influenced (influenced); each [qid, English label, picture, year].
+
+    :param kind: gallery, similar or influenced.
+    :param qid: The artist's Q-id.
+    :return: Its items, possibly none; None if not asked.
+    """
+
+    def fetch() -> list[list]:
+        query = RAILS[kind] % {
+            "qid": qid,
+            "painter": PAINTER,
+            "painting": PAINTING,
+            "years": YEARS,
+        }
+        return [
+            [
+                _qid(row["item"]["value"]),
+                row.get("label", {}).get("value", ""),
+                row["image"]["value"],
+                row.get("year", {}).get("value", ""),
+            ]
+            for row in sparql(query)
+        ]
+
+    return cached(f"wikidata:{kind}:{qid}", fetch, (TTL_HIT, TTL_EMPTY), NEXT_CALL)
+
+
+def kept(kind: str, key: str) -> tuple[Any, bool]:
+    """
+    An answer as kept, whatever its age, and whether it is fresh: for a served call,
+    which never waits on a request.
+
+    :param kind: painter, summary, or a rail's kind.
+    :param key: The Q-id, or a summary's article title.
+    :return: (answer, fresh); (None, False) for none; a failed request's is fresh.
+    """
+    key = fold(key) if kind == "summary" else key
+    return ApiCacheHandler().get(f"wikidata:{kind}:{key}") or (None, False)
 
 
 def summary(title: str) -> str | None:

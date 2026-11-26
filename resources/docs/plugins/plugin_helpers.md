@@ -45,6 +45,7 @@ the focus guard below protects a served run too.
 | `reposition` | Sets the position or size of controls. | [Reposition](reposition.md) |
 | `clean_name` | Returns a file's readable name: a film's title and year, or an episode's show, code and title. | [Clean name](clean_name.md) |
 | `art_details` | Matches a picture named `Artist - Title (Year)` to its painting on Wikidata, in folders the user marks: artist, year, medium, collection, size, summary. | [Art details](art_details.md) |
+| `art_artist`, `art_rail` | A matched painting's artist from Wikidata: details and biography, and rails of its works, similar painters and those it influenced. | [Art details](art_details.md#the-artist-page) |
 | `favourite` | Returns the library item a favourite points to, with its details and artwork. | [Favourite](favourite.md) |
 | `in_progress`, `next_up`, `seasons`, `random_movies`, `random_tvshows`, `random_albums`, `rediscover`, `daily_mixes`, `random_genre`, `cast`, `actor_credits`, `director_credits`, `writer_credits`, `genre_credits`, `studio_credits`, `artist_credits`, `creator_credits`, `genre_music`, `similar_music`, `top_songs`, `discography`, `soundtracks` | Fill a container with library items. | [Library Listings](library.md) |
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |

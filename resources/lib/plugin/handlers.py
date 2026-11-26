@@ -1646,6 +1646,57 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             f"art_chip{n}": chip for n, chip in enumerate(chips, 1)
         }
 
+    def art_artist(self) -> list[DirectoryItem]:
+        """
+        An artist's page from Wikidata (qid=) as art_* properties, its portrait as
+        thumb: kept answers only, one missing or stale asked aside for a served call.
+
+        :return: One item, its properties empty until the answers land.
+        """
+        from resources.lib.shared import art_details as art
+
+        item = {"file": plugin_path("art_artist"), "properties": {}}
+        if not (ADDON.getSettingBool("wikidata") and (qid := self.params.get("qid"))):
+            return set_items([item])
+        found, fresh = art.page("painter", qid)
+        if not fresh and self.again:
+            art.PAGES.ask(("painter", qid), self.again, found)
+        if found:
+            fields = art.artist_fields(found)
+            item |= {
+                "label": fields["name"],
+                "art": {"thumb": fields.pop("portrait")},
+                "properties": {f"art_{key}": value for key, value in fields.items()},
+            }
+        return set_items([item])
+
+    def art_rail(self) -> list[DirectoryItem]:
+        """
+        An artist's rail from Wikidata (qid=, kind=gallery, similar or influenced),
+        each item's picture as thumb and full (full screen), its Q-id as qid.
+
+        :return: The rail's items, none until its answer lands.
+        """
+        from resources.lib.apis.wikidata import RAILS
+        from resources.lib.shared import art_details as art
+
+        kind, qid = self.params.get("kind"), self.params.get("qid")
+        if not (ADDON.getSettingBool("wikidata") and qid and kind in RAILS):
+            return []
+        found, fresh = art.page(kind, qid)
+        if not fresh and self.again:
+            art.PAGES.ask((kind, qid), self.again, found)
+        return set_items(
+            {
+                "file": plugin_path(f"art_rail/{item}"),
+                "label": label,
+                "label2": year,
+                "art": {"thumb": art.commons(image, art.TILE)},
+                "properties": {"qid": item, "full": art.commons(image, art.FULL)},
+            }
+            for item, label, image, year in found or []
+        )
+
     @log.duration
     def epg_time_left(self) -> list[DirectoryItem] | None:
         """

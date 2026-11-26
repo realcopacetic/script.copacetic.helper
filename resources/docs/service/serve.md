@@ -154,7 +154,9 @@ the mark:
 
 [`set_search_query`](../script/actions.md#set_search_query) and
 [`search_backspace`](../script/actions.md#search_backspace) take a `ring` param, sent
-once the query is published, and the
+once the query is published; [`art_artist`](../script/actions.md#art_artist) once
+the artist is set, [`art_details_refresh`](../script/actions.md#art_details_refresh)
+once the picture is found again; and the
 [`dynamic_settings_window`](../script/actions.md#dynamic_settings_window)'s `ring` is
 sent at each row change, in the editor's own window. Each is a ring with no `is`: the
 helper writes a new token to its mark and adds it.

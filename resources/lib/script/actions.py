@@ -86,6 +86,7 @@ API_SOURCES = {
     "lrclib": ("LRCLIB", 32044),
     "wikidata": ("Wikidata", 32049),
 }
+ARTIST_HISTORY = 10  # artists art_artist's Back steps through
 WAVEFORM = "visualization.waveform"
 # 250 points a line (the fewest: calmer than 0, no resampling), lines in the skin's
 # ghosted (Waveform draws without blending; the skin's veil of blur dims them), no
@@ -174,6 +175,33 @@ def art_details_refresh(
         return
     art.forget(path)
     art.look_up(path, lambda: art.wanted(path))
+    if ring:
+        from resources.lib.service.serve import ring as send
+
+        send(ring)
+
+
+@action
+def art_artist(prop: str, qid: str = "", ring: str = "", **kwargs: str) -> None:
+    """
+    Show another artist on the skin's artist page: its Q-id goes in prop, and the one
+    shown joins a short Back history in prop_back, which a call without qid steps
+    back through. Then the skin's ring, if it passes one.
+
+    :param prop: The Home property the page reads its artist's Q-id from.
+    :param qid: The artist to show; none for the one before.
+    :param ring: A served ring to send once it is set (serve.md), with no is.
+    """
+    home = xbmcgui.Window(10000)
+    shown, trail = home.getProperty(prop), home.getProperty(f"{prop}_back").split()
+    if qid == shown or not (qid or trail):
+        return
+    if qid and shown:  # a first artist, set this way, has none before it
+        trail = [*trail, shown][-ARTIST_HISTORY:]
+    elif not qid:
+        qid = trail.pop()
+    window_property(f"{prop}_back", value=" ".join(trail))
+    window_property(prop, value=qid)
     if ring:
         from resources.lib.service.serve import ring as send
 
