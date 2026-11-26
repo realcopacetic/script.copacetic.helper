@@ -3,7 +3,8 @@
 """
 Art details: a picture file named "Artist - 'Title' (Year)" matched to its painting
 on Wikidata, on demand, in folders the user marks (subfolders follow). Each file's
-verdict, a match or a miss, is kept by path and mtime until it is refreshed.
+verdict, a match or a miss, is kept by path and mtime until it is refreshed. Then
+its artist's page: the artist's details and biography, and three rails.
 """
 
 import json
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
 import xbmcvfs
-from xbmc import getSupportedMedia
+from xbmc import getLocalizedString, getSupportedMedia
 
 from resources.lib.apis import wikidata
 from resources.lib.apis.cache import DAY, Asides
@@ -52,6 +53,13 @@ SURFACES = frozenset(
 )
 YEAR_SAME, YEAR_NEAR, YEAR_FAR = 0.15, 0.05, -0.1  # in the file's years, one off, more
 DEPICTS = 3  # values kept
+NAMES = 2  # teachers and influences named on the artist page, the rest counted
+# A demonym's adjective endings: Wikidata lists a country's noun too, in no set order
+# (Briton before British, Spaniard after Spanish)
+ADJECTIVES = ("sh", "ch", "an", "ese", "ic", "i")
+# Widths Commons scales a picture to, two of its standard thumbnail steps: the 600
+# squares (portrait, rails) at a 4K GUI's 1200 near enough, and full screen
+TILE, FULL = 1280, 1920
 # Words a title is matched without: articles and the small words around them
 _MINOR = frozenset(
     "a an the of off at in on by to and with from over under "
@@ -410,6 +418,117 @@ def mark(path: str, on: bool) -> list[str]:
 # each request the file is still wanted and an asker still current. A verdict, a
 # match or a miss, is news
 ASIDES = Asides(lambda path, live: look_up(path, lambda: live() and wanted(path)))
+
+
+"""Artist page"""
+
+
+def commons(url: str, width: int) -> str:
+    """A Commons file's URL, as Wikidata gives it, scaled to a width over https."""
+    return f"{url.replace('http://', 'https://', 1)}?width={width}"
+
+
+def page(kind: str, qid: str) -> tuple[Any, bool]:
+    """
+    Part of an artist's page as kept, whatever its age: its fields, the biography
+    in them, or a rail; and whether all of it is fresh.
+
+    :param kind: painter, or a rail's kind.
+    :param qid: The artist's Q-id.
+    :return: (answer, fresh), as wikidata.kept gives them.
+    """
+    found, fresh = wikidata.kept(kind, qid)
+    if kind != "painter" or not found:
+        return found, fresh
+    if not (article := next(iter(found.get("enwiki", [])), "")):
+        return found | {"biography": ""}, fresh
+    text, known = wikidata.kept("summary", article)
+    return found | {"biography": text or ""}, fresh and known
+
+
+def _ask(key: tuple[str, str], live: Callable[[], bool]) -> Any:
+    """
+    Fetch part of an artist's page, each request while the setting is on and an
+    asker current; then the part as page reads it, so an unchanged one is no news.
+
+    :param key: (kind, Q-id), as page takes them.
+    :param live: Whether an asker is still current.
+    :return: The part, as page gives it.
+    """
+    kind, qid = key
+
+    def wanted() -> bool:
+        return live() and ADDON.getSettingBool("wikidata")
+
+    if not wanted():
+        return None
+    if kind != "painter":
+        wikidata.rail(kind, qid)
+    elif (found := wikidata.artist(qid)) and found.get("enwiki") and wanted():
+        wikidata.summary(found["enwiki"][0])
+    return page(kind, qid)[0]
+
+
+# Artist pages' parts for served calls, one request at a time as for files
+PAGES = Asides(_ask)
+
+
+def _date(time: str, precision: int) -> str:
+    """A Wikidata time to its precision: day, month and year in Kodi's month names."""
+    year, month, day = map(int, re.match(r"(-?\d+)-(\d\d)-(\d\d)", time).groups())
+    if precision < 10:
+        return str(year)
+    month = getLocalizedString(20 + month)  # 21-32: January to December
+    return f"{day} {month} {year}" if precision > 10 else f"{month} {year}"
+
+
+def artist_fields(found: dict[str, Any]) -> dict[str, str]:
+    """
+    An artist's page as served, one string each: the first NAMES teachers and
+    influences named and the rest counted (_more), the first movement likewise.
+
+    :param found: page's answer for the painter.
+    :return: Fields by name; the portrait a TILE-wide URL, or "".
+    """
+
+    def first(kind: str) -> Any:
+        """The kind's first value; "" for none."""
+        return next(iter(found.get(kind, [])), "")
+
+    def event(time: str, place: str) -> str:
+        """A birth or death: its date to its precision, then its place's label."""
+        date = first(time) and _date(*first(time))
+        return ", ".join(filter(None, (date, first(place) and first(place)[1])))
+
+    def named(kind: str, names: int) -> dict[str, str]:
+        """Its first labels joined, and how many more, each once in Wikidata's order."""
+        labels = [*dict.fromkeys(label for _, label in found.get(kind, []))]
+        more = str(len(labels[names:]) or "")
+        return {kind: ", ".join(labels[:names]), f"{kind}_more": more}
+
+    occupations = dict(found.get("occupation", []))  # qid → label, in order
+    occupation = occupations.get(wikidata.PAINTER) or next(
+        iter(occupations.values()), ""
+    )
+    years = (_date(time[0], 9) for time in (first("born"), first("died")) if time)
+    portrait = first("portrait")
+    return {
+        "name": first("name"),
+        "occupation": occupation[:1].upper() + occupation[1:],
+        "life": "–".join(years),
+        "born": event("born", "birthplace"),
+        "died": event("died", "deathplace"),
+        **named("teacher", NAMES),
+        **named("movement", 1),
+        **named("influence", NAMES),
+        "nationality": min(
+            found.get("nationality", [""]),
+            key=lambda name: (not name.endswith(ADJECTIVES), len(name)),
+        ),
+        "paintings": str(first("paintings") or ""),
+        "portrait": portrait and commons(portrait, TILE),
+        "biography": found["biography"],
+    }
 
 
 def fit_chips(

@@ -6,11 +6,13 @@ left empty (title similarity, a label's words all in the title, the year, ties t
 the most sitelinks, the threshold); a match's fields; the per-file verdict (kept by
 path and mtime, a miss kept too, none kept when Wikidata isn't asked or refuses, a
 429 holding the queue); the marked folders; the serve's properties and Home
-properties; chips fitted to a row.
+properties; chips fitted to a row. The artist page (art_artist, art_rail and the
+art_artist action): its fields, kept answers served and stale ones asked aside, the
+setting tested before each request, the rails, and the Back history.
 
 Network calls are replaced by answers in the query service's and Wikipedia's shapes,
-built from tests/fixtures/wikidata_works.json (hand-written from the filename test's
-results: see its note). Run from the helper root:
+built from tests/fixtures/wikidata_works.json and wikidata_artist.json (hand-written:
+see their notes). Run from the helper root:
 python tests/art_details_offline.py
 """
 
@@ -66,6 +68,15 @@ from resources.lib.shared import art_details as art  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
 FIXTURE = json.loads((HELPER / "tests/fixtures/wikidata_works.json").read_text("utf-8"))
+ARTIST = json.loads((HELPER / "tests/fixtures/wikidata_artist.json").read_text("utf-8"))
+TURNER = "Q159758"
+MONTHS = dict(
+    enumerate(
+        "January February March April May June July August "
+        "September October November December".split(),
+        21,
+    )
+)  # Kodi's strings 21-32
 HOME = sys.modules["xbmcgui"].Window(10000)
 FOLDER = "/pictures/Art/"
 ALIVE = lambda: True  # a look-up's live test that never stops it
@@ -142,6 +153,18 @@ def painting_rows(qid):
     ]
 
 
+def rows(names, fixture):
+    """Fixture rows as bindings, an empty field unbound (an OPTIONAL with no match)."""
+    return [
+        {name: literal(text) for name, text in zip(names, row) if text}
+        for row in fixture
+    ]
+
+
+# A rail's query, by what only it asks
+RAIL_QUERIES = {"?notable": "gallery", "wdt:P135 ?movement": "similar"}
+
+
 class ArtDetailsTest(unittest.TestCase):
     """Wikidata and Wikipedia answer from the fixture; each request is in self.asked."""
 
@@ -169,7 +192,22 @@ class ArtDetailsTest(unittest.TestCase):
             if qid := re.search(r"VALUES \?work \{ wd:(Q\d+) \}", query):
                 self.asked.append(f"painting {qid[1]}")
                 return {"results": {"bindings": painting_rows(qid[1])}}
-            if qid := re.search(r"VALUES \?artist \{ wd:(Q\d+) \}", query):
+            qid = re.search(r"VALUES \?artist \{ wd:(Q\d+) \}", query)
+            if '"born" AS ?kind' in query:
+                self.asked.append(f"artist {qid[1]}")
+                names = "kind", "value", "valueLabel", "precision"
+                bindings = rows(names, ARTIST["pages"].get(qid[1], []))
+                return {"results": {"bindings": bindings}}
+            if "wikibase:sitelinks ?links" in query and "?labels" not in query:
+                kind = next(
+                    (k for text, k in RAIL_QUERIES.items() if text in query),
+                    "influenced",
+                )
+                self.asked.append(f"{kind} {qid[1]}")
+                names = "item", "label", "image", "year"
+                bindings = rows(names, ARTIST["rails"].get(f"{kind}:{qid[1]}", []))
+                return {"results": {"bindings": bindings}}
+            if qid:
                 self.asked.append(f"works {qid[1]}")
                 return {"results": {"bindings": works_rows(qid[1])}}
             search = re.search(r'srsearch "(.+?) haswbstatement', query)[1]
@@ -177,9 +215,10 @@ class ArtDetailsTest(unittest.TestCase):
             return {"results": {"bindings": search_rows(search)}}
         title = unquote(url.removeprefix(wikidata.SUMMARY)).replace("_", " ")
         self.asked.append(f"summary {title}")
-        if title not in FIXTURE["summaries"]:
+        summaries = FIXTURE["summaries"] | ARTIST["summaries"]
+        if title not in summaries:
             raise HttpError(404)
-        return {"extract": FIXTURE["summaries"][title]}
+        return {"extract": summaries[title]}
 
     def test_parse(self):
         name = art.parse(f"{FOLDER}{next(iter(NAMES))}")
@@ -439,15 +478,16 @@ class ArtDetailsTest(unittest.TestCase):
             self.assertEqual(self.serve(path), {})  # off: nothing
 
     def asides(self):
-        """The aside worker not started; the test drains it by hand."""
+        """The aside workers not started; the test drains them by hand."""
         started = []
         thread = lambda target, daemon: mock.Mock(start=lambda: started.append(target))
         patcher = mock.patch.object(cache, "Thread", thread)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.addCleanup(art.ASIDES.asked.clear)
-        self.addCleanup(art.ASIDES.queue.clear)
-        self.addCleanup(setattr, art.ASIDES, "running", 0)
+        for queue in (art.ASIDES, art.PAGES):
+            self.addCleanup(queue.asked.clear)
+            self.addCleanup(queue.queue.clear)
+            self.addCleanup(setattr, queue, "running", 0)
         return started
 
     def test_served_looks_up_aside(self):
@@ -566,6 +606,149 @@ class ArtDetailsTest(unittest.TestCase):
         # two lines of 70 characters: the first sentence, not a cut second
         first = FIXTURE["summaries"]["The Starry Night"].partition(". ")[0]
         self.assertEqual(props["art_summary"], f"{first}.")
+
+    # Artist page
+
+    def artist(self, params="", again=None):
+        """The art_artist serve's item for Turner."""
+        query = f"info=art_artist&qid={TURNER}{params}"
+        plugin = handlers.PluginHandlers(
+            dict(p.split("=", 1) for p in query.split("&")), again=again, query=query
+        )
+        return plugin.art_artist()[0]
+
+    def rail(self, kind, again=None):
+        """The art_rail serve's items for one of Turner's rails."""
+        params = {"info": "art_rail", "kind": kind, "qid": TURNER}
+        return list(handlers.PluginHandlers(params, again=again).art_rail())
+
+    def test_artist_page(self):
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            art._ask(("painter", TURNER), ALIVE)
+            item = self.artist()
+        self.assertEqual(self.asked, [f"artist {TURNER}", "summary J. M. W. Turner"])
+        self.assertEqual(item["label"], "J. M. W. Turner")
+        self.assertEqual(
+            item["art"]["thumb"],
+            "https://commons.wikimedia.org/wiki/Special:FilePath/"
+            "Turner%20selfportrait.jpg?width=1280",
+        )
+        props = item["properties"]
+        self.assertEqual(
+            {
+                k.removeprefix("art_"): v
+                for k, v in props.items()
+                if k != "art_biography"
+            },
+            {
+                "name": "J. M. W. Turner",
+                "occupation": "Painter",  # painter first, whatever Wikidata's order
+                "life": "1775–1851",
+                "born": "23 April 1775, Maiden Lane, London",  # the unknown place out
+                "died": "1851, Cheyne Walk, London",  # year-precise: the year alone
+                "teacher": "Joshua Reynolds, Thomas Malton",  # the unlabelled one out
+                "teacher_more": "1",
+                "movement": "Romanticism",
+                "movement_more": "1",
+                "nationality": "British",
+                "paintings": "575",
+                "influence": "Claude Lorrain, Thomas Girtin",
+                "influence_more": "",
+            },
+        )
+        self.assertTrue(props["art_biography"].startswith("Joseph Mallord William"))
+
+    def test_served_artist_asks_aside_once(self):
+        started = self.asides()
+        asker = mock.Mock(current=lambda: True)
+        self.assertEqual(self.artist()["properties"], {})  # a plugin call: kept only
+        self.assertEqual((self.asked, started), ([], []))
+        self.assertEqual(self.artist(again=asker)["properties"], {})  # none yet
+        self.assertEqual(self.asked, [])  # the serve itself sends nothing
+        art.PAGES._drain()
+        asker.assert_called_once()
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            props = self.artist(again=asker)["properties"]
+        self.assertEqual(props["art_name"], "J. M. W. Turner")
+        self.assertEqual(len(started), 1)  # fresh: no second ask
+        ApiCacheHandler().expire(f"wikidata:painter:{TURNER}")
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            self.artist(again=asker)  # stale: served, and asked again
+        art.PAGES._drain()
+        asker.assert_called_once()  # the same answer: no news
+
+    def test_artist_page_stops_when_the_setting_turns_off(self):
+        on, answer = [True], self.answer
+
+        def then_off(*args, **kwargs):
+            found = answer(*args, **kwargs)
+            on[0] = False  # turned off once the artist has answered
+            return found
+
+        with (
+            mock.patch.object(wikidata.http, "get_json", then_off),
+            mock.patch.object(handlers.ADDON, "getSettingBool", lambda key: on[0]),
+        ):
+            art._ask(("painter", TURNER), ALIVE)
+            self.assertIsNone(art._ask(("gallery", TURNER), ALIVE))
+        self.assertEqual(self.asked, [f"artist {TURNER}"])  # no summary, no rail
+
+    def test_rails(self):
+        self.asides()
+        asker = mock.Mock(current=lambda: True)
+        self.assertEqual(self.rail("gallery", again=asker), [])
+        art.PAGES._drain()
+        dido, untitled = self.rail("gallery", again=asker)
+        self.assertEqual(
+            (dido["label"], dido["label2"]), ("Dido Building Carthage", "1815")
+        )
+        self.assertEqual(
+            dido["properties"],
+            {
+                "qid": "Q910201",
+                "full": "https://commons.wikimedia.org/wiki/Special:FilePath/"
+                "Dido%20building%20Carthage.jpg?width=1920",
+            },
+        )
+        self.assertEqual(untitled["label"], "")  # no English label: art only
+        art._ask(("similar", TURNER), ALIVE)
+        art._ask(("influenced", TURNER), ALIVE)
+        self.assertEqual([i["label"] for i in self.rail("similar")], ["John Constable"])
+        self.assertEqual(self.rail("influenced"), [])  # none: an empty rail
+        self.assertEqual(self.rail("works"), [])  # not a rail: nothing asked
+        self.assertEqual(
+            self.asked,
+            [f"gallery {TURNER}", f"similar {TURNER}", f"influenced {TURNER}"],
+        )
+
+    def test_similar_painters_only(self):
+        query = wikidata.RAILS["similar"]
+        self.assertIn("wdt:P106 wd:%(painter)s", query)  # the occupation, and a
+        self.assertIn("?work wdt:P170 ?item; wdt:P31 wd:%(painting)s", query)  # work
+        self.assertIn("<= %(years)s", query)
+
+    def test_artist_history(self):
+        sent = []
+        HOME.setProperty("page_artist", TURNER)
+        HOME.clearProperty("page_artist_back")
+        with mock.patch("resources.lib.service.serve.ring", sent.append):
+            actions.art_artist(prop="page_artist", qid="Q159606", ring="serve?x")
+            actions.art_artist(prop="page_artist", qid="Q159606")  # shown: nothing
+            actions.art_artist(prop="page_artist", qid="Q5582")
+        self.assertEqual(HOME.getProperty("page_artist"), "Q5582")
+        self.assertEqual(HOME.getProperty("page_artist_back"), f"{TURNER} Q159606")
+        self.assertEqual(sent, ["serve?x"])
+        actions.art_artist(prop="page_artist")  # Back
+        actions.art_artist(prop="page_artist")
+        self.assertEqual(HOME.getProperty("page_artist"), TURNER)
+        self.assertEqual(HOME.getProperty("page_artist_back"), "")
+        actions.art_artist(prop="page_artist")  # none left: the skin closes the page
+        self.assertEqual(HOME.getProperty("page_artist"), TURNER)
+        for n in range(actions.ARTIST_HISTORY + 2):
+            actions.art_artist(prop="page_artist", qid=f"Q{n}")
+        self.assertEqual(
+            len(HOME.getProperty("page_artist_back").split()), actions.ARTIST_HISTORY
+        )
 
 
 if __name__ == "__main__":

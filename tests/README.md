@@ -188,8 +188,11 @@ python tests/picture_bar_offline.py
 # verdict kept by path and mtime, a miss kept, none kept unanswered, a 429 holding the
 # queue, a refresh's exact delete; nothing sent with the setting off or the folder
 # unmarked; plugin calls cache-only; pictures only; marked folders, archives refused,
-# their Home properties; chips fitted to a row; the summary cut at a sentence
-# (Wikidata's and Wikipedia's answers stubbed from tests/fixtures)
+# their Home properties; chips fitted to a row; the summary cut at a sentence. The
+# artist page (info=art_artist, info=art_rail, the art_artist action): its fields,
+# kept answers served and stale ones asked aside, the setting tested before each
+# request, the rails, the Back history (Wikidata's and Wikipedia's answers stubbed
+# from tests/fixtures)
 python tests/art_details_offline.py
 
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI

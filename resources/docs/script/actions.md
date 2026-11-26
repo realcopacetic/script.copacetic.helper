@@ -57,6 +57,7 @@ custom](../builders/06-controls.md#runtime_script-vs-custom).
 
 | Action | What it does |
 |---|---|
+| [`art_artist`](#art_artist) | Moves the skin's artist page to another artist, or back to the one before |
 | [`art_details_folder`](#art_details_folder) | Marks a folder for art details look-ups on Wikidata, or unmarks it |
 | [`art_details_refresh`](#art_details_refresh) | Looks one picture up on Wikidata again |
 | [`bake_profiles`](#bake_profiles) | Blurs each profile's picture again for a login screen and the splash after it |
@@ -171,6 +172,34 @@ type and its path to the action.
 **Look up art details** and **Stop looking up art details** need your skin to serve
 [`art_details`](../plugins/art_details.md) for the focused folder, which publishes its
 state (`art_details_marked`, `art_details_unmarked`); until it has, neither shows.
+
+---
+
+## art_artist
+
+Moves your [artist page](../plugins/art_details.md#the-artist-page) to another artist,
+or back. The page reads its artist's Wikidata id from a Home property you name; the
+artist shown before joins a Back history in `<prop>_back` (ten at most, oldest
+dropped), which a call without `qid` steps back through. Showing the artist already
+shown, or Back with no history, does nothing: with `<prop>_back` empty, Back is yours
+to close the page. Then your served ring, if you pass one, so the page is served
+again for the new artist.
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `prop` | a Home window property's name | required | The property holding the page's artist |
+| `qid` | an artist's Wikidata id | none | The artist to show; none steps back |
+| `ring` | a [served ring](../service/serve.md#from-python), `serve?…` with no `is` | none | Sent once the artist is set |
+
+Open the page by setting the property yourself, its history cleared:
+
+```xml
+<onclick>SetProperty(art_artist,$INFO[Container(9000).ListItem.Property(art_artist_qid)],home)</onclick>
+<onclick>ClearProperty(art_artist_back,home)</onclick>
+<onclick>ActivateWindow(1192)</onclick>
+```
+
+**Sets:** `Window(home).Property(<prop>)` and `<prop>_back`.
 
 ---
 

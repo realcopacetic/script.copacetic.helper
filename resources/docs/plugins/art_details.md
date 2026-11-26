@@ -132,3 +132,70 @@ neither item shows on a folder inside a marked one: it follows its parent.
 A skin can hold a picture's text until the serve answers where it may match, so its
 own labels never show first and change: while `art_details_checked` isn't the
 listing (a listing not served yet) or `art_details_folder` is.
+
+## The artist page
+
+A matched painting's `art_artist_qid` opens its artist: `info=art_artist` for the
+details and biography, `info=art_rail` for three rails of pictures. Both take the
+artist's `qid` and ask only while the `wikidata` setting is on; no folder needs
+marking, as the artist comes from a match.
+
+```xml
+<label>info=art_artist&amp;qid=$INFO[Window(home).Property(art_artist)]</label>
+<label>info=art_rail&amp;kind=gallery&amp;qid=$INFO[Window(home).Property(art_artist)]</label>
+```
+
+Served, each reads the answers kept for it, whatever their age; one missing or older
+than 30 days is asked on a thread of its own, one request at a time with the look-ups,
+and its list is served again when the answer differs. A plugin call reads kept answers
+only. The setting is tested again before each request.
+
+[`art_artist`](../script/actions.md#art_artist) moves the page to another artist (a
+Similar artists or Influenced tile) and keeps a short Back history.
+
+### info=art_artist
+
+One item, labelled with the artist's English name, its portrait (Wikidata's image,
+1280 pixels wide from Wikimedia Commons) as `thumb`. Until its answer lands, a blank
+item with no properties.
+
+| Property | Value |
+|---|---|
+| `art_name` | The artist's English name |
+| `art_occupation` | *Painter* where Wikidata lists it, else the first occupation |
+| `art_life` | Birth and death years, as `1775–1851`; the birth year alone for a living artist |
+| `art_born`, `art_died` | The date to Wikidata's precision (`23 April 1775`, `April 1775`, `1775`), then the place |
+| `art_teacher`, `art_teacher_more` | The first two teachers (*student of*), and how many more |
+| `art_movement`, `art_movement_more` | The first movement, and how many more |
+| `art_nationality` | The countries of citizenship's English demonym, the adjective (`British`) where Wikidata lists a noun (`Briton`) too |
+| `art_paintings` | How many paintings Wikidata credits to the artist |
+| `art_influence`, `art_influence_more` | The first two the artist was influenced by, and how many more |
+| `art_biography` | The English Wikipedia summary, whole: pass it to [`text`](text.md) to draw it as a page |
+
+An item with no English label, and an unknown value, is left out; an empty field is
+an empty property.
+
+### info=art_rail
+
+| Param | Accepted values | What it does |
+|---|---|---|
+| `qid` | an artist's Wikidata id | The artist |
+| `kind` | `gallery`, `similar`, `influenced` | Which rail |
+
+- `gallery`: the artist's works with a picture, its notable works (*notable work* on the
+  artist) first, then by Wikipedia sitelinks;
+- `similar`: painters of the artist's movements born within 35 years of it, with a
+  painting of their own on Wikidata (an occupation alone lets in a writer who also
+  painted), by sitelinks;
+- `influenced`: those whose *influenced by* names the artist, by sitelinks.
+
+Up to 30 items, each labelled with its English name (empty for none), `label2` a
+work's earliest inception year, its picture 1280 pixels wide as `thumb`, and:
+
+| Property | Value |
+|---|---|
+| `qid` | The work's or artist's Wikidata id |
+| `full` | The picture 1920 pixels wide, for `ShowPicture` |
+
+`ShowPicture` takes the URL as a path: Kodi asks the server for its type, then loads
+it as any picture, in a slideshow of one that replaces the one running.
