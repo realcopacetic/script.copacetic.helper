@@ -808,6 +808,13 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(files(query="Rh\\u00f4ne"), [rhone])
         self.assertEqual(len(files(query="starry")), 2)
         self.assertEqual(len(files(query="starry", limit="1")), 1)  # the rail's limit
+        # Past U+FFFF: a surrogate pair of escapes, as _publish_query writes it
+        rare = f"{FOLDER}Rare.jpg"
+        kept = ApiCacheHandler().get(f"wikidata:file:{starry}")[0]
+        kept["fields"] |= {"title": "Night \U00020000"}
+        ApiCacheHandler().put(f"wikidata:file:{rare}", kept, 600)
+        actions._publish_query("\U00020000 night", 1)
+        self.assertEqual(files(query=unquote(HOME.getProperty("search_query"))), [rare])
 
     def test_refresh_pictures_only(self):
         art.mark(FOLDER, True)
