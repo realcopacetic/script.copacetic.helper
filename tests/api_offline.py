@@ -666,6 +666,18 @@ class TmdbTest(Base):
         landed.assert_called_once()  # its list is owed: its next ring asks again
         self.assertEqual(transform.ASIDES.asked, {})
 
+    def test_an_askers_fetch_is_pending_until_it_ends(self):
+        self.aside_queue()
+        landed, other = self.asker(), self.asker()
+        self.net.answers = [TMDB_TV]
+        transform.tmdb_to_canonical("tvshow", 1399, aside=landed)
+        self.assertEqual(
+            (transform.ASIDES.pending(landed), transform.ASIDES.pending(other)),
+            (True, False),
+        )
+        transform.ASIDES._drain()
+        self.assertFalse(transform.ASIDES.pending(landed))
+
     def test_a_fetch_stopped_for_want_of_an_asker_tells_them(self):
         self.aside_queue()
         current = [True]

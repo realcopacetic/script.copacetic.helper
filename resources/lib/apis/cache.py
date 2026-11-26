@@ -113,7 +113,7 @@ def cached(
 
 
 def busy(queue: str) -> bool:
-    """Whether a queue's next free slot is over MAX_WAIT away, so cached skips a call."""
+    """Whether a queue's next free slot is over MAX_WAIT away: cached skips a call."""
     return float(Window(10000).getProperty(queue) or 0) - time.time() > MAX_WAIT
 
 
@@ -166,6 +166,16 @@ class Asides:
             self.running += 1
         Thread(target=self._drain, daemon=True).start()
 
+    def pending(self, asker: Asker) -> bool:
+        """
+        Whether a fetch an asker asked for is still queued or running.
+
+        :param asker: The served call's re-serve.
+        :return: True until its fetch ends.
+        """
+        with self.lock:
+            return any(asker in askers for askers, _ in self.asked.values())
+
     def _drain(self) -> None:
         """A worker: fetch queued keys in turn; it ends, in one hold, with the queue."""
         while True:
@@ -200,7 +210,7 @@ class Asides:
             with self.lock:  # a later ask of the key, after this, queues its own fetch
                 askers, stale = self.asked.pop(key)
         # News; or none for want of a current asker: each records its list as owed, and
-        # its arrival's next ring serves it, asking again (a current one's failure isn't)
+        # its arrival's next ring serves it, asking again (a current one failing isn't)
         if (answer is not None and answer != stale) or (
             answer is None and (skipped or not any(asker.current() for asker in askers))
         ):
