@@ -1686,9 +1686,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not ADDON.getSettingBool("wikidata"):
             return []
         # Decoded once, as Kodi passes the URL's options encoded; then set_search_query's
-        # JSON escapes, so "Rhône" is found as typed
+        # JSON escapes, so "Rhône" is found as typed. A character past U+FFFF comes as
+        # two escapes, a surrogate pair, joined back through UTF-16
         query = _JSON_ESCAPE.sub(
             lambda m: chr(int(m[1], 16)) if m[1] else m[2], self.params.get("query", "")
+        )
+        query = query.encode("utf-16", "surrogatepass").decode(
+            "utf-16", "surrogatepass"
         )
         limit = to_int(self.params.get("limit"), SEARCH_LIMIT)
         return set_items(
