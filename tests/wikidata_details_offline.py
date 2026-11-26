@@ -362,6 +362,20 @@ class DetailsTest(WikidataCase):
         self.assertEqual(len(self.asked), 2)
         self.assertEqual(wd.kept(SLOW_HORSES), (None, False))
 
+    def test_a_failure_is_not_asked_again(self):
+        # only a 429's hold earns a second try: a failed batch keeps a row for its
+        # first id only, so another try would send the rest again
+        calls = []
+
+        def refuse(*args, **kwargs):
+            calls.append(args)
+            raise HttpError(None)
+
+        with mock.patch.object(wikidata.http, "get_json", refuse):
+            with self.assertRaises(wd._Unanswered):
+                wd._answer(ALIVE, wikidata.items, ["Q1", "Q2", "Q3"])
+        self.assertEqual(len(calls), 1)
+
     def test_a_busy_queue_is_waited_out(self):
         # cached skips a request over MAX_WAIT ahead: the look-up, aside, waits a
         # second at a time while it is live, and asks once the queue frees

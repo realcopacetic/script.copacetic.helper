@@ -13,7 +13,7 @@ from typing import Any, Callable
 from xbmc import Monitor
 
 from resources.lib.apis import wikidata
-from resources.lib.apis.cache import Asides, busy
+from resources.lib.apis.cache import Asides, ahead, busy
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON, fold, named
 
@@ -224,16 +224,19 @@ def kept(key: tuple[str, ...]) -> tuple[dict[str, Any] | None, bool]:
 def _answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
     """
     A request's answer, while the look-up is live, waiting out a busy queue (which
-    cached skips: the look-up runs aside), then once more (a 429's short wait, which
-    cached waits out); raises _Unanswered otherwise.
+    cached skips: the look-up runs aside), and asked once more after a 429's short
+    hold (which cached waits out); raises _Unanswered otherwise.
     """
     tries = 2
     while tries and live():
         if (answer := call(*args)) is not None:
             return answer
-        if not busy(wikidata.NEXT_CALL):
+        if busy(wikidata.NEXT_CALL):
+            if Monitor().waitForAbort(1):
+                break
+        elif ahead(wikidata.NEXT_CALL) > 1:  # a 429's short hold
             tries -= 1
-        elif Monitor().waitForAbort(1):
+        else:  # refused, failed or timed out: not asked again
             break
     raise _Unanswered
 
