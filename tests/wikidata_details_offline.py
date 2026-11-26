@@ -4,8 +4,8 @@ shared/wikidata_details.py; the metadata serve's wikidata=true and
 compilation_artists=true; the soundtracks listing's second pass): items found by
 TMDb, IMDb and MusicBrainz ids, never by a query; labels in English, else
 multilingual, else any language; Based on from written works only, worded by the
-item's title; Set in; the story line on one row or two (story_*); Music by; an
-artist's labels (+N) and place; an album's
+item's title; Set in; the story line on one row or two (story_*); Music by; a
+show's creators where TMDb names none; an artist's labels (+N) and place; an album's
 producers; a compilation's track artists from the library; a served item's details
 kept, missing ones asked aside; the soundtrack id link both ways and the composer
 tie-break, and the title matching alone with the setting off or Wikidata down.
@@ -92,6 +92,14 @@ def item(qid, label, **claims):
     }
     labels = {"en": {"language": "en", "value": label}} if label else {}
     return {"type": "item", "id": qid, "labels": labels, "claims": statements}
+
+
+# A show with creators (P170), set in London
+CREATED = {
+    "Q920": item("Q920", "Show", P4983=["920"], P170=["Q921", "Q922"], P840=["Q84"]),
+    "Q921": item("Q921", "Jane Doe"),
+    "Q922": item("Q922", "John Roe"),
+}
 
 
 class TenWide:
@@ -190,6 +198,21 @@ class DetailsTest(WikidataCase):
         self.asked.clear()
         self.assertEqual(wd.details(SLOW_HORSES, ALIVE), found)  # kept
         self.assertEqual(self.asked, [])
+
+    def test_a_shows_creators(self):
+        self.entities |= CREATED
+        found = wd.details(("tvshow", "920", ""), ALIVE)
+        self.assertEqual(found["created_by"], ["Jane Doe", "John Roe"])
+        self.assertEqual(self.asked[-1], "labels Q84|Q921|Q922")  # with the place's
+        self.assertEqual(
+            wd.properties("tvshow", found, "Show"),
+            {"wikidata_created_by": "Jane Doe / John Roe", "wikidata_set_in": "London"},
+        )
+        self.assertNotIn("wikidata_created_by", wd.properties("movie", found, "Show"))
+        del found["created_by"]  # details kept before creators were looked up
+        self.assertEqual(
+            wd.properties("tvshow", found, "Show"), {"wikidata_set_in": "London"}
+        )
 
     def test_a_film(self):
         found = wd.details(DUNE, ALIVE)
@@ -498,10 +521,10 @@ class ServeTest(WikidataCase):
         details = {"albumid": 4, "label": "Dune", "musicbrainzreleasegroupid": group}
         return json.dumps({"result": {"albumdetails": details}})
 
-    def served(self, dbtype, again, title="Dune", **params):
+    def served(self, dbtype, again, writers=(), title="Dune", **params):
         params |= {"info": "metadata", "target": "item", "type": dbtype, "id": "4"}
         plugin = handlers.PluginHandlers(params | {"wikidata": "true"}, again=again)
-        return plugin._wikidata(title)
+        return plugin._wikidata(title, [*writers])
 
     def test_kept_only_then_aside(self):
         self.labels["ListItem.UniqueID(tmdb)"] = "438631"
@@ -551,6 +574,17 @@ class ServeTest(WikidataCase):
         self.labels["ListItem.Property(artist_born)"] = "21st of March 1974"  # 18
         self.assertEqual(place(), "Par…")
         self.assertEqual(self.served("artist", None)["wikidata_place"], "Paris")
+
+    def test_created_by_stands_in_for_tmdbs(self):
+        self.entities |= CREATED
+        wd.details(("tvshow", "920", ""), ALIVE)
+        self.labels["ListItem.UniqueID(tmdb)"] = "920"
+        self.assertEqual(
+            self.served("tvshow", None)["wikidata_created_by"], "Jane Doe / John Roe"
+        )
+        # TMDb names the creators: theirs alone
+        served = self.served("tvshow", None, writers=["Will Smith"])
+        self.assertNotIn("wikidata_created_by", served)
 
     def test_the_story_line_fits_its_row(self):
         wd.details(SLOW_HORSES, ALIVE)

@@ -1270,7 +1270,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if self.dbtype == "tvshow" and not own_tagline and data["TagLine"]:
             data["properties"]["tagline"] = data["TagLine"]
         if parse_bool(self.params.get("wikidata")):
-            data["properties"] |= self._wikidata(data["Title"])
+            data["properties"] |= self._wikidata(data["Title"], data["Writers"])
 
         if not guard.alive():
             return
@@ -1296,13 +1296,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return set_items([data], tag_applier=apply_videoinfotag)
 
-    def _wikidata(self, title: str) -> dict[str, str]:
+    def _wikidata(self, title: str, writers: list[str]) -> dict[str, str]:
         """
         Wikidata details of a film, show, artist or album as wikidata_* properties,
         while the wikidata setting is on: kept ones only, a missing or stale answer
         asked aside for a served call (wikidata_pending), whose news serves it again.
 
         :param title: The item's title, for the based-on wording.
+        :param writers: The item's writers: a show's creators, TMDb's.
         :return: The properties; none for an item with no TMDb, IMDb or MusicBrainz id.
         """
         from resources.lib.shared import wikidata_details as wd
@@ -1311,6 +1312,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return {}
         found, fresh = wd.kept(key)
         properties = wd.properties(self.dbtype, found, title)
+        if writers:  # Wikidata's creators stand in only for a show TMDb names none for
+            properties.pop("wikidata_created_by", None)
         # story_font=: the story line in the skin's fonts, on two rows if it must be
         if (based := properties.get("wikidata_based_on")) and self.params.get(
             "story_font"

@@ -3,8 +3,9 @@
 """
 Wikidata details for library films, TV shows, artists and albums, found by their
 TMDb, IMDb and MusicBrainz ids alone (no id, no look-up): a film's composers, the
-written work it is based on and where it is set; an artist's labels and place; an
-album's producers; the soundtrack albums and films they link. Kept per item.
+written work it is based on and where it is set; a show's creators; an artist's
+labels and place; an album's producers; the soundtrack albums and films they link.
+Kept per item.
 """
 
 from functools import partial
@@ -90,6 +91,8 @@ def properties(kind: str, found: dict[str, Any] | None, title: str) -> dict[str,
         source = found["source"]
         values = {
             "music_by": kind == "movie" and " / ".join(found["music_by"]),
+            # details kept before creators were looked up have none
+            "created_by": kind == "tvshow" and " / ".join(found.get("created_by", [])),
             "based_on": source and based_on(title, source),
             "set_in": found["set_in"],
         }
@@ -150,9 +153,9 @@ def _once(*groups: list[str]) -> list[str]:
 
 def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
     """
-    A film's or show's details: composers (names and MusicBrainz ids), its first
-    written source, where it's set, and its soundtracks' release groups (its P406
-    albums', and albums whose P9899 names it).
+    A film's or show's details: composers (names and MusicBrainz ids), creators, its
+    first written source, where it's set, and its soundtracks' release groups (its
+    P406 albums', and albums whose P9899 names it).
     """
     found = (tmdb and _item(ask, TMDB[kind], tmdb)) or (
         imdb and _item(ask, "P345", imdb)
@@ -160,7 +163,9 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
     if not found:
         return {}
     qid, claims = found
-    composers, sources, places = (claims.get(p, []) for p in ("P86", "P144", "P840"))
+    composers, sources, places, creators = (
+        claims.get(p, []) for p in ("P86", "P144", "P840", "P170")
+    )
     albums = _once(claims.get("P406", []), ask(wikidata.having, "P9899", qid))
     linked = ask(wikidata.items, [*composers, *sources, *albums])
     source = next(
@@ -172,9 +177,10 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
         None,
     )
     authors = source["claims"].get("P50", []) if source else []
-    names = ask(wikidata.labels, [*authors, *places[:1]])
+    names = ask(wikidata.labels, [*authors, *places[:1], *creators])
     return {
         "music_by": [*filter(None, (linked[q]["label"] for q in composers))],
+        "created_by": [*filter(None, map(names.get, creators))],
         "composers": [
             mbid for q in composers for mbid in linked[q]["claims"].get("P434", [])
         ],
