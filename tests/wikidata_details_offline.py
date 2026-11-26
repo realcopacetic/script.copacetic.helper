@@ -359,7 +359,8 @@ class ServeTest(WikidataCase):
         asker = mock.Mock(current=lambda: True)
         self.assertEqual(self.served("movie", None), {})  # a plugin call: kept only
         self.assertEqual((self.asked, self.started), ([], []))
-        self.assertEqual(self.served("movie", asker), {})  # none yet
+        # none yet: marked pending, for the skin to mask the re-serve
+        self.assertEqual(self.served("movie", asker), {"wikidata_pending": "true"})
         self.assertEqual(self.asked, [])  # the serve itself sends nothing
         wd.ASIDES._drain()
         asker.assert_called_once()

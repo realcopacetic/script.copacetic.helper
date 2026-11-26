@@ -80,6 +80,7 @@ one served.
 | `ListItem.Property(wikidata_labels)` | With `wikidata=true` on an artist: its record labels (P264), two named and the rest counted (`Ed Banger Records, Because Music +2`). |
 | `ListItem.Property(wikidata_place)` | With `wikidata=true` on an artist: where a group formed (P740), else where a person was born (P19), `Paris`. |
 | `ListItem.Property(wikidata_producer)` | With `wikidata=true` on an album: its producers (P162), ` / ` between them. |
+| `ListItem.Property(wikidata_pending)` | With `wikidata=true` in a served list: `true` while the item's details are missing or stale and being asked for. When they land with news the list is served again without it, so the frame it goes empty is the frame the `wikidata_*` values may change: hide what shows them for that frame to mask the change. Empty when the kept details are fresh, and on a plugin call. |
 | `ListItem.Property(albumartist_id)`, `ListItem.Property(albumartist)` | With `type=album` or `type=song` and `id`: the first album artist's music library id and name, for `musicdb://albums/?artistid=` paths and [`artist_credits`](library.md#actor_credits-director_credits-writer_credits-genre_credits-studio_credits-artist_credits). Empty for other types. |
 
 Wikidata names a label in English, else in its multilingual label, else in any
