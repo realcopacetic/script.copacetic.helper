@@ -609,7 +609,8 @@ one rail has stored them, the other asks nothing.
 
 ## `soundtracks`
 
-Links your music library's soundtrack albums to your movies and TV shows by title.
+Links your music library's soundtrack albums to your movies and TV shows by title,
+and by Wikidata while the helper's `wikidata` setting is on.
 For a movie, TV show, season or episode it lists the soundtrack albums; for an album
 it lists the movie or TV show the album is from (nothing if it isn't a soundtrack).
 
@@ -642,7 +643,18 @@ both libraries.
 names ("Motion Picture", "Film" or "Movie" for a movie; "Television", "TV", "Series",
 "Season", "HBO", "Netflix" or "Channel" for a show), then to the one nearest its first release year. The year is the album's
 original date when the tags have one, so a reissue still finds its movie. With only
-one candidate the year is never checked.
+one candidate the year is never checked. With the `wikidata` setting on, before the
+year, the album goes to the one whose composers (P86) include its album artist, by
+MusicBrainz id (*Dune* 1984 and 2021).
+
+**Wikidata's links.** With the `wikidata` setting on, an album also counts when
+Wikidata links it to the movie or show, whatever its tags or title say: the movie's
+or show's soundtrack albums (P406), or an album "made for" it (P9899), matched to your
+library by the album's MusicBrainz release group; the movie or show by its TMDB id,
+else its IMDb id. From an album, a linked movie or show comes first. A season keeps
+the seasons rule below. With the setting off, or Wikidata unreachable, the title
+matching works as above alone. The helper waits for Wikidata here (a list of its
+own), one request a second; the answers are kept for 30 days.
 
 **Seasons.** An album's title can name seasons: "Season 3", "Season One", "Seasons 3 &
 4", "Seasons 1–3", "Series 2". A season (or episode) lists the albums naming it first,

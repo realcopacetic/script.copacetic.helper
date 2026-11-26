@@ -2,7 +2,7 @@
 
 import re
 import unicodedata
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 _WORDS = (
     "one two three four five six seven eight nine ten eleven twelve thirteen "
@@ -46,10 +46,17 @@ class Claim(NamedTuple):
         :param season: Season number, None for the film or show itself.
         :return: True when it fits.
         """
-        named = self.seasons
-        return bool(self.keys & keys) and (
-            season is None or not named or season in named
-        )
+        return bool(self.keys & keys) and self.covers(season)
+
+    def covers(self, season: int | None) -> bool:
+        """
+        Whether it belongs to a season (0 is specials): naming that season or none;
+        to the film or show itself (None), always. An album linked by id reads so too.
+
+        :param season: Season number, None for the film or show itself.
+        :return: True when it does.
+        """
+        return season is None or not self.seasons or season in self.seasons
 
 
 def title_key(title: str) -> str:
@@ -132,15 +139,20 @@ def release_year(album: dict) -> int:
 
 
 def owner(
-    claim: Claim, album_year: int, candidates: list[tuple[str, dict]]
+    claim: Claim,
+    album_year: int,
+    candidates: list[tuple[str, dict]],
+    scored: Callable[[tuple[str, dict]], bool] = lambda fit: False,
 ) -> tuple[str, dict] | None:
     """
     The film or show an album belongs to among library rows sharing its title:
-    its wording's medium if both kinds match, then the nearest year.
+    its wording's medium if both kinds match, then one scored by the album's artist
+    (asked only of a choice), then the nearest year.
 
     :param claim: The album's claim.
     :param album_year: The album's first release year, 0 when undated.
     :param candidates: (movie or tvshow, row with title, originaltitle and year).
+    :param scored: Whether a (type, row) has the album's artist among its composers.
     :return: The (type, row) pair, or None when none matches.
     """
     fits = [
@@ -149,6 +161,8 @@ def owner(
         if claim.keys & {title_key(row["title"]), title_key(row["originaltitle"])}
     ]
     fits = [fit for fit in fits if fit[0] == claim.medium] or fits
+    if len(fits) > 1:  # Dune (1984) and Dune (2021): the one its composer scored
+        fits = [fit for fit in fits if scored(fit)] or fits
     return min(
         fits,
         key=lambda fit: abs(fit[1]["year"] - album_year) if album_year else 0,
