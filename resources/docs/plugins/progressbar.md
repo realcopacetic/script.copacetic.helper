@@ -156,7 +156,7 @@ One list item in the helper container:
 | `ListItem.Property(next_runtime)` | That episode's (or special's) library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
 | `ListItem.Property(new)` | `true` for a TV show or season with a `new_kind`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
 | `ListItem.Property(new_kind)` | A TV show or season with unwatched episodes: `show` for a show added within `new_days` (its earliest episode's date added) and not started (no episode watched or part-watched); else, of its unwatched episodes that first aired within `new_days`, `season` when one is a season's first episode (season 2 or later; shows only), `episodes` for more than one and `episode` for one, specials counted. A season counts its own episodes and is never `show` or `season`. Empty for none, and for every other type. For pills such as *New*, *New season*, *New episodes* and *New episode*. |
-| `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDB data, in `date_format`. |
+| `ListItem.Property(next_air)` | A TV show, started or not, fully watched or not: its next episode's air date from the cached TMDB data, in `date_format`. A season (with episodes left or fully watched) only when that episode is in it. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDB data predates it (see below). |
 | `ListItem.Property(next_air_today)` | With `next_air`: `true` when that episode airs today, for a label such as *Airs today*; empty otherwise. |
 | `ListItem.Property(new_episode)` | A fully watched TV show: TMDB's last aired episode when it is later than the library's newest and first aired within `new_days`, e.g. `3x05`. A notice only: nothing to play. |
@@ -178,12 +178,13 @@ for them too. The library calls they add, per focus:
 
 | Focused item | Calls | Which |
 |---|---|---|
-| Show or season with episodes left, started or not (a favourite's season and the Specials season too) | 1 | `GetEpisodes` |
-| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDB id, only with a TMDB token and no `UniqueID(tmdb)`; `GetEpisodes` for the newest episode, only when TMDB's cached data has a last aired episode |
+| Show or season with episodes left, started or not (a favourite's season and the Specials season too) | 1 to 2 | `GetEpisodes`; `GetTVShowDetails` for the show's TMDB id, only with a TMDB token and no `UniqueID(tmdb)` (a season has none: always, unless the URL passes `tmdb_id`) |
+| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDB id, as above; `GetEpisodes` for the newest episode, only when TMDB's cached data has a last aired episode |
+| Fully watched season | 0 to 1 | `GetTVShowDetails` for its show's TMDB id, as above |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Album none of whose songs has played | 1 | `GetAlbumDetails` (`dateadded`) |
-| Watched or part-watched film or episode, fully watched season, set, album with a song played, plugin item | 0 | |
+| Watched or part-watched film or episode, set, album with a song played, plugin item | 0 | |
 
 A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), and an
 album's one `GetSongs` call, both made before the bar moves.
@@ -239,10 +240,12 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   `ListItem.Premiered` can't stand in: they print the date in the region's short date
   format, which the user can change.
 - **`next_air`**, **`next_air_episode`**, **`new_episode`** and **`show_status`**:
-  only for a fully watched show (some episodes watched, none left) with a TMDB token
-  set; any other show makes no lookup for them. TMDB's next episode air date, season
-  and number, its last aired episode and its status, read from the add-on's cache
-  only; this path never asks TMDB. [Served](../service/serve.md#the-services-own-news),
+  only with a TMDB token set. TMDB's next episode air date, season and number, its
+  last aired episode and its status, read from the add-on's cache only; this path
+  never asks TMDB. `next_air` and `next_air_episode` are served for any show (and a
+  season's show, for a season the episode is in), with episodes left or not;
+  `new_episode` and `show_status` only for a fully watched show (some episodes
+  watched, none left). *All seasons* has no TMDB entry of its own, so none. [Served](../service/serve.md#the-services-own-news),
   the bar is served again when the metadata serve's fetch of the same show, asked on
   a thread of its own, lands with news. `new_episode` costs one `VideoLibrary.GetEpisodes`
   call for the library's newest episode outside the specials (sorted `episode`,
