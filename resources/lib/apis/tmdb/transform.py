@@ -74,18 +74,36 @@ def tmdb_to_canonical(
     :param aside: Serve the cached item, fetching aside; it is called on news.
     :return: Canonical TMDb item dict or empty dict.
     """
+    return tmdb_lookup(
+        kind, tmdb_id, season_number, language, append_artwork, cache_only, aside
+    )[0]
+
+
+def tmdb_lookup(
+    kind: str,
+    tmdb_id: int,
+    season_number: int | None,
+    language: str | None,
+    append_artwork: bool,
+    cache_only: bool,
+    aside: Asker | None,
+) -> tuple[dict[str, Any], bool]:
+    """
+    tmdb_to_canonical's item (the same arguments) and whether it was asked aside,
+    missing or stale: known as it asks, however soon that fetch ends.
+    """
     if tmdb_id <= 0:
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
-        return {}
+        return {}, False
     if kind == "episode":  # no episode lookup: never the show's Title or Plot
-        show = tmdb_to_canonical(
+        show, asked = tmdb_lookup(
             "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside
         )
-        return {key: show[key] for key in EPISODE_KEYS if key in show}
+        return {key: show[key] for key in EPISODE_KEYS if key in show}, asked
 
     language_key = tmdb_language(language)
     if not (client := get_tmdb_client(language_key)):  # off: not even the cache
-        return {}
+        return {}, False
     cache_kind = (
         f"season_{season_number}"
         if kind == "season" and season_number is not None
@@ -98,11 +116,11 @@ def tmdb_to_canonical(
     if not append_artwork:
         full, fresh = cache.get(key) or (None, False)
         if full and fresh:  # the art-bearing entry is a superset
-            return full
+            return full, False
         key += "|noart"
     payload, fresh = cache.get(key) or (None, False)
     if fresh:
-        return payload or full or {}
+        return payload or full or {}, False
     # Both stale: the art entry, which the metadata serve renews with TMDb multiart on
     # (off, it renews |noart, so an older art entry wins until that one is fresh)
     if cache_only or aside:
@@ -110,7 +128,7 @@ def tmdb_to_canonical(
             args = kind, tmdb_id, season_number, language, append_artwork
             # A copy: the caller changes the answer it is handed (metadata's trailers)
             ASIDES.ask(args, aside, deepcopy(full or payload or {}))
-        return full or payload or {}
+        return full or payload or {}, bool(aside)
 
     try:
         raw = fetch_tmdb_fields(
@@ -129,14 +147,14 @@ def tmdb_to_canonical(
         payload = full or payload
         # The stale item, else a negative entry
         cache.put(key, payload, failure_ttl(exc, TTL_MISSING))
-        return payload or {}
+        return payload or {}, False
     if not raw:
-        return {}
+        return {}, False
 
     log.debug(f"tmdb_to_canonical → fetched {cache_kind}/{tmdb_id}")
     item = _build_tmdb_canonical_item(raw=raw, language=language_key)
     cache.put(key, item, TTL_HIT)
-    return item
+    return item, False
 
 
 def creator_shows(person_id: str) -> list[dict[str, Any]]:

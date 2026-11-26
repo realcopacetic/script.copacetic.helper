@@ -166,16 +166,6 @@ class Asides:
             self.running += 1
         Thread(target=self._drain, daemon=True).start()
 
-    def pending(self, asker: Asker) -> bool:
-        """
-        Whether a fetch an asker asked for is still queued or running.
-
-        :param asker: The served call's re-serve.
-        :return: True until its fetch ends.
-        """
-        with self.lock:
-            return any(asker in askers for askers, _ in self.asked.values())
-
     def _drain(self) -> None:
         """A worker: fetch queued keys in turn; it ends, in one hold, with the queue."""
         while True:
