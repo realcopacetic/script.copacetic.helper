@@ -8,8 +8,8 @@ the item you serve it for, never as a walk through a folder.
 
 Three things must be true before anything is sent:
 
-1. The user turned on **Look up paintings on Wikidata** in the helper's settings
-   (setting `wikidata`, off by default; your skin can test
+1. **Look up details on Wikidata** is on in the helper's settings (setting
+   `wikidata`, on by default; your skin can test
    `Addon.SettingBool(script.copacetic.helper,wikidata)`).
 2. The picture is in a folder the user marked, or under one: the context menu's
    **Look up art details** on a folder in Pictures (see

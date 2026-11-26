@@ -93,7 +93,7 @@
 			<group id="6" label="32047">
 				<setting id="wikidata" type="boolean" label="32048" help="32148">
 					<level>0</level>
-					<default>false</default>
+					<default>true</default>
 					<control type="toggle" />
 				</setting>
 			</group>
