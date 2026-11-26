@@ -100,7 +100,7 @@ The full list is in [Overview → Placeholders](01-overview.md#placeholders). In
 
 `{count}` is the number of passes that build this include.
 
-**`{xsp}`:** if an item's metadata has an `xsp` smart-playlist dict, the builder URL-encodes it and hands it to you as `{xsp}` (`?xsp=…`) — stick it on the end of a path: `value="{content}{xsp}"`. Items without one get nothing there, and the param prunes away. An `xsp` string is a plugin path's query, kept as given (`"&query=$INFO[Window(home).Property(search_query)]"` after a `plugin://…?info=…` content), so a plugin item fills the same `{content}{xsp}`. `$INFO[]`, `$ESCINFO[]`, `$VAR[]` and `$ESCVAR[]` inside the playlist stay live for Kodi to resolve.
+**`{xsp}`:** if an item's metadata has an `xsp` smart-playlist dict, the builder URL-encodes it and hands it to you as `{xsp}` (`?xsp=…`) — stick it on the end of a path: `value="{content}{xsp}"`. Items without one get nothing there, and the param prunes away. `$INFO[]`, `$ESCINFO[]`, `$VAR[]` and `$ESCVAR[]` inside the playlist stay live for Kodi to resolve.
 
 **Gated xsp rules.** A rule inside the dict can carry `"gate": "<field>"` — that rule is only included when the entry's field reads `"true"`:
 

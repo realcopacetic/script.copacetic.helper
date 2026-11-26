@@ -171,7 +171,7 @@ def art_details_refresh(
     from resources.lib.shared import art_details as art
 
     path = path or xbmcgui.Window(10000).getProperty(prop)
-    if not art.wanted(path):  # the setting off or the folder unmarked: nothing sent
+    if not (art.wanted(path) and art.is_picture(path)):  # off, unmarked, not a picture
         return
     art.forget(path)
     art.look_up(path, lambda: art.wanted(path))

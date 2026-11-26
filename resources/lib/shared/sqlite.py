@@ -360,13 +360,13 @@ class ApiCacheHandler(SQLiteHandler):
 
     def starting(self, prefix: str) -> list[tuple[str, Any]]:
         """
-        Every row whose key starts with prefix, expired or not; exactly, as a LIKE
-        pattern would take a path's % or _ as wildcards.
+        Every row whose key starts with prefix, expired or not: a range on the key's
+        index, exact, as a LIKE pattern would take a path's % or _ as wildcards.
 
         :param prefix: The keys' start.
         :return: (key, payload) pairs; payload None for a negative entry.
         """
-        rows = self._get_many("substr(key, 1, ?) = ?", (len(prefix), prefix))
+        rows = self._get_many("key >= ? AND key < ?", (prefix, f"{prefix}\U0010ffff"))
         return [
             (row["key"], row["payload"] and json.loads(row["payload"])) for row in rows
         ]

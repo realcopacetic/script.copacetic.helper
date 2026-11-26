@@ -316,13 +316,11 @@ class BaseBuilder:
         """
         Encode static xsp dicts in the builder-local metadata copy into ``?xsp=``
         strings, preserving infolabel and variable tokens. Gated specs stay dicts
-        for per-entry composition; a string is a plugin path's query, kept as given.
+        for per-entry composition. The shared registry is never touched.
         """
 
         for meta in self.metadata.values():
-            if isinstance(meta.get("xsp"), dict) and not self._xsp_is_gated(
-                meta["xsp"]
-            ):
+            if "xsp" in meta and not self._xsp_is_gated(meta["xsp"]):
                 meta["xsp"] = self.encode_xsp(meta["xsp"])
 
     def _cross_foreign_roster(

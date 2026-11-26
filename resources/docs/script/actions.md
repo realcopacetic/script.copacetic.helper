@@ -227,7 +227,8 @@ came from (the artist's works, the painting, its summary) are asked afresh; its
 [artist page](../plugins/art_details.md#the-artist-page) is marked stale, for its next
 serve to ask again. Then, if you pass one, your served ring, so the focused item is
 served again. Nothing is sent
-while the `wikidata` setting is off or the picture's folder isn't marked.
+while the `wikidata` setting is off or the picture's folder isn't marked, nor for a
+file Kodi doesn't show as a picture.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
