@@ -701,9 +701,9 @@ class Rewatch(NamedTuple):
 
 def rewatch_pass(episodes: list[dict]) -> int:
     """
-    How far a rewatch has got (15A): the run from the first episode played in order
-    (lastplayed never falling; a part-played one ends it), each later than every play
-    after it but a part-played next one's; 0 for none, or a show watched in order.
+    How far a rewatch has got (15A): the run from the first episode played in order,
+    each later than every play after it but a part-played next one's; 0 for none, a
+    show watched in order, or a part-played finale alone after it (a replay reads so).
 
     :param episodes: A watched show's or season's regular episodes, in order.
     :return: The run's length; 0 when it is no rewatch.
@@ -722,7 +722,7 @@ def rewatch_pass(episodes: list[dict]) -> int:
     # A part-play moves its episode's lastplayed: the next one, so, isn't held against it
     rest = episodes[run + bool(episodes[run]["resume"]["position"]) :]
     first = episodes[0]["lastplayed"]
-    return run if all(ep["lastplayed"] < first for ep in rest) else 0
+    return run if rest and all(ep["lastplayed"] < first for ep in rest) else 0
 
 
 class ProgressBarManager:

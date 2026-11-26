@@ -3406,6 +3406,8 @@ class ProgressbarTest(unittest.TestCase):
             [5, 3, 4] + first[3:],  # 1x03 before 1x02: no unbroken pass
         ):
             self.assertEqual(bar(none)[1]["rewatch"], "", none)
+        # The finale part-played again after watching in order: no rewatch (re-review)
+        self.assertEqual(bar(first[:7] + [0], resumed={7})[1]["rewatch"], "")
         # 17B: ended once its latest play is older than rewatch_days
         self.assertEqual(bar([95, 94, 93] + first[3:])[1]["rewatch"], "")
         self.handler.params["rewatch_days"] = "120"

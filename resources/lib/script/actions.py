@@ -1249,7 +1249,7 @@ def stop_rewatch(id: str = "", **kwargs: str) -> None:
     from resources.lib.shared import helpers  # this action only
 
     home = xbmcgui.Window(10000)
-    if id != home.getProperty("rewatch"):  # a show's and a season's ids can be equal
+    if id != home.getProperty("rewatch"):  # only the item the last bar served
         return
     helpers.stop_rewatch(to_int(home.getProperty("rewatch_show")))
     window_property("rewatch")  # the menu item hides at once
