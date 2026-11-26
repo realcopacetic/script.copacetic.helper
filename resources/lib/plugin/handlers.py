@@ -1313,7 +1313,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (wd.wanted() and (key := self._wikidata_key())):
             return {}
         found, fresh = wd.kept(key)
-        properties = wd.properties(self.dbtype, found or {}, title)
+        properties = wd.properties(self.dbtype, found, title)
         # place_chips=N: the characters an artist's date chip (born, else formed) and
         # its place's chip share
         if (place := properties.get("wikidata_place")) and (

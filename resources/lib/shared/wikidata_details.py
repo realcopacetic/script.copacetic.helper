@@ -67,12 +67,12 @@ def based_on(title: str, source: dict[str, Any]) -> str:
     return f"{text} by {authors}" if authors else text
 
 
-def properties(kind: str, found: dict[str, Any], title: str) -> dict[str, str]:
+def properties(kind: str, found: dict[str, Any] | None, title: str) -> dict[str, str]:
     """
     The details as an item's wikidata_* properties, an empty one left out.
 
     :param kind: movie, tvshow, artist or album.
-    :param found: The kept details; {} for none.
+    :param found: The kept details; None or {} for none.
     :param title: The item's title, for the based-on wording.
     :return: The properties.
     """
@@ -109,9 +109,9 @@ def _item(ask: Callable, prop: str, value: str) -> tuple[str, dict] | None:
     return qid, ask(wikidata.items, [qid])[qid]["claims"]
 
 
-def _once(*qids: list[str]) -> list[str]:
+def _once(*groups: list[str]) -> list[str]:
     """Items from both ends of a link, each once: an album often links both ways."""
-    return [*dict.fromkeys(qid for group in qids for qid in group)]
+    return [*dict.fromkeys(qid for group in groups for qid in group)]
 
 
 def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
@@ -158,7 +158,7 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
 
 
 def _artist(ask: Callable, mbid: str) -> dict[str, Any]:
-    """An artist's details: its labels (NAMES named), and where it formed or was born."""
+    """An artist's details: its labels (NAMES named), where it formed or was born."""
     if not (found := _item(ask, "P434", mbid)):
         return {}
     claims = found[1]
