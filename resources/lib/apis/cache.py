@@ -180,6 +180,18 @@ class Asides:
             self.running += 1
         Thread(target=self._drain, daemon=True).start()
 
+    def join(self, key: Hashable, asker: Asker) -> None:
+        """
+        An asker joins a key's fetch while it is queued or running, told as its own
+        askers are; none starts for it.
+
+        :param key: What is fetched.
+        :param asker: A served call's re-serve.
+        """
+        with self.lock:
+            if key in self.asked:
+                self.asked[key][0].add(asker)
+
     def _drain(self) -> None:
         """A worker: fetch queued keys in turn; it ends, in one hold, with the queue."""
         while True:

@@ -531,6 +531,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         target: str | None = None,
         aside: Asker | None = None,
         show: bool = False,
+        follow: Asker | None = None,
     ) -> tuple[dict[str, Any] | None, bool]:
         """Resolve TMDb canonical item for the current listitem.
 
@@ -539,6 +540,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param target: Infolabel prefix of the item; the serve's target item if None.
         :param aside: Read the cache, fetching on a thread that calls this on news.
         :param show: A season's or episode's show entry, in place of its own.
+        :param follow: Called on news of a fetch another serve asked aside for it.
         :return: canonical item dict or None, and whether it was asked aside.
         """
         from resources.lib.apis.tmdb.client import tmdb_token
@@ -560,6 +562,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             append_artwork=append_artwork,
             cache_only=cache_only,
             aside=aside,
+            follow=follow,
         )
         if not item:
             log.debug(
@@ -1608,7 +1611,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
         # entry can win until the art-less one is renewed on the next focus)
-        tmdb = self._get_tmdb_item(append_artwork=False, cache_only=True)[0]
+        # Served, the metadata serve's fetch of it aside serves the bar again too (12A)
+        tmdb = self._get_tmdb_item(
+            append_artwork=False, cache_only=True, follow=self.again
+        )[0]
         props = tmdb["properties"] if tmdb else {}
         news = {
             "new_episode": "",

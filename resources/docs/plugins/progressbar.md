@@ -229,7 +229,9 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   only for a fully watched show (some episodes watched, none left) with a TMDB token
   set; any other show makes no lookup for them. TMDB's next episode air date, season
   and number, its last aired episode and its status, read from the add-on's cache
-  only; this path never asks TMDB. `new_episode` costs one `VideoLibrary.GetEpisodes`
+  only; this path never asks TMDB. [Served](../service/serve.md#the-services-own-news),
+  the bar is served again when the metadata serve's fetch of the same show, asked on
+  a thread of its own, lands with news. `new_episode` costs one `VideoLibrary.GetEpisodes`
   call for the library's newest episode outside the specials (sorted `episode`,
   descending, limit 1), and is set only when TMDB's is later: an episode missing
   mid-run, or one TMDB numbers differently (TVDB order, episode groups), is no news.
