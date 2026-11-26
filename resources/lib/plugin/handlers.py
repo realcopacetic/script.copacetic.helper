@@ -103,6 +103,7 @@ from resources.lib.shared.utilities import (
     ADDON,
     INFO_DIALOGS,
     clear_label,
+    clipped,
     condition,
     file_clean_name,
     file_label,
@@ -1186,8 +1187,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def metadata(self) -> list[DirectoryItem] | None:
         """
         Cleaned metadata on a helper list item; aborts if focus changes. random_pick:
-        one director and genre (=genre, =director: that alone); genre_chips=N (chips),
-        album_format, most_played, compilation_artists, wikidata; tmdb_art caches art.
+        one director and genre (=genre, =director: that alone); genre_chips=N,
+        album_format, most_played, compilation_artists, wikidata, place_chips; tmdb_art.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -1306,6 +1307,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return {}
         found, fresh = wd.kept(key)
         properties = wd.properties(self.dbtype, found or {}, title)
+        # place_chips=N: the characters an artist's date chip (born, else formed) and
+        # its place's chip share
+        if (place := properties.get("wikidata_place")) and (
+            chips := to_int(self.params.get("place_chips"))
+        ):
+            labels = (
+                f"{self.target_item}.Property(artist_{d})" for d in ("born", "formed")
+            )
+            date = next(filter(None, map(infolabel, labels)), "")
+            properties["wikidata_place"] = clipped(place, chips - len(date))
         if not fresh and self.again:
             wd.ASIDES.ask(key, self.again, found)
             properties["wikidata_pending"] = "true"  # the skin can mask the re-serve

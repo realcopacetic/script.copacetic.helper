@@ -745,6 +745,19 @@ def named(names: list[str], more: int) -> str:
     return ", ".join(names) + (f" +{more}" if more else "")
 
 
+def clipped(text: str, room: int) -> str:
+    """
+    Text in room characters at most, a longer one cut to end with "…".
+
+    :param text: The text.
+    :param room: The characters it may take.
+    :return: The text, cut; "" with room for no character beside the "…".
+    """
+    if len(text) <= room:
+        return text
+    return f"{text[: room - 1]}…" if room > 1 else ""
+
+
 def expand_index(index_obj: dict[str, Any]) -> list[str]:
     """
     Expands a dict with start/end/step into a list of string indices.
