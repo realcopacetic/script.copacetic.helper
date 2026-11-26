@@ -198,6 +198,17 @@ python tests/picture_bar_offline.py
 # from tests/fixtures)
 python tests/art_details_offline.py
 
+# Wikidata details (apis/wikidata.py having/items/labels, shared/wikidata_details.py,
+# metadata's wikidata=true and compilation_artists=true, the soundtracks listing): items
+# by TMDb, IMDb and MusicBrainz ids with no query; labels English, then multilingual,
+# then any; Based on from written works only, worded by the item's title; Set in,
+# Music by, an artist's labels (+N) and place, an album's producers; nothing kept
+# unanswered; served details kept, missing ones asked aside; a compilation's track
+# artists from the library; soundtracks by id link both ways, the composer tie-break,
+# a season's own, and the title alone with the setting off or Wikidata down
+# (wbgetentities items from tests/fixtures/wikidata_details.json)
+python tests/wikidata_details_offline.py
+
 # Text images (art/text.py, shared/helpers.py gui_scale): the scale from the GUI
 # height; a 1x image drawn 2x and shrunk, a 2x one drawn 1:1, both giving the same
 # height in skin pixels, cached apart (needs Pillow and the skin's fonts)
