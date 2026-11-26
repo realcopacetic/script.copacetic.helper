@@ -56,7 +56,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, or an episode (for a show, its newest unwatched one, specials included) first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
-| `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
+| `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air` and `new_episode_aired`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDB data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDB lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
 
@@ -156,7 +156,10 @@ One list item in the helper container:
 | `ListItem.Property(new)` | `true` for a TV show with an unwatched episode, specials included, started or not, that first aired within `new_days`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
 | `ListItem.Property(next_air)` | A fully watched TV show: its next episode's air date from the cached TMDB data, in `date_format`. |
 | `ListItem.Property(next_air_episode)` | With `next_air`: that episode's season and number, e.g. `3x01`, as `next_episode` writes them. Empty while the cached TMDB data predates it (see below). |
+| `ListItem.Property(next_air_today)` | With `next_air`: `true` when that episode airs today, for a label such as *Airs today*; empty otherwise. |
 | `ListItem.Property(new_episode)` | A fully watched TV show: TMDB's last aired episode when it is later than the library's newest and first aired within `new_days`, e.g. `3x05`. A notice only: nothing to play. |
+| `ListItem.Property(new_episode_aired)` | With `new_episode`: its air date, in `date_format` as `next_air` is, e.g. `25 Nov`. |
+| `ListItem.Property(new_episode_today)` | With `new_episode`: `true` when it aired today, for a label such as *Aired today*; empty otherwise. |
 | `ListItem.Property(show_status)` | A fully watched TV show: `ended` (TMDB's *Ended* or *Canceled*) or `returning` (*Returning Series*); empty for TMDB's other states. |
 | `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
 | `ListItem.Property(picture_resolution)` | With `resolution_span` only: the focused item's `ListItem.PictureResolution`, e.g. `1920 x 1520`; empty when Kodi couldn't read it. |

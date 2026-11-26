@@ -1602,11 +1602,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _show_news(self, show_id: int) -> dict[str, str]:
         """
         A fully watched show's news from the TMDb cache, never fetched here: its last
-        aired episode if new and not in the library, its next air date in date_format
-        (strftime, default "%d %b"; %b is Kodi's short month) and whether it ended.
+        aired episode if new and not in the library, its next airing in date_format
+        (as _air_day), each with whether it is today's, and whether it ended.
 
         :param show_id: Library id of the show, for the episodes the library has.
-        :return: new_episode, next_air, next_air_episode, show_status; empty if unknown.
+        :return: new_episode(_aired, _today), next_air(_episode, _today), show_status.
         """
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
@@ -1618,10 +1618,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         props = tmdb["properties"] if tmdb else {}
         news = {
             "new_episode": "",
+            "new_episode_aired": "",
+            "new_episode_today": "",
             "next_air": "",
             "next_air_episode": "",
+            "next_air_today": "",
             "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
         }
+        today = date.today()
         # Only aired within new_days, as new counts (an ended show's last is old
         # news), and past the library's newest: an episode missing mid-run, or
         # numbered another way (TVDB's order), is no news. Specials left out, as
@@ -1643,25 +1647,39 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             )
             have = next(((ep["season"], ep["episode"]) for ep in newest), (0, 0))
             if (season, episode) > have:
-                news["new_episode"] = f"{season}x{episode:02d}"
+                day = date.fromisoformat(aired)  # 2A, 5A: AIRED 25 Nov or AIRED TODAY
+                news |= {
+                    "new_episode": f"{season}x{episode:02d}",
+                    "new_episode_aired": self._air_day(day),
+                    "new_episode_today": "true" if day == today else "",
+                }
         iso = props.get("tmdb_next_air_date")
-        if not iso or (day := date.fromisoformat(iso)) < date.today():
+        if not iso or (day := date.fromisoformat(iso)) < today:
             return news
         # An entry cached before the numbers were kept (7-day TTL) has the date alone
         episode = props.get("tmdb_next_air_episode")
-        # strftime's %b is the C locale's (English): Kodi's own (51-62) follow its
-        # language, as its dates' "mmm" does. Joined outside strftime, which on
-        # Windows encodes its format with the locale codec
-        month = getLocalizedString(50 + day.month)
-        fmt = self.params.get("date_format", "%d %b")
         return news | {
-            "next_air": month.join(day.strftime(part) for part in fmt.split("%b")),
+            "next_air": self._air_day(day),
             "next_air_episode": (
                 f"{int(props['tmdb_next_air_season'])}x{int(episode):02d}"
                 if episode
                 else ""
             ),
+            "next_air_today": "true" if day == today else "",
         }
+
+    def _air_day(self, day: date) -> str:
+        """
+        An air date in date_format (strftime, default "%d %b"), its %b Kodi's own
+        short month (51-62), in its language as its dates' "mmm" is, not the C locale's.
+
+        :param day: The date.
+        :return: E.g. "25 Nov".
+        """
+        month = getLocalizedString(50 + day.month)
+        fmt = self.params.get("date_format", "%d %b")
+        # Joined outside strftime, which on Windows encodes its format by locale codec
+        return month.join(day.strftime(part) for part in fmt.split("%b"))
 
     @log.duration
     def clean_name(self) -> list[DirectoryItem] | None:
