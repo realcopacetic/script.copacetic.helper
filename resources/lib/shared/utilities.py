@@ -740,9 +740,10 @@ def named(names: list[str], more: int) -> str:
 
     :param names: The names written out, in order.
     :param more: How many more there are.
-    :return: The text; "" for none.
+    :return: The text; "" with no name, never a bare "+N".
     """
-    return ", ".join(names) + (f" +{more}" if more else "")
+    text = ", ".join(names)
+    return f"{text} +{more}" if text and more else text
 
 
 def clipped(text: str, room: int) -> str:
