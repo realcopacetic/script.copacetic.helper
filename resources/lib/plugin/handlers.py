@@ -1487,9 +1487,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _show_context(self, labels: dict[str, str]) -> dict[str, str]:
         """
-        An unfinished show's or season's next_episode (as next_up; with specials alone
-        left, next_special), next_runtime, new_kind and new, from one GetEpisodes
-        call; a fully watched show's _show_news.
+        A show's or season's next airing (_next_air); unfinished, its next_episode (as
+        next_up; with specials alone left, next_special), next_runtime, new_kind and
+        new, from one GetEpisodes call; a fully watched show's _show_news.
 
         :param labels: The focused item's infolabels, as ProgressBarManager read them.
         :return: Properties for the progress item; none for other types.
@@ -1509,8 +1509,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         watched = to_int(labels["Property(WatchedEpisodes)"])
         left = to_int(labels["Property(UnwatchedEpisodes)"])
+        # A show's Season is its season count; "* All seasons" has none
+        season = to_int(labels["Season"], None) if dbtype == "season" else None
+        props = self._show_tmdb(dbtype == "season")
+        context = self._next_air(props, season)  # 6B, 13A: with episodes left too
         if dbtype == "tvshow" and watched and not left:  # fully watched
-            return self._show_news(to_int(labels["DBID"]))
+            return context | self._show_news(props, to_int(labels["DBID"]))
 
         # No library id (a plugin's item): tvshowid 0 would ask for every show. A
         # favourite's season (a helper item) has a DBID but no TvShowDBID, only
@@ -1522,16 +1526,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 labels["TvShowDBID"]
                 or (labels["DBID"] and labels["Property(tvshowid)"])
             )
-        context = dict.fromkeys(
+        context |= dict.fromkeys(
             ("next_episode", "next_special", "next_runtime", "new", "new_kind"), ""
         )
         # Started or not: an unwatched show's or season's next is its first episode
         if not (show_id and left):
             return context
 
-        # A show's Season is its season count; "* All seasons" has none, and
         # GetEpisodes rejects season -1 (its schema minimum is 0): omit it for all
-        season = to_int(labels["Season"], None) if dbtype == "season" else None
         scope = {"tvshowid": show_id} | ({} if season is None else {"season": season})
         unwatched = fetch_raw(
             "VideoLibrary.GetEpisodes",
@@ -1627,33 +1629,64 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
         return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
-    def _show_news(self, show_id: int) -> dict[str, str]:
+    def _show_tmdb(self, season: bool) -> dict[str, str]:
         """
-        A fully watched show's news from the TMDb cache, never fetched here: its last
-        aired episode if new and not in the library, its next airing in date_format
-        (as _air_day), each with whether it is today's, and whether it ended.
+        The focused show's (or season's show's) TMDb properties from the cache only,
+        never fetched here; served, a fetch the metadata serve asked aside is followed.
 
-        :param show_id: Library id of the show, for the episodes the library has.
-        :return: new_episode(_aired, _today), next_air(_episode, _today), show_status.
+        :param season: The item is a season: its show's entry.
+        :return: The tmdb_* properties; empty when not cached or TMDb is off.
         """
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
         # entry can win until the art-less one is renewed on the next focus)
         # Served, the metadata serve's fetch of it aside serves the bar again too (12A)
         tmdb = self._get_tmdb_item(
-            append_artwork=False, cache_only=True, follow=self.again
+            append_artwork=False, cache_only=True, show=season, follow=self.again
         )[0]
-        props = tmdb["properties"] if tmdb else {}
+        return tmdb["properties"] if tmdb else {}
+
+    def _next_air(self, props: dict[str, str], season: int | None) -> dict[str, str]:
+        """
+        A show's next airing from its TMDb properties: the date in date_format
+        (_air_day), the episode and whether it airs today; a season's when in it.
+
+        :param props: The show's TMDb properties (_show_tmdb).
+        :param season: A season's number; None for a show or "* All seasons".
+        :return: next_air, next_air_episode and next_air_today; empty if past or unknown.
+        """
+        air = dict.fromkeys(("next_air", "next_air_episode", "next_air_today"), "")
+        iso, today = props.get("tmdb_next_air_date"), date.today()
+        if not iso or (day := date.fromisoformat(iso)) < today:
+            return air
+        # An entry cached before the numbers were kept (7-day TTL) has the date alone,
+        # which no season can claim
+        aired_in = to_int(props.get("tmdb_next_air_season"), None)
+        if season is not None and aired_in != season:
+            return air
+        episode = props.get("tmdb_next_air_episode")
+        return {
+            "next_air": self._air_day(day),
+            "next_air_episode": f"{aired_in}x{int(episode):02d}" if episode else "",
+            "next_air_today": "true" if day == today else "",  # 5A: AIRS TODAY
+        }
+
+    def _show_news(self, props: dict[str, str], show_id: int) -> dict[str, str]:
+        """
+        A fully watched show's news from its TMDb properties: its last aired episode
+        if new and not in the library, with its air date (as _air_day), and whether
+        the show ended.
+
+        :param props: The show's TMDb properties (_show_tmdb).
+        :param show_id: Library id of the show, for the episodes the library has.
+        :return: new_episode, new_episode_aired, new_episode_today and show_status.
+        """
         news = {
             "new_episode": "",
             "new_episode_aired": "",
             "new_episode_today": "",
-            "next_air": "",
-            "next_air_episode": "",
-            "next_air_today": "",
             "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
         }
-        today = date.today()
         # Only aired within new_days, as new counts (an ended show's last is old
         # news), and past the library's newest: an episode missing mid-run, or
         # numbered another way (TVDB's order), is no news. Specials left out, as
@@ -1661,39 +1694,27 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # none; show_id 0 (a plugin's item) would ask every show
         season = to_int(props.get("tmdb_last_air_season"))
         aired = props.get("tmdb_last_air_date", "")
-        if show_id and season > 0 and aired >= self._new_since("firstaired"):
-            episode = int(props["tmdb_last_air_episode"])
-            newest = fetch_raw(  # "episode" sorts by season, then episode
-                "VideoLibrary.GetEpisodes",
-                "episode",
-                [{"field": "season", "operator": "greaterthan", "value": "0"}],
-                sort={"method": "episode", "order": "descending"},
-                parent="progressbar",
-                params={"tvshowid": show_id},
-                limit=1,
-                properties=["episode", "season"],
-            )
-            have = next(((ep["season"], ep["episode"]) for ep in newest), (0, 0))
-            if (season, episode) > have:
-                day = date.fromisoformat(aired)  # 2A, 5A: AIRED 25 Nov or AIRED TODAY
-                news |= {
-                    "new_episode": f"{season}x{episode:02d}",
-                    "new_episode_aired": self._air_day(day),
-                    "new_episode_today": "true" if day == today else "",
-                }
-        iso = props.get("tmdb_next_air_date")
-        if not iso or (day := date.fromisoformat(iso)) < today:
+        if not (show_id and season > 0 and aired >= self._new_since("firstaired")):
             return news
-        # An entry cached before the numbers were kept (7-day TTL) has the date alone
-        episode = props.get("tmdb_next_air_episode")
+        episode = int(props["tmdb_last_air_episode"])
+        newest = fetch_raw(  # "episode" sorts by season, then episode
+            "VideoLibrary.GetEpisodes",
+            "episode",
+            [{"field": "season", "operator": "greaterthan", "value": "0"}],
+            sort={"method": "episode", "order": "descending"},
+            parent="progressbar",
+            params={"tvshowid": show_id},
+            limit=1,
+            properties=["episode", "season"],
+        )
+        have = next(((ep["season"], ep["episode"]) for ep in newest), (0, 0))
+        if (season, episode) <= have:
+            return news
+        day = date.fromisoformat(aired)  # 2A, 5A: AIRED 25 Nov or AIRED TODAY
         return news | {
-            "next_air": self._air_day(day),
-            "next_air_episode": (
-                f"{int(props['tmdb_next_air_season'])}x{int(episode):02d}"
-                if episode
-                else ""
-            ),
-            "next_air_today": "true" if day == today else "",
+            "new_episode": f"{season}x{episode:02d}",
+            "new_episode_aired": self._air_day(day),
+            "new_episode_today": "true" if day == date.today() else "",
         }
 
     def _air_day(self, day: date) -> str:

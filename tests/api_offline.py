@@ -530,6 +530,12 @@ class TopSongsTest(Base):
         self.assertEqual(self.calls, ["AudioLibrary.GetArtistDetails"])
 
 
+def news(handler, show_id):
+    """A fully watched show's TMDb properties on its bar (_show_context's reads)."""
+    props = handler._show_tmdb(False)
+    return handler._next_air(props, None) | handler._show_news(props, show_id)
+
+
 class TmdbTest(Base):
     def setUp(self):
         super().setUp()
@@ -919,7 +925,7 @@ class TmdbTest(Base):
             mock.patch.object(handlers, "getLocalizedString", "#{}".format),
         ):
             empty = dict.fromkeys(NEWS, "")
-            self.assertEqual(handler._show_news(7), empty)  # nothing cached: no request
+            self.assertEqual(news(handler, 7), empty)  # nothing cached: no request
             self.assertEqual(self.net.requests, [])
             self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
             item = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
@@ -934,7 +940,7 @@ class TmdbTest(Base):
                 "show_status": "returning",
             }
             # 0, a plugin's show: its episodes aren't looked up
-            self.assertEqual(handler._show_news(0), shown)
+            self.assertEqual(news(handler, 0), shown)
         self.assertEqual(len(self.net.requests), 1)
 
     def test_next_air_off_looks_nothing_up(self):
@@ -950,10 +956,10 @@ class TmdbTest(Base):
             mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
             mock.patch.object(sys.modules["xbmc"], "executeJSONRPC", rpc, create=True),
         ):
-            self.assertEqual(handler._show_news(7), empty)
+            self.assertEqual(news(handler, 7), empty)
             rpc.assert_not_called()  # no uniqueid lookup
             self.settings = {"tmdb_access_token": "v3key"}  # on: looks the id up
-            self.assertEqual(handler._show_news(7), empty)  # no cache: still empty
+            self.assertEqual(news(handler, 7), empty)  # no cache: still empty
         self.assertEqual(rpc.call_count, 1)
 
     def test_refused_token_warns_once(self):
@@ -3275,7 +3281,7 @@ class ProgressbarTest(unittest.TestCase):
         when = f"{day:%A %d %B}, #{50 + day.month}"  # only %b is Kodi's
         self.assertEqual(self.prop("next_air", **show), when)
         follow = {"append_artwork": False, "cache_only": True, "follow": None}
-        self.assertEqual(asks[0], follow)
+        self.assertEqual(asks[0], follow | {"show": False})
         # Cached before the numbers were kept: the date alone
         self.assertEqual(self.prop("next_air_episode", **show), "")
         numbers = {"tmdb_next_air_episode": "1", "tmdb_next_air_season": "3"}
@@ -3283,19 +3289,31 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("next_air_episode", **show), "3x01")
         cached["item"]["properties"]["tmdb_next_air_date"] = "2000-01-01"
         self.assertEqual(self.prop_all(**show)["next_air_episode"], "")  # past
-        for labels in (
-            show | {"DBType": dbtype} for dbtype in ("season", "episode", "movie")
-        ):
-            self.labels = labels
-            (item,) = self.handler.progressbar()
-            self.assertNotIn("next_air", item["properties"])
+        for dbtype in ("episode", "movie"):
+            self.assertNotIn("next_air", self.prop_all(**show | {"DBType": dbtype}))
         self.assertEqual((self.calls, len(asks)), ([], 10))
-        # Unstarted (an ended show never begun too) and started shows: no lookup
+        # 6B: with episodes left too, unstarted (an ended show never begun) or started,
+        # from the same cache read and no library call of its own
+        day = date.today() + timedelta(days=8)
+        cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
         for watched, left in (("0", "10"), ("9", "1")):
             counts = {"Property(WatchedEpisodes)": watched}
             counts["Property(UnwatchedEpisodes)"] = left
-            self.assertNotIn("next_air", self.prop_all(**show | counts))
-        self.assertEqual(len(asks), 10)
+            properties = self.prop_all(**show | counts)
+            self.assertEqual(properties["next_air_episode"], "3x01")
+            self.assertEqual(properties["next_episode"], "2x10")
+        self.assertEqual((len(self.calls), len(asks)), (2, 12))  # its GetEpisodes
+        # 13A: a season, left or fully watched, when the airing is in it, by its show
+        season = show | {"DBType": "season", "DBID": "40", "TvShowDBID": "7"}
+        for number, shown in (("3", "3x01"), ("2", ""), ("0", "")):
+            for left in ("0", "2"):
+                labels = season | {"Season": number}
+                labels["Property(UnwatchedEpisodes)"] = left
+                self.assertEqual(self.prop("next_air_episode", **labels), shown)
+        self.assertEqual(asks[-1], follow | {"show": True})  # its show's entry
+        del cached["item"]["properties"]["tmdb_next_air_season"]  # the date alone
+        self.assertEqual(self.prop("next_air", **season | {"Season": "3"}), "")
+        self.assertNotEqual(self.prop("next_air", **show), "")
 
     def test_show_news(self):
         props = {}
