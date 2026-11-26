@@ -15,6 +15,7 @@ from xbmc import Monitor
 from resources.lib.apis import wikidata
 from resources.lib.apis.cache import Asides, busy, hold
 from resources.lib.shared.sqlite import ApiCacheHandler
+from resources.lib.shared.text import KodiMetric, fit_lines
 from resources.lib.shared.utilities import ADDON, fold, named
 
 # A film's or show's TMDb id property; IMDb's (P345) is the fallback for both
@@ -93,6 +94,39 @@ def properties(kind: str, found: dict[str, Any] | None, title: str) -> dict[str,
             "set_in": found["set_in"],
         }
     return {f"wikidata_{key}": value for key, value in values.items() if value}
+
+
+def fit_story(
+    based: str,
+    place: str,
+    text: KodiMetric,
+    chip: Callable[[str], float],
+    words: tuple[str, str],
+    width: float,
+    gap: float,
+) -> dict[str, str]:
+    """
+    A story line fitted to a row: what it is based on cut ("...") only past a row of
+    its own, and wikidata_story_rows 2 when Set in and its chip don't fit beside it.
+
+    :param based: wikidata_based_on, after the first word and a space.
+    :param place: wikidata_set_in; "" for none.
+    :param text: The line's font, as Kodi measures it.
+    :param chip: The place chip's width.
+    :param words: The words before each part, e.g. ("Based on", "•  Set in").
+    :param width: The row's width.
+    :param gap: The gap between the row's pieces.
+    :return: wikidata_based_on, and wikidata_story_rows for two rows.
+    """
+    prefix = f"{words[0]} "
+    line = fit_lines(text, prefix + based, width, 1, sentences=False)[0]
+    fitted = {"wikidata_based_on": line.removeprefix(prefix)}
+    if place and (
+        text.getlength(line) + gap + text.getlength(words[1]) + gap + chip(place)
+        > width
+    ):
+        fitted["wikidata_story_rows"] = "2"
+    return fitted
 
 
 def _kind(claims: dict[str, list]) -> str:

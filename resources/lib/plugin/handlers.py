@@ -1311,6 +1311,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             return {}
         found, fresh = wd.kept(key)
         properties = wd.properties(self.dbtype, found, title)
+        # story_font=: the story line in the skin's fonts, on two rows if it must be
+        if (based := properties.get("wikidata_based_on")) and self.params.get(
+            "story_font"
+        ):
+            properties |= self._story(based, properties.get("wikidata_set_in", ""))
         # place_chips=N: the characters an artist's date chip (born, else formed) and
         # its place's chip share
         if (place := properties.get("wikidata_place")) and (
@@ -1325,6 +1330,41 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             wd.ASIDES.ask(key, self.again, found)
             properties["wikidata_pending"] = "true"  # the skin can mask the re-serve
         return properties
+
+    def _story(self, based: str, place: str) -> dict[str, str]:
+        """
+        The story line fitted (wikidata_details.fit_story) in the skin's story_font
+        and story_chip_font, with its story_* words, width, gap and chip geometry.
+
+        :param based: wikidata_based_on.
+        :param place: wikidata_set_in; "" for none.
+        :return: The fitted properties; none for an unknown font.
+        """
+        from resources.lib.shared.wikidata_details import fit_story
+
+        text, chip = (
+            skin_metric(self.params.get(f"story_{font}", ""))
+            for font in ("font", "chip_font")
+        )
+        if not (text and chip):
+            return {}
+        upper = parse_bool(self.params.get("story_chip_upper"))
+        padding = 2 * to_float(self.params.get("story_chip_padding"))
+        widest = to_float(self.params.get("story_chip_max"), math.inf)
+        return fit_story(
+            based,
+            place,
+            text,
+            lambda name: min(
+                chip.getlength(name.upper() if upper else name) + padding, widest
+            ),
+            (
+                self.params.get("story_based_on", ""),
+                self.params.get("story_set_in", ""),
+            ),
+            to_float(self.params.get("story_width")),
+            to_float(self.params.get("story_gap")),
+        )
 
     def _wikidata_key(self) -> tuple[str, ...] | None:
         """
