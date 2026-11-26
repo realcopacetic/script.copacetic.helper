@@ -539,6 +539,7 @@ def news(handler, show_id):
 class TmdbTest(Base):
     def setUp(self):
         super().setUp()
+        context._TMDB_IDS.clear()  # the process's found ids
         self.settings = {"tmdb_access_token": "v3key"}  # Base's getSetting reads it
         sys.modules["xbmcgui"].Window().clearProperty(transform.TOKEN_REFUSED)
 
@@ -864,6 +865,13 @@ class TmdbTest(Base):
         self.assertEqual((ctx["kind"], ctx["tmdb_id"]), ("episode", "1399"))
         self.assertEqual(requests[0]["method"], "VideoLibrary.GetTVShowDetails")
         self.assertEqual(requests[0]["params"]["tvshowid"], 7)
+        # Its season's bar, its metadata serve, a later focus: the show asked once
+        season = {"type": "season", "id": "40", "tvshowid": "7", "season": "2"}
+        for _ in range(3):
+            self.assertEqual(
+                resolve_tmdb_context(season, "ListItem")["tmdb_id"], "1399"
+            )
+        self.assertEqual(len(requests), 1)
 
     def test_no_token_sends_serves_and_logs_nothing(self):
         self.cache.put("tmdb:tvshow:1399:en-US", {"Title": "cached"}, DAY)

@@ -20,6 +20,32 @@ _DETAILS_LOOKUP_BY_KIND = {
 }
 
 
+# A library movie's or show's TMDb id once found, kept for the process: a season's
+# bar and its metadata serve, and every later focus, look its show up once
+_TMDB_IDS = {}
+
+
+def _library_tmdb_id(kind: str, dbid: int) -> str | None:
+    """
+    A library movie's or show's TMDb id from its details (_TMDB_IDS once found).
+
+    :param kind: "movie" or "tvshow".
+    :param dbid: Its library id.
+    :return: The TMDb id; None if it has none.
+    """
+    if not (found := _TMDB_IDS.get((kind, dbid))):
+        lookup = _DETAILS_LOOKUP_BY_KIND[kind]
+        found = _lookup_uniqueid_tmdb(
+            method=lookup["method"],
+            id_key=lookup["id_key"],
+            id_value=dbid,
+            result_key=lookup["result_key"],
+        )
+        if found:
+            _TMDB_IDS[kind, dbid] = found
+    return found
+
+
 def _lookup_uniqueid_tmdb(
     *,
     method: str,
@@ -85,13 +111,7 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
         lookup_kind = kind
 
     if not tmdb_id and lookup_dbid and lookup_kind in _DETAILS_LOOKUP_BY_KIND:
-        lookup = _DETAILS_LOOKUP_BY_KIND[lookup_kind]
-        tmdb_id = _lookup_uniqueid_tmdb(
-            method=lookup["method"],
-            id_key=lookup["id_key"],
-            id_value=lookup_dbid,
-            result_key=lookup["result_key"],
-        )
+        tmdb_id = _library_tmdb_id(lookup_kind, lookup_dbid)
 
     tmdb_id = tmdb_id or None
     log.debug(
