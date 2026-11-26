@@ -693,6 +693,20 @@ class TmdbTest(Base):
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)  # fresh: none
         self.assertEqual(len(started), 1)
 
+    def test_a_follower_is_told_of_another_serves_fetch(self):
+        started = self.aside_queue()
+        metadata, bar = self.asker(), self.asker()
+        self.net.answers = [TMDB_TV]
+        follow = "tvshow", 1399, None, None, False, True, None, bar  # the bar, no art
+        self.assertEqual(transform.tmdb_lookup(*follow), ({}, False))  # none asked
+        self.assertEqual((started, transform.ASIDES.asked), ([], {}))
+        transform.tmdb_to_canonical("tvshow", 1399, aside=metadata)  # tmdb_art's
+        self.assertEqual(transform.tmdb_lookup(*follow), ({}, False))  # joins it
+        transform.ASIDES._drain()
+        metadata.assert_called_once()
+        bar.assert_called_once()  # 9010 served again as 9000 is
+        self.assertEqual(len(self.net.requests), 1)  # no fetch of its own
+
     def test_aside_workers_are_capped(self):
         started = self.aside_queue()
         for tmdb_id in (1, 2, 3):
@@ -888,7 +902,7 @@ class TmdbTest(Base):
             "status": "Returning Series",
         }
         handler = object.__new__(handlers.PluginHandlers)
-        handler.params, handler.dbtype = {}, ""
+        handler.params, handler.dbtype, handler.again = {}, "", None
         handler.target_item = "Container(50).ListItem"
         labels = {"DBType": "tvshow", "DBID": "7", "UniqueID(tmdb)": "1399"}
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
@@ -919,6 +933,7 @@ class TmdbTest(Base):
         self.settings = {}  # no TMDb token
         handler = object.__new__(handlers.PluginHandlers)
         handler.params, handler.target_item = {}, "Container(50).ListItem"
+        handler.again = None
         labels = {"DBType": "tvshow", "DBID": "7"}  # no UniqueID(tmdb): a TVDB show
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
         rpc = mock.Mock(return_value="{}")
@@ -2879,6 +2894,7 @@ class ProgressbarTest(unittest.TestCase):
         self.handler._guard = lambda: mock.Mock(alive=lambda: self.alive())
         self.handler._get_tmdb_item = lambda **kwargs: (None, False)
         self.handler.filter_unwatched = {}
+        self.handler.again = None  # a plugin call's; served, its list's re-serve
 
     def label(self, path):
         return self.labels.get(path.removeprefix("Container(50).ListItem."), "")
@@ -3165,7 +3181,8 @@ class ProgressbarTest(unittest.TestCase):
         cached["item"]["properties"]["tmdb_next_air_date"] = day.isoformat()
         when = f"{day:%A %d %B}, #{50 + day.month}"  # only %b is Kodi's
         self.assertEqual(self.prop("next_air", **show), when)
-        self.assertEqual(asks[0], {"append_artwork": False, "cache_only": True})
+        follow = {"append_artwork": False, "cache_only": True, "follow": None}
+        self.assertEqual(asks[0], follow)
         # Cached before the numbers were kept: the date alone
         self.assertEqual(self.prop("next_air_episode", **show), "")
         numbers = {"tmdb_next_air_episode": "1", "tmdb_next_air_season": "3"}

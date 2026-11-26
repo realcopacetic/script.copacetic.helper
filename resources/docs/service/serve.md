@@ -232,7 +232,10 @@ during an artwork call's art reads, is waited out and the list read again.
   So does music info's popularity word when Deezer answers. A serve still running
   reaches the list itself if it hasn't yet, or serves it again once it ends; one that
   lands while another ring has the window is served by its arrival's next ring. The
-  line follows, as its label can change.
+  line follows, as its label can change. A served [progress bar](../plugins/progressbar.md)
+  of a show or season asks nothing itself, but joins a fetch the metadata serve asked
+  for the same show (with art or not), so it is served again too when that lands
+  with news: its airing and aired rows appear on a first focus with nothing cached.
 - **An album's play counts.** A song heard serves again the list the window on top
   last served with the [progress bar](../plugins/progressbar.md).
 - **Multiart.** When an artwork row that names `slides=<list>:<probe>` binds a family

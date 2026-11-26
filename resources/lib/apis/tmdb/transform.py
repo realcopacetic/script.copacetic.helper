@@ -88,23 +88,28 @@ def tmdb_lookup(
     append_artwork: bool,
     cache_only: bool,
     aside: Asker | None,
+    follow: Asker | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """
     tmdb_to_canonical's item (the same arguments) and whether it was asked aside,
-    missing or stale: known as it asks, however soon that fetch ends.
+    missing or stale: known as it asks, however soon that fetch ends. follow is told
+    when a fetch another serve asked aside for the item, with art or not, lands.
     """
     if tmdb_id <= 0:
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}, False
     if kind == "episode":  # no episode lookup: never the show's Title or Plot
         show, asked = tmdb_lookup(
-            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside
+            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside, follow
         )
         return {key: show[key] for key in EPISODE_KEYS if key in show}, asked
 
     language_key = tmdb_language(language)
     if not (client := get_tmdb_client(language_key)):  # off: not even the cache
         return {}, False
+    if follow:  # before the read: a fetch that lands between them still tells it
+        for art in (True, False):
+            ASIDES.join((kind, tmdb_id, season_number, language, art), follow)
     cache_kind = (
         f"season_{season_number}"
         if kind == "season" and season_number is not None
