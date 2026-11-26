@@ -3128,9 +3128,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
     def _soundtrack_source(self, albumid: int) -> list[DirectoryItem] | None:
         """
-        The film or show soundtrack album albumid is from: the one Wikidata links it
-        to while its setting is on, else matched by title; a show carries the seasons
-        the album names in soundtrack_seasons ("3, 4").
+        The film or show soundtrack album albumid is from: the one its kept Wikidata
+        details link it to, else (a soundtrack by its tags) matched by title; a show
+        carries the seasons the album names in soundtrack_seasons ("3, 4").
 
         :param albumid: Library album id.
         :return: List of one directory item, or None if not a soundtrack or no match.
@@ -3212,7 +3212,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param media: movie or tvshow.
         :param uniqueid: Its library row's uniqueid.
         :param properties: The album properties to read.
-        :return: AudioLibrary rows; none with the setting off or no link.
+        :return: AudioLibrary rows; none with the setting off or no link kept.
         """
         from resources.lib.shared import wikidata_details as wd
 
@@ -3235,7 +3235,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         their TMDb and IMDb ids: the first one found.
 
         :param group: The album's MusicBrainz release group id; "" for none.
-        :return: The (type, row) pair; None with the setting off or no link.
+        :return: The (type, row) pair; None with the setting off or no link kept.
         """
         from resources.lib.shared import wikidata_details as wd
 

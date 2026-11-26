@@ -331,11 +331,15 @@ class DetailsTest(WikidataCase):
         self.assertEqual(wd.kept(SLOW_HORSES), (None, False))
 
     def test_the_setting(self):
+        self.assertEqual(wd.linked(DUNE, "composers"), [])  # kept only: never asked
+        self.assertEqual(self.asked, [])
+        wd.details(DUNE, ALIVE)  # as 9000's aside keeps them
         self.setting = False
         self.assertEqual(wd.linked(DUNE, "composers"), [])
-        self.assertEqual(self.asked, [])
         self.setting = True
+        self.asked.clear()
         self.assertEqual(wd.linked(DUNE, "composers"), [ZIMMER])
+        self.assertEqual(self.asked, [])
         self.assertEqual(wd.linked(None, "composers"), [])
         self.assertEqual(wd.video_key("movie", {"tvdb": "1"}), None)
         self.assertEqual(wd.video_key("movie", {"tmdb": "841"}), ("movie", "841", ""))
@@ -595,25 +599,44 @@ class SoundtracksTest(WikidataCase):
         found = [row for row in rows if not rule or matches(rule, row)]
         return json.dumps({"result": {f"{kind}s": found}})
 
+    def keep(self):
+        """Every library item's details kept, as their info screens' 9000 keeps them."""
+        for type in ("movie", "tvshow"):
+            for row in self.library[type]:
+                wd.details(wd.video_key(type, row["uniqueid"]), ALIVE)
+        for row in self.library["album"]:
+            wd.details(("album", row["musicbrainzreleasegroupid"]), ALIVE)
+        self.asked.clear()
+
     def listing(self, type, dbid):
         params = {"info": "soundtracks", "type": type, "id": str(dbid)}
-        return handlers.PluginHandlers(params).soundtracks()
+        found = handlers.PluginHandlers(params).soundtracks()
+        self.assertEqual(self.asked, [])  # kept details only: never the network
+        return found
 
     def test_off_title_alone(self):
+        self.keep()
         self.setting = False
         self.assertEqual(self.listing("movie", 1), [10])  # undated: the first Dune
         self.assertIsNone(self.listing("movie", 2))
         self.assertIsNone(self.listing("movie", 3))  # no tag says soundtrack
         self.assertEqual(self.listing("album", 10)[0][0], "movie 1")
         self.assertIsNone(self.listing("album", 11))
-        self.assertEqual(self.asked, [])
+
+    def test_none_kept_title_alone(self):
+        self.assertEqual(self.listing("movie", 1), [10])
+        self.assertIsNone(self.listing("movie", 3))
+        self.assertEqual(self.listing("album", 10)[0][0], "movie 1")
+        self.assertIsNone(self.listing("album", 11))  # no tag: no title search
 
     def test_composer_breaks_the_tie(self):
+        self.keep()
         self.assertEqual(self.listing("movie", 2), [10])  # Zimmer scored 2021's
         self.assertEqual(self.listing("movie", 1), [12])  # 1984's by its link alone
         self.assertEqual(self.listing("album", 10)[0][0], "movie 2")
 
     def test_id_link_whatever_the_tags(self):
+        self.keep()
         self.assertEqual(self.listing("movie", 3), [11])
         self.assertEqual(self.listing("album", 11)[0][0], "movie 3")
         # the album's own P9899 names the film
@@ -621,12 +644,14 @@ class SoundtracksTest(WikidataCase):
         self.assertIsNone(self.listing("album", 15))  # no link, no tag
 
     def test_a_season_keeps_its_own(self):
+        self.keep()
         self.assertEqual(self.listing("tvshow", 1), [13])
         self.assertEqual(self.listing("season", 2), [13])
         self.assertIsNone(self.listing("season", 1))  # it names season 2
 
     def test_wikidata_down_title_alone(self):
         self.refuse = HttpError(None)
+        self.keep()  # nothing kept
         self.assertEqual(self.listing("movie", 1), [10])
         self.assertIsNone(self.listing("movie", 3))
         self.assertEqual(self.listing("album", 10)[0][0], "movie 1")
