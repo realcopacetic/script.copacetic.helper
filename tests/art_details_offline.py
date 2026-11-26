@@ -195,7 +195,8 @@ class ArtDetailsTest(unittest.TestCase):
             qid = re.search(r"VALUES \?artist \{ wd:(Q\d+) \}", query)
             if '"born" AS ?kind' in query:
                 self.asked.append(f"artist {qid[1]}")
-                names = "kind", "value", "valueLabel", "precision", "country", "since"
+                names = "kind", "value", "valueLabel", "precision", "calendar"
+                names += "country", "since"
                 bindings = rows(names, ARTIST["pages"].get(qid[1], []))
                 return {"results": {"bindings": bindings}}
             if "wikibase:sitelinks ?links" in query and "?labels" not in query:
@@ -794,6 +795,7 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(fields["life"], "1650s–1688")  # each to its precision
 
     def test_dates_bc(self):
+        # A century or decade keeps Wikidata's own numbering (-500 is 500 BC)
         for year, century, decade in (
             ("-0500", "5th century BC", "500s BC"),
             ("-0501", "6th century BC", "500s BC"),
@@ -803,9 +805,31 @@ class ArtDetailsTest(unittest.TestCase):
             with self.subTest(year=year):
                 self.assertEqual(art._date(time, 7), century)
                 self.assertEqual(art._date(time, 8), decade)
-                self.assertEqual(art._date(time, 9), f"{int(year[1:])} BC")
+        # A year or finer is astronomical in the query service's answer: 0 is 1 BC
+        for year, text in (("0000", "1 BC"), ("-0043", "44 BC"), ("-0500", "501 BC")):
+            with self.subTest(year=year):
+                self.assertEqual(art._date(f"{year}-01-01T00:00:00Z", 9), text)
+
+    def test_julian_dates(self):
+        julian = wikidata.JULIAN
         with mock.patch.object(art, "getLocalizedString", MONTHS.get):
-            self.assertEqual(art._date("-0044-03-15T00:00:00Z", 11), "15 March 44 BC")
+            # Caesar's death as the query service gives it: Julian 15 March 44 BC
+            caesar = "-0043-03-13T00:00:00Z"
+            self.assertEqual(art._date(caesar, 11, julian), "15 March 44 BC")
+            self.assertEqual(art._date(caesar, 11, julian, limit=9), "44 BC")
+            year = "-0043-01-01T00:00:00Z"  # a year is never converted
+            self.assertEqual(art._date(year, 9, julian), "44 BC")
+            # Michelangelo's birth, Julian 6 March 1475: Gregorian 15 March
+            michelangelo = "1475-03-15T00:00:00Z"
+            self.assertEqual(art._date(michelangelo, 11, julian), "6 March 1475")
+            # A Gregorian date, and one kept before calendars, as given
+            turner = "1775-04-23T00:00:00Z"
+            self.assertEqual(art._date(turner, 11, "Q1985727"), "23 April 1775")
+            self.assertEqual(art._date(turner, 11), "23 April 1775")
+            # Near the new year: Julian 25 December 1599 is Gregorian 4 January 1600
+            christmas = "1600-01-04T00:00:00Z"
+            self.assertEqual(art._date(christmas, 11, julian), "25 December 1599")
+            self.assertEqual(art._date(christmas, 11, julian, limit=9), "1599")
 
     def test_artist_history(self):
         sent = []

@@ -164,7 +164,7 @@ item with no properties.
 | `art_name` | The artist's English name |
 | `art_occupation` | *Painter* where Wikidata lists it, else the first occupation |
 | `art_life` | Birth and death years, as `1775–1851` (a decade or century where Wikidata knows no more: `1650s–1688`); the birth year alone for a living artist, `–1851` with only the death known |
-| `art_born`, `art_died` | The date to Wikidata's precision (`23 April 1775`, `April 1775`, `1775`, `1770s`, `18th century`; `5th century BC` before year 1), then the place |
+| `art_born`, `art_died` | The date to Wikidata's precision (`23 April 1775`, `April 1775`, `1775`, `1770s`, `18th century`; `15 March 44 BC`, `5th century BC` before year 1), a date entered as Julian in its own calendar (`6 March 1475`), then the place |
 | `art_teacher`, `art_teacher_more` | The first two teachers (*student of*), and how many more |
 | `art_movement`, `art_movement_more` | The first movement, and how many more |
 | `art_nationality` | The first country of citizenship's English demonym (the one with no start date, else the earliest: `Russian` for Kandinsky), the adjective (`British`) where Wikidata lists a noun (`Briton`) too |
