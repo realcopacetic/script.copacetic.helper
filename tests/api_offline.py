@@ -34,8 +34,9 @@ import threading
 import time
 import unittest
 import urllib.request
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
+from operator import itemgetter
 from pathlib import Path
 from unittest import mock
 from http.client import IncompleteRead
@@ -94,15 +95,6 @@ FIXTURES = HELPER / "tests" / "fixtures"
 FIXTURE = (FIXTURES / "listenbrainz_top_recordings.json").read_bytes()
 TMDB_TV = (FIXTURES / "tmdb_tv_1399.json").read_bytes()
 TMDB_CREATOR = (FIXTURES / "tmdb_person_tv_credits_9813.json").read_bytes()
-NEWS = (  # _show_news
-    "new_episode",
-    "new_episode_aired",
-    "new_episode_today",
-    "next_air",
-    "next_air_episode",
-    "next_air_today",
-    "show_status",
-)
 DEEZER_SEARCH = (FIXTURES / "deezer_search_qotsa.json").read_bytes()
 DEEZER_TOP = (FIXTURES / "deezer_top_1177.json").read_bytes()
 DEEZER_QUOTA = (
@@ -948,7 +940,7 @@ class TmdbTest(Base):
             mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
             mock.patch.object(handlers, "getLocalizedString", "#{}".format),
         ):
-            empty = dict.fromkeys(NEWS, "")
+            empty = {"show_status": ""}  # what doesn't apply is left out
             self.assertEqual(news(handler, 7), empty)  # nothing cached: no request
             self.assertEqual(self.net.requests, [])
             self.net.answers = [json.dumps(tv).encode()]  # the metadata serve's fetch
@@ -961,6 +953,7 @@ class TmdbTest(Base):
             shown = empty | {
                 "next_air": when,
                 "next_air_episode": "3x01",
+                "next_air_today": "",
                 "show_status": "returning",
             }
             # 0, a plugin's show: its episodes aren't looked up
@@ -975,7 +968,7 @@ class TmdbTest(Base):
         labels = {"DBType": "tvshow", "DBID": "7"}  # no UniqueID(tmdb): a TVDB show
         label = lambda path: labels.get(path.rpartition("ListItem.")[2], "")
         rpc = mock.Mock(return_value="{}")
-        empty = dict.fromkeys(NEWS, "")
+        empty = {"show_status": ""}
         with (
             mock.patch("resources.lib.apis.tmdb.context.infolabel", label),
             mock.patch.object(sys.modules["xbmc"], "executeJSONRPC", rpc, create=True),
@@ -2921,6 +2914,9 @@ class ProgressbarTest(unittest.TestCase):
             unwatched = params["filter"]["and"] == [self.handler.filter_unwatched]
             rows = self.episodes if unwatched else self.played
             rows = [ep for ep in rows if season in (None, ep["season"])]
+            if "sort" in params:  # _newest: rewatches off
+                key = itemgetter("season", "episode")
+                rows = sorted(rows, key=key, reverse=True)[: params["limits"]["end"]]
             return json.dumps({"result": {"episodes": rows}})
 
         patch(
@@ -2943,10 +2939,10 @@ class ProgressbarTest(unittest.TestCase):
         self.handler._get_tmdb_item = lambda **kwargs: (None, False)
         self.handler.filter_unwatched = {"field": "playcount"}
         self.handler.filter_no_specials = {"field": "season"}
-        self.played = [  # a fully watched show's, once each
-            {"season": s, "episode": e, "runtime": 2700}
-            | {"playcount": 1, "lastplayed": days_ago(200)}
-            for s, e in ((1, 1), (1, 2), (2, 1), (3, 1))
+        self.played = [  # a fully watched show's, watched in order
+            {"season": s, "episode": e, "runtime": 2700, "resume": {"position": 0}}
+            | {"lastplayed": days_ago(200 - i)}
+            for i, (s, e) in enumerate(((1, 1), (1, 2), (2, 1), (3, 1)))
         ]
         self.handler.again = None  # a plugin call's; served, its list's re-serve
 
@@ -2956,7 +2952,7 @@ class ProgressbarTest(unittest.TestCase):
     def prop_all(self, **labels):
         self.labels = labels
         (item,) = self.handler.progressbar()
-        return item["properties"]
+        return defaultdict(str, item["properties"])  # one left out reads empty
 
     def prop(self, name, **labels):
         return self.prop_all(**labels)[name]
@@ -3328,7 +3324,7 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop_all(**show)["next_air_episode"], "")  # past
         for dbtype in ("episode", "movie"):
             self.assertNotIn("next_air", self.prop_all(**show | {"DBType": dbtype}))
-        self.assertEqual((len(self.calls), len(asks)), (10, 10))  # _played's alone
+        self.assertEqual((len(self.calls), len(asks)), (0, 10))  # no library call
         # 6B: with episodes left too, unstarted (an ended show never begun) or started,
         # from the same cache read and no library call of its own
         day = date.today() + timedelta(days=8)
@@ -3339,7 +3335,7 @@ class ProgressbarTest(unittest.TestCase):
             properties = self.prop_all(**show | counts)
             self.assertEqual(properties["next_air_episode"], "3x01")
             self.assertEqual(properties["next_episode"], "2x10")
-        self.assertEqual((len(self.calls), len(asks)), (12, 12))  # its GetEpisodes
+        self.assertEqual((len(self.calls), len(asks)), (2, 12))  # its GetEpisodes
         # 13A: a season, left or fully watched, when the airing is in it, by its show
         season = show | {"DBType": "season", "DBID": "40", "TvShowDBID": "7"}
         for number, shown in (("3", "3x01"), ("2", ""), ("0", "")):
@@ -3373,59 +3369,77 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("tmdb_pending", **show), "")
 
     def test_rewatch(self):
-        def bar(counts, days=(), **labels):
-            for ep, count, ago in zip(self.played, counts, days or [5] * len(counts)):
-                ep |= {"playcount": count, "lastplayed": days_ago(ago)}
+        def bar(days, resumed=(), **labels):
+            """The played episodes' lastplayed, days ago each; resumed: part-played."""
+            self.played = [
+                {"season": 1 + i // 4, "episode": 1 + i % 4, "runtime": 2700}
+                | {"lastplayed": days_ago(ago), "resume": {"position": i in resumed}}
+                for i, ago in enumerate(days)
+            ]
             self.labels = show | labels
             (item,) = self.handler.progressbar()
-            return item["resume"]["position"], item["properties"]
+            return item["resume"]["position"], defaultdict(str, item["properties"])
 
-        show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "4"}
+        show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "8"}
         show["Property(UnwatchedEpisodes)"] = "0"  # fully watched
         self.watched = True  # Kodi's watched overlay: a full bar
-        position, props = bar([1, 1, 1, 1])
-        self.assertEqual((position, props["rewatch"]), (100, ""))
-        self.assertEqual(props["next_episode"], "")
-        # The run on the highest play count from the first: 1x01, 1x02 of 4 (15A)
-        position, props = bar([2, 2, 1, 1])
-        self.assertEqual((position, props["rewatch"]), (50, "true"))
+        first = [400 - i for i in range(8)]  # the first viewing, in order, long ago
+        self.assertEqual(bar([5, 4, 3] + first[3:])[1]["rewatch"], "")  # opt-in
+        self.assertEqual(self.calls, [])  # off: nothing read ahead
+        self.handler.params["rewatch_days"] = "90"
+        # A pass through 1x01-2x01 these days, the rest last year: 5 of 8 (15A)
+        position, props = bar([9, 8, 7, 6, 5] + first[5:])
+        self.assertEqual((position, props["rewatch"]), (62.5, "true"))
         shown = props["unwatchedepisodes"], props["next_episode"], props["next_runtime"]
-        self.assertEqual(shown, ("2", "2x01", "45m"))  # 2X01 NEXT → 45M
-        self.assertEqual(props["next_special"], "")
-        self.assertEqual(bar([2, 2, 2, 1])[0], 75)
-        for broken in ([2, 1, 2, 1], [1, 2, 2, 2], [2, 2, 2, 2]):  # no unbroken run
-            self.assertEqual(bar(broken)[1]["rewatch"], "")
-        # A fresh pass: 1x01 on to 3 plays starts at 1 of 4, whatever the last left
-        position, props = bar([3, 2, 2, 1])
-        self.assertEqual((position, props["next_episode"]), (25, "1x02"))
-        self.assertEqual(props["unwatchedepisodes"], "3")
-        # 17B: ended once its latest play is older than rewatch_days (default 90)
-        self.assertEqual(bar([2, 2, 1, 1], days=[95, 91, 1, 1])[1]["rewatch"], "")
-        self.assertEqual(bar([2, 2, 1, 1], days=[95, 89, 1, 1])[1]["rewatch"], "true")
-        self.handler.params["rewatch_days"] = "30"
-        self.assertEqual(bar([2, 2, 1, 1], days=[95, 31, 1, 1])[1]["rewatch"], "")
-        del self.handler.params["rewatch_days"]
+        self.assertEqual(shown, ("3", "2x02", "45m"))  # 2X02 NEXT → 45M
+        # Its next part-played (its lastplayed moved): still 5, next 2x02
+        self.assertEqual(bar([9, 8, 7, 6, 5, 0] + first[6:], resumed={5})[0], 62.5)
+        # Started again after an abandoned pass: 1x01 today, 1x02-2x01 months ago
+        position, props = bar([0, 90, 89, 88, 87] + first[5:])
+        self.assertEqual((position, props["next_episode"]), (12.5, "1x02"))
+        for none in (
+            first,  # watched once, in order: no rewatch
+            [10] * 8,  # Mark as watched: one time for all
+            first[:4] + [3] + first[5:],  # a favourite (2x01) played again
+            first[:6] + [3] + first[7:],  # one near the end played again
+            [399] + first[1:],  # the pilot played twice in the first viewing
+            [5, 3, 4] + first[3:],  # 1x03 before 1x02: no unbroken pass
+        ):
+            self.assertEqual(bar(none)[1]["rewatch"], "", none)
+        # 17B: ended once its latest play is older than rewatch_days
+        self.assertEqual(bar([95, 94, 93] + first[3:])[1]["rewatch"], "")
+        self.handler.params["rewatch_days"] = "120"
+        self.assertEqual(bar([95, 94, 93] + first[3:])[1]["rewatch"], "true")
+        self.handler.params["rewatch_days"] = "90"
         # 16A: news rows stay served; the skin lets a browsing bar's rewatch win
         self.handler._get_tmdb_item = lambda **kwargs: (
             {"properties": {"tmdb_next_air_date": str(date.today())}},
             False,
         )
-        props = bar([2, 1, 1, 1])[1]
+        props = bar([5] + first[1:])[1]
         self.assertEqual((props["rewatch"], props["next_air_today"]), ("true", "true"))
         # A season's own episodes (13A, 15A)
         season = {"DBType": "season", "DBID": "40", "TvShowDBID": "7", "Season": "1"}
-        position, props = bar([2, 1, 3, 3], **season)  # 1x01, 1x02: its own pair
-        self.assertEqual((position, props["next_episode"]), (50, "1x02"))
+        position, props = bar([5] + first[1:], **season)  # 1x01 of its four
+        self.assertEqual((position, props["next_episode"]), (25, "1x02"))
         self.assertEqual(self.calls[-1]["season"], 1)
         calls = len(self.calls)
-        bar([2, 1, 1, 1], **season | {"Season": "0"})  # Specials: never a rewatch
+        bar([5] + first[1:], **season | {"Season": "0"})  # Specials: never a rewatch
         self.assertEqual(len(self.calls), calls)
+        # Specials alone left: still a rewatch, over SPECIAL NEXT (review 3)
+        self.episodes = [ep for ep in self.episodes if not ep["season"]]
+        position, props = bar([5] + first[1:], **{"Property(UnwatchedEpisodes)": "1"})
+        self.assertEqual((props["rewatch"], props["next_special"]), ("true", ""))
         self.assertEqual(
-            bar([2, 1], **{"Property(UnwatchedEpisodes)": "1"})[1]["rewatch"], ""
+            self.calls[-2]["filter"]["and"], [self.handler.filter_unwatched]
         )
+        # Regular episodes left: no rewatch, and no second read
+        self.episodes = self.episodes_regular
+        props = bar([5] + first[1:], **{"Property(UnwatchedEpisodes)": "3"})[1]
+        self.assertEqual((props["rewatch"], props["next_episode"]), ("", "2x10"))
         self.assertEqual(
             self.calls[-1]["filter"]["and"], [self.handler.filter_unwatched]
-        )  # episodes left: no rewatch, its unwatched call alone
+        )
         self.assertEqual(helpers.rewatch_pass([]), 0)
 
     def test_stop_rewatch(self):
@@ -3437,14 +3451,17 @@ class ProgressbarTest(unittest.TestCase):
         show["Property(UnwatchedEpisodes)"] = "0"
         self.watched = True
 
-        def bar(last=5, **labels):
-            for ep, count in zip(self.played, (2, 1, 1, 1)):
-                ep |= {"playcount": count, "lastplayed": days_ago(last)}
+        def bar(last=5, **labels):  # 1x01 played again, last days ago
+            self.played[0]["lastplayed"] = days_ago(last)
             return self.prop("rewatch", **show | labels)
+
+        self.handler.params["rewatch_days"] = "90"
 
         self.assertEqual(bar(), "true")
         shown = home.getProperty("rewatch"), home.getProperty("rewatch_show")
         self.assertEqual(shown, ("7", "7"))  # the menu's Stop rewatch shows
+        actions.stop_rewatch(id="40", type="season")  # a season's id: not the serve's
+        self.assertFalse(stops.exists())
         actions.stop_rewatch(id="7", type="tvshow")
         self.assertEqual(list(json.loads(stops.read_text())), ["7"])  # this device's
         self.assertEqual(home.getProperty("rewatch"), "")  # hidden at once
@@ -3460,6 +3477,11 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(shown, ("40", "7"))
         bar(**{"Property(UnwatchedEpisodes)": "2"})  # another show or season serves
         self.assertEqual(home.getProperty("rewatch"), "")
+        bar(last=-1)
+        self.prop_all(DBType="movie", DBID="7")  # any bar serve clears them
+        self.assertEqual(
+            (home.getProperty("rewatch"), home.getProperty("rewatch_show")), ("", "")
+        )
         self.assertNotIn("SetEpisodeDetails", str(self.calls))  # nothing written
 
     def test_show_news(self):
@@ -3475,14 +3497,23 @@ class ProgressbarTest(unittest.TestCase):
         ):
             props["tmdb_status"] = status
             self.assertEqual(self.prop("show_status", **show), shown)
-        # The library's newest outside the specials is 3x01, from the one GetEpisodes
-        # call a fully watched show makes (_played), whatever its news
-        self.played.reverse()  # newest by its season and number, not Kodi's order
+        self.assertEqual(self.calls, [])  # no last aired episode: no lookup
+        # The library's newest outside the specials is 3x01: one GetEpisodes for it
+        # alone, or, with rewatches on, the read ahead's (_played)
         last = {"tmdb_last_air_season": "3", "tmdb_last_air_episode": "1"}
         props |= last | {"tmdb_last_air_date": date.today().isoformat()}
         self.assertEqual(self.prop("new_episode", **show), "")
-        self.assertEqual(len(self.calls), 5)  # one per serve
-        self.assertEqual(self.calls[-1]["filter"]["and"], [{"field": "season"}])
+        asked = self.calls[-1]
+        self.assertEqual(
+            (asked["limits"], asked["filter"]["and"]),
+            ({"start": 0, "end": 1}, [{"field": "season"}]),
+        )
+        self.assertEqual(asked["sort"], {"method": "episode", "order": "descending"})
+        self.handler.params["rewatch_days"] = "90"
+        self.played.reverse()  # newest by its season and number, not Kodi's order
+        self.assertEqual(self.prop("new_episode", **show), "")
+        self.assertNotIn("limits", self.calls[-1])  # the read ahead's, all of them
+        del self.handler.params["rewatch_days"]
         props["tmdb_last_air_episode"] = "2"
         properties = self.prop_all(**show)
         day = date.today()
@@ -3507,9 +3538,8 @@ class ProgressbarTest(unittest.TestCase):
         self.assertEqual(self.prop("new_episode", **show), "")
         props["tmdb_last_air_season"] = "0"  # a special, as next_episode leaves out
         self.assertEqual(self.prop("new_episode", **show), "")
-        self.assertEqual(len(self.calls), calls + 3)
         self.assertEqual(self.prop("new_episode", **show | {"DBID": ""}), "")
-        self.assertEqual(len(self.calls), calls + 3)  # a plugin's show: none
+        self.assertEqual(len(self.calls), calls)  # none needed one
 
 
 TIDB = {

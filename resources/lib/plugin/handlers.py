@@ -147,15 +147,6 @@ _VIDEO_METHODS = {
 _MUSIC_NAMES = {"album": "album", "artist": "artist", "song": "title"}  # name field
 # TMDb's show status as _show_news's show_status: no more episodes, or more to come
 _SHOW_STATUS = {"Canceled": "ended", "Ended": "ended", "Returning Series": "returning"}
-# A show's or season's progress properties beside its airing's, each "" unless set
-_SHOW_CONTEXT = (
-    "next_episode",
-    "next_special",
-    "next_runtime",
-    "new",
-    "new_kind",
-    "rewatch",
-)
 _LABEL = "popularity_label"  # the handler's name: its item's path, its calls' parent
 
 
@@ -1436,12 +1427,17 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
         span = to_int(self.params.get("resolution_span"))
         resume, unwatched = pb.calculate(span)
-        # A fully watched show's or season's episodes, read before the bar moves as a
-        # set's movies and an album's songs are: a rewatch's pass is its value (15A)
+        # With rewatches on, a show's or season's episodes are read before the bar
+        # moves, as a set's movies and an album's songs are: a rewatch's pass is its
+        # value (15A)
         show = self._show_item(pb.infolabels)
-        played = self._played(show) if show else []
-        if rewatch := show and self._rewatch(played, show.show_id):
+        episodes, played = self._read_ahead(show) if show else (None, None)
+        if rewatch := played and self._rewatch(played, show.show_id):
             resume, unwatched = rewatch.percent, str(rewatch.left)
+        # The context menu's Stop rewatch (addon.xml) shows for this item alone: every
+        # bar serve writes or clears them, as album_resume's
+        window_property("rewatch", value=show.dbid if rewatch else "")
+        window_property("rewatch_show", value=show.show_id if rewatch else "")
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
         # is unchanged
         secs = pb.runtime(resume)
@@ -1489,14 +1485,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "time_left": (
                     hours_minutes(math.ceil((secs - position) / 60)) if secs else ""
                 ),
-                **(self._show_context(show, played, rewatch) if show else {}),
+                **(self._show_context(show, episodes, played, rewatch) if show else {}),
                 **self._unwatched_new(pb, resume),
             }
-            # A show's or season's rewatch, for the context menu's Stop rewatch, which
-            # marks its show (addon.xml); as album_resume
-            if show:
-                window_property("rewatch", value=show.dbid if rewatch else "")
-                window_property("rewatch_show", value=show.show_id if rewatch else "")
             # An album's resume point; album, for the service's re-serve on song
             # updates (service/monitor.py) and the context menu's Mark and Resume
             # items (addon.xml)
@@ -1552,73 +1543,32 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             left=to_int(labels["Property(UnwatchedEpisodes)"]),
         )
 
-    def _played(self, show: ShowItem) -> list[dict]:
+    def _read_ahead(
+        self, show: ShowItem
+    ) -> tuple[list[dict] | None, list[dict] | None]:
         """
-        A fully watched show's or season's episodes outside the specials, in order,
-        with their play counts: one GetEpisodes call.
+        With rewatch_days, a show's or season's episodes read before the bar moves: its
+        unwatched ones while any are left, and its regular ones (_played) once each
+        is watched, unwatched specials or not. None for each not read here.
 
         :param show: The focused show or season.
-        :return: Its episodes; none unless fully watched, or for the Specials season.
+        :return: Its unwatched episodes and its played ones.
         """
-        if not (show.done and show.show_id) or show.season == 0:
-            return []
-        episodes = fetch_raw(
-            "VideoLibrary.GetEpisodes",
-            "episode",
-            [self.filter_no_specials],
-            sort=None,
-            parent="progressbar",
-            params=show.scope,
-            properties=["episode", "lastplayed", "playcount", "runtime", "season"],
-        )
-        return sorted(episodes, key=itemgetter("season", "episode"))
+        if not (self._rewatch_days and show.show_id) or show.season == 0:
+            return None, None  # off, a plugin's item, or the Specials season: none
+        unwatched = self._unwatched(show) if show.left else None
+        if not show.watched or any(ep["season"] for ep in unwatched or ()):
+            return unwatched, None
+        return unwatched, self._played(show)
 
-    def _rewatch(self, played: list[dict], show_id: int) -> Rewatch | None:
+    def _unwatched(self, show: ShowItem) -> list[dict]:
         """
-        A watched show's or season's rewatch (rewatch_pass), unless its latest play is
-        older than rewatch_days (default 90) or before its show's Stop rewatch on this
-        device (17B): its share, episodes left and next.
-
-        :param played: Its episodes (_played).
-        :param show_id: Its show's library id, for the Stop rewatch mark.
-        :return: The pass; None for no rewatch.
-        """
-        if not (run := rewatch_pass(played)):
-            return None
-        days = to_int(self.params.get("rewatch_days"), 90)
-        latest = max(ep["lastplayed"] for ep in played[:run])
-        if latest < f"{datetime.now() - timedelta(days=days):%Y-%m-%d %H:%M:%S}":
-            return None
-        if latest <= rewatch_stops().get(str(show_id), ""):  # stopped since its play
-            return None
-        return Rewatch(run * 100 / len(played), len(played) - run, played[run])
-
-    def _show_context(
-        self, show: ShowItem, played: list[dict], rewatch: Rewatch | None
-    ) -> dict[str, str]:
-        """
-        A show's or season's next airing (_next_air); a rewatch's next; unfinished,
-        its next (_next), new_kind and new from one GetEpisodes call; a fully watched
-        show's _show_news.
+        A show's or season's unwatched episodes, specials too: one GetEpisodes call.
 
         :param show: The focused show or season.
-        :param played: Its episodes when fully watched (_played).
-        :param rewatch: Its rewatch's pass; None for none.
-        :return: Properties for the progress item.
+        :return: Its unwatched episodes, unordered.
         """
-        props, followed = self._show_tmdb(show.dbtype == "season")
-        airing = self._next_air(props, show.season)  # 6B, 13A
-        context = dict.fromkeys(_SHOW_CONTEXT, "") | airing
-        # The skin's mask: TMDb's answer is coming, and the bar with it (12A)
-        context["tmdb_pending"] = "true" if followed else ""
-        if show.dbtype == "tvshow" and show.done:
-            context |= self._show_news(props, show.show_id, played)
-        if rewatch:  # 15A: its pass's next, its runtime and its count (16A)
-            return context | self._next([rewatch.next]) | {"rewatch": "true"}
-        # Started or not: an unwatched show's or season's next is its first episode
-        if not (show.show_id and show.left):
-            return context
-        unwatched = fetch_raw(
+        return fetch_raw(
             "VideoLibrary.GetEpisodes",
             "episode",
             [self.filter_unwatched],
@@ -1627,8 +1577,83 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             params=show.scope,
             properties=["dateadded", "episode", "firstaired", "runtime", "season"],
         )
+
+    def _played(self, show: ShowItem) -> list[dict]:
+        """
+        A watched show's or season's episodes outside the specials, in order, with
+        when each was last played and any resume point: one GetEpisodes call.
+
+        :param show: The focused show or season.
+        :return: Its regular episodes.
+        """
+        episodes = fetch_raw(
+            "VideoLibrary.GetEpisodes",
+            "episode",
+            [self.filter_no_specials],
+            sort=None,
+            parent="progressbar",
+            params=show.scope,
+            properties=["episode", "lastplayed", "resume", "runtime", "season"],
+        )
+        return sorted(episodes, key=itemgetter("season", "episode"))
+
+    @property
+    def _rewatch_days(self) -> int:
+        """rewatch_days: rewatches are on (opt-in) while a pass is played within it."""
+        return to_int(self.params.get("rewatch_days"))
+
+    def _rewatch(self, played: list[dict], show_id: int) -> Rewatch | None:
+        """
+        A watched show's or season's rewatch (rewatch_pass), unless its latest play is
+        older than rewatch_days or before its show's Stop rewatch on this device (17B):
+        its share, episodes left and next.
+
+        :param played: Its regular episodes (_played).
+        :param show_id: Its show's library id, for the Stop rewatch mark.
+        :return: The pass; None for no rewatch.
+        """
+        if not (run := rewatch_pass(played)):
+            return None
+        # The run's last play, or the next one's part-play, which moves its lastplayed
+        latest = max(ep["lastplayed"] for ep in played[: run + 1])
+        stopped = rewatch_stops().get(str(show_id), "")
+        if latest < self._since("lastplayed", self._rewatch_days) or latest <= stopped:
+            return None
+        return Rewatch(run * 100 / len(played), len(played) - run, played[run])
+
+    def _show_context(
+        self,
+        show: ShowItem,
+        unwatched: list[dict] | None,
+        played: list[dict] | None,
+        rewatch: Rewatch | None,
+    ) -> dict[str, str]:
+        """
+        A show's or season's next airing (_next_air); a rewatch's next; unfinished,
+        its next (_next), new_kind and new; a fully watched show's _show_news. A
+        property that doesn't apply is left out: it reads empty.
+
+        :param show: The focused show or season.
+        :param unwatched: Its unwatched episodes if read ahead (_read_ahead); else None.
+        :param played: Its regular episodes if read ahead; else None.
+        :param rewatch: Its rewatch's pass; None for none.
+        :return: Properties for the progress item.
+        """
+        props, followed = self._show_tmdb(show.dbtype == "season")
+        context = self._next_air(props, show.season)  # 6B, 13A
+        if followed:  # the skin's mask: TMDb's answer is coming, and the bar with it
+            context["tmdb_pending"] = "true"
+        if show.dbtype == "tvshow" and show.done:
+            context |= self._show_news(props, show.show_id, played)
+        if rewatch:  # 15A: its pass's next and runtime, over a special next (16A)
+            return context | self._next([rewatch.following]) | {"rewatch": "true"}
+        # Started or not: an unwatched show's or season's next is its first episode
+        if not (show.show_id and show.left):
+            return context
+        if unwatched is None:
+            unwatched = self._unwatched(show)
         kind = self._new_kind(show.dbtype == "tvshow", show.started, unwatched)
-        new = {"new": "true" if kind else "", "new_kind": kind}
+        new = {"new": "true", "new_kind": kind} if kind else {}
         return context | self._next(unwatched) | new
 
     @staticmethod
@@ -1669,13 +1694,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param unwatched: Its unwatched episodes: all of them, for a show not started.
         :return: "show", "season", "episode", "episodes" or "".
         """
-        # A show's date added is its earliest episode's
-        added = min((ep["dateadded"] for ep in unwatched), default="")
-        if show and not started and added >= self._new_since("dateadded"):
-            return "show"
+        if show and not started:  # its date added is its earliest episode's
+            added = min((ep["dateadded"] for ep in unwatched), default="")
+            if added >= self._since("dateadded", self._new_days):
+                return "show"
         # By air date, started or not: a back catalogue, or a binge, isn't new; a
         # future date (a pre-release file) is
-        since = self._new_since("firstaired")
+        since = self._since("firstaired", self._new_days)
         aired = [ep for ep in unwatched if ep["firstaired"] >= since]
         if show and any(ep["season"] > 1 and ep["episode"] == 1 for ep in aired):
             return "season"
@@ -1704,19 +1729,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if dbtype == "album" and pb.album.state != "unplayed":
             return {}
         item = library_details(dbtype, dbid, [field], "progressbar")
-        new = item and item[field] >= self._new_since(field)  # None: an error answer
+        new = item and item[field] >= self._since(field, self._new_days)  # None: error
         return {"new": "true" if new else ""}
 
-    def _new_since(self, field: str) -> str:
-        """
-        The earliest dateadded or firstaired that is still new: new_days (default 30)
-        before now, as JSON-RPC writes that field, so string order is time order.
+    @property
+    def _new_days(self) -> int:
+        """new_days: how long an item stays new (default 30)."""
+        return to_int(self.params.get("new_days"), 30)
 
-        :param field: "dateadded" ("YYYY-MM-DD HH:MM:SS") or "firstaired" (a date).
+    @staticmethod
+    def _since(field: str, days: int) -> str:
+        """
+        A cutoff days before now, as JSON-RPC writes the field, so string order is
+        time order: the earliest still new, or a rewatch's latest play still counting.
+
+        :param field: "firstaired" (a date), or "dateadded" / "lastplayed" (a time).
+        :param days: How many days back.
         :return: The cutoff in the field's format, local time.
         """
-        days = to_int(self.params.get("new_days"), 30)
-        fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
+        fmt = "%Y-%m-%d" if field == "firstaired" else "%Y-%m-%d %H:%M:%S"
         return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
     def _show_tmdb(self, season: bool) -> tuple[dict[str, str], bool]:
@@ -1744,26 +1775,25 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :param props: The show's TMDb properties (_show_tmdb).
         :param season: A season's number; None for a show or "* All seasons".
-        :return: next_air, next_air_episode and next_air_today; empty if past or unknown.
+        :return: next_air, next_air_episode and next_air_today; none if past or unknown.
         """
-        air = dict.fromkeys(("next_air", "next_air_episode", "next_air_today"), "")
         iso, today = props.get("tmdb_next_air_date"), date.today()
         if not iso or (day := date.fromisoformat(iso)) < today:
-            return air
+            return {}
         # An entry cached before the numbers were kept (7-day TTL) has the date alone,
         # which no season can claim
-        aired_in = to_int(props.get("tmdb_next_air_season"), None)
-        if season is not None and aired_in != season:
-            return air
+        airs_in = to_int(props.get("tmdb_next_air_season"), None)
+        if season is not None and airs_in != season:
+            return {}
         episode = props.get("tmdb_next_air_episode")
         return {
             "next_air": self._air_day(day),
-            "next_air_episode": f"{aired_in}x{int(episode):02d}" if episode else "",
+            "next_air_episode": f"{airs_in}x{int(episode):02d}" if episode else "",
             "next_air_today": "true" if day == today else "",  # 5A: AIRS TODAY
         }
 
     def _show_news(
-        self, props: dict[str, str], show_id: int, played: list[dict]
+        self, props: dict[str, str], show_id: int, played: list[dict] | None
     ) -> dict[str, str]:
         """
         A fully watched show's news from its TMDb properties: its last aired episode
@@ -1772,15 +1802,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :param props: The show's TMDb properties (_show_tmdb).
         :param show_id: Library id of the show; 0 for a plugin's item.
-        :param played: The library's episodes of it outside the specials (_played).
-        :return: new_episode, new_episode_aired, new_episode_today and show_status.
+        :param played: Its regular episodes if read ahead (_played); None: asked here.
+        :return: show_status, and new_episode with its _aired and _today.
         """
-        news = {
-            "new_episode": "",
-            "new_episode_aired": "",
-            "new_episode_today": "",
-            "show_status": _SHOW_STATUS.get(props.get("tmdb_status"), ""),
-        }
+        news = {"show_status": _SHOW_STATUS.get(props.get("tmdb_status"), "")}
         # Only aired within new_days, as new counts (an ended show's last is old
         # news), and past the library's newest: an episode missing mid-run, or
         # numbered another way (TVDB's order), is no news. Specials left out, as
@@ -1788,10 +1813,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         # none; a plugin's item has no episodes to compare
         season = to_int(props.get("tmdb_last_air_season"))
         aired = props.get("tmdb_last_air_date", "")
-        if not (show_id and season > 0 and aired >= self._new_since("firstaired")):
+        since = self._since("firstaired", self._new_days)
+        if not (show_id and season > 0 and aired >= since):
             return news
         episode = int(props["tmdb_last_air_episode"])
-        have = itemgetter("season", "episode")(played[-1]) if played else (0, 0)
+        # The library's newest: read ahead, or one call for it alone
+        newest = played[-1:] if played is not None else self._newest(show_id)
+        have = next((itemgetter("season", "episode")(ep) for ep in newest), (0, 0))
         if (season, episode) <= have:
             return news
         day = date.fromisoformat(aired)  # 2A, 5A: AIRED 25 Nov or AIRED TODAY
@@ -1800,6 +1828,24 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             "new_episode_aired": self._air_day(day),
             "new_episode_today": "true" if day == date.today() else "",
         }
+
+    def _newest(self, show_id: int) -> list[dict]:
+        """
+        A show's newest episode outside the specials: one GetEpisodes call.
+
+        :param show_id: The show's library id.
+        :return: It alone; none for a show with no regular episode.
+        """
+        return fetch_raw(  # "episode" sorts by season, then episode
+            "VideoLibrary.GetEpisodes",
+            "episode",
+            [self.filter_no_specials],
+            sort={"method": "episode", "order": "descending"},
+            parent="progressbar",
+            params={"tvshowid": show_id},
+            limit=1,
+            properties=["episode", "season"],
+        )
 
     def _air_day(self, day: date) -> str:
         """

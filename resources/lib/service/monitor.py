@@ -321,7 +321,8 @@ class Monitor(xbmc.Monitor):
             self.clash_features = ()  # checked next pass: reads this frame are cached
             return
         if mine and method == f"Other.{REWATCH_STOPPED}":  # the action's mark is down
-            self._serve_bar(self.server.served("progressbar") if self.server else 0)
+            server = self.server  # None once the skin has left
+            self._serve_bar(server, server.served("progressbar") if server else 0)
             return
         if method == "AudioLibrary.OnUpdate":
             # Music updates don't reach 9010's video-tagged item (DirectoryProvider.cpp
@@ -390,20 +391,22 @@ class Monitor(xbmc.Monitor):
             f"!String.StartsWith(Container({bar}).ListItem.FileNameAndPath,plugin://)"
             f" | String.IsEqual(Container({bar}).ListItem.Property(album),true)"
         ):
-            self._serve_bar(served)
+            self._serve_bar(server, served)
         closed, self.closed = self.closed, {}  # a started Timer can't be cancelled
         if any(_play_count(songid) != count for songid, count in closed.items()):
             window_property("played_version", value=str(time.monotonic_ns()))
 
-    def _serve_bar(self, served: int) -> None:
+    @staticmethod
+    def _serve_bar(server: Server | None, served: int) -> None:
         """
         The progress bar again: the topmost window's served list, and a plugin bar
         by a new progress_version in its URL.
 
+        :param server: The server, read once by the caller; None once the skin left.
         :param served: The list the bar was served in (Server.served); 0 for none.
         """
         if served:
-            self.server.again(served)
+            server.again(served)
         window_property("progress_version", value=str(time.monotonic_ns()))
 
     def onSettingsChanged(self) -> None:
