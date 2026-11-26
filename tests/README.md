@@ -203,7 +203,8 @@ python tests/art_details_offline.py
 # by TMDb, IMDb and MusicBrainz ids with no query; labels English, then multilingual,
 # then any; Based on from written works only, worded by the item's title; Set in,
 # Music by, an artist's labels (+N) and place, an album's producers; nothing kept
-# unanswered; served details kept, missing ones asked aside; a compilation's track
+# unanswered; a busy queue and a 429 waited out, then asked again; served details
+# kept, missing ones asked aside; a compilation's track
 # artists from the library; soundtracks by id link both ways, the composer tie-break,
 # a season's own, and the title alone with the setting off or Wikidata down
 # (wbgetentities items from tests/fixtures/wikidata_details.json)

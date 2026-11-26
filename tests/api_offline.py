@@ -352,7 +352,12 @@ class ListenBrainzTest(Base):
     def test_429_waits_reset_in(self):
         self.net.answers = [http_error(429, {"X-RateLimit-Reset-In": "30"}), FIXTURE]
         self.assertEqual(listenbrainz.top_recordings(GORILLAZ), [])
-        self.assertEqual(self.row(), (None, 30))
+        # the queue holds every key for the wait, this one too: no row of its own
+        self.assertIsNone(self.cache.get(f"listenbrainz:top-recordings:{GORILLAZ}"))
+        window = sys.modules["xbmcgui"].Window()
+        self.assertEqual(
+            float(window.getProperty(listenbrainz.NEXT_CALL)), self.now + 30
+        )
         self.tick(26)
         self.assertEqual(listenbrainz.top_recordings("other-artist"), [])
         self.assertEqual(len(self.net.requests), 1)
@@ -3315,7 +3320,9 @@ class TheIntroDbTest(Base):
             self.net.answers = [failure]
             self.assertEqual(self.lookup(), {})  # the other ids would fail alike
             self.assertEqual(len(self.net.answers), 0)
-        self.assertEqual(self.row(self.key(), ""), (None, 60))
+        self.assertIsNone(self.cache.get(self.key()))  # the queue holds it, no row
+        window = sys.modules["xbmcgui"].Window()
+        self.assertEqual(float(window.getProperty(theintrodb.NEXT_CALL)), self.now + 60)
 
     def test_patterns_refresh_and_clear(self):
         self.net.answers = [json.dumps(TIDB).encode()]
