@@ -543,12 +543,12 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param target: Infolabel prefix of the item; the serve's target item if None.
         :param aside: Read the cache, fetching on a thread that calls this on news.
         :param show: A season's or episode's show entry, in place of its own.
-        :param follow: Called on news of a fetch another serve asked aside for it.
-        :return: canonical item dict or None, and whether it was asked aside.
+        :param follow: Told when a fetch another serve asked aside for it ends.
+        :return: canonical item dict or None, and whether it was asked aside (followed).
         """
         from resources.lib.apis.tmdb.client import tmdb_token
         from resources.lib.apis.tmdb.context import resolve_tmdb_context
-        from resources.lib.apis.tmdb.transform import tmdb_lookup
+        from resources.lib.apis.tmdb.transform import tmdb_follow, tmdb_lookup
 
         if not tmdb_token():  # off: skip resolve_tmdb_context's uniqueid lookup
             return None, False
@@ -556,23 +556,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         ctx = resolve_tmdb_context(self.params, target=target or self.target_item)
         tmdb_id = to_int(ctx.get("tmdb_id"), 0)
         kind = "tvshow" if show else ctx.get("kind") or self.dbtype
-
+        season = None if show else ctx.get("season_number")
+        # Before the read: a fetch that ends between them still tells the follower
+        followed = bool(follow) and tmdb_follow(
+            kind, tmdb_id, season, self.params.get("language"), follow
+        )
         item, asked = tmdb_lookup(
             kind=kind,
             tmdb_id=tmdb_id,
-            season_number=None if show else ctx.get("season_number"),
+            season_number=season,
             language=self.params.get("language"),
             append_artwork=append_artwork,
             cache_only=cache_only,
             aside=aside,
-            follow=follow,
         )
         if not item:
             log.debug(
                 f"{self.__class__.__name__} → tmdb: no data for "
                 f"type={kind!r}, tmdb_id={tmdb_id}"
             )
-        return item or None, asked
+        return item or None, asked or followed
 
     def _probe_text(self, param: str) -> str:
         """The label of the probe control a URL param names; empty if it names none.
@@ -1585,11 +1588,13 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param rewatch: Its rewatch's pass; None for none.
         :return: Properties for the progress item.
         """
-        props = self._show_tmdb(show.dbtype == "season")
+        props, followed = self._show_tmdb(show.dbtype == "season")
         keys = "next_episode", "next_special", "next_runtime", "new", "new_kind"
         context = self._next_air(props, show.season) | dict.fromkeys(  # 6B, 13A
             (*keys, "rewatch"), ""
         )
+        # The skin's mask: TMDb's answer is coming, and the bar with it (12A)
+        context["tmdb_pending"] = "true" if followed else ""
         if show.dbtype == "tvshow" and show.done:
             context |= self._show_news(props, show.show_id, played)
         if rewatch:  # 15A: its pass's next, its runtime and its count (16A)
@@ -1698,22 +1703,23 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         fmt = "%Y-%m-%d %H:%M:%S" if field == "dateadded" else "%Y-%m-%d"
         return f"{datetime.now() - timedelta(days=days):{fmt}}"
 
-    def _show_tmdb(self, season: bool) -> dict[str, str]:
+    def _show_tmdb(self, season: bool) -> tuple[dict[str, str], bool]:
         """
         The focused show's (or season's show's) TMDb properties from the cache only,
-        never fetched here; served, a fetch the metadata serve asked aside is followed.
+        never fetched here; served with follow_tmdb, a fetch the metadata serve asked
+        aside is followed: the bar is served again once it ends (12A).
 
         :param season: The item is a season: its show's entry.
-        :return: The tmdb_* properties; empty when not cached or TMDb is off.
+        :return: The tmdb_* properties (empty when not cached), and whether followed.
         """
         # No art: the art entry while fresh, else a fresh art-less one, else stale art
         # first (renewed by the metadata serve with TMDb multiart on; off, an older art
         # entry can win until the art-less one is renewed on the next focus)
-        # Served, the metadata serve's fetch of it aside serves the bar again too (12A)
-        tmdb = self._get_tmdb_item(
-            append_artwork=False, cache_only=True, show=season, follow=self.again
-        )[0]
-        return tmdb["properties"] if tmdb else {}
+        follow = self.again if parse_bool(self.params.get("follow_tmdb")) else None
+        tmdb, followed = self._get_tmdb_item(
+            append_artwork=False, cache_only=True, show=season, follow=follow
+        )
+        return (tmdb["properties"] if tmdb else {}), followed
 
     def _next_air(self, props: dict[str, str], season: int | None) -> dict[str, str]:
         """

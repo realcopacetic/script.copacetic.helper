@@ -532,7 +532,7 @@ class TopSongsTest(Base):
 
 def news(handler, show_id):
     """A fully watched show's TMDb properties on its bar (_show_context's reads)."""
-    props = handler._show_tmdb(False)
+    props = handler._show_tmdb(False)[0]
     return handler._next_air(props, None) | handler._show_news(props, show_id, [])
 
 
@@ -707,19 +707,29 @@ class TmdbTest(Base):
         transform.tmdb_to_canonical("tvshow", 1399, aside=landed)  # fresh: none
         self.assertEqual(len(started), 1)
 
-    def test_a_follower_is_told_of_another_serves_fetch(self):
+    def test_a_follower_is_told_when_another_serves_fetch_ends(self):
         started = self.aside_queue()
         metadata, bar = self.asker(), self.asker()
-        self.net.answers = [TMDB_TV]
-        follow = "tvshow", 1399, None, None, False, True, None, bar  # the bar, no art
-        self.assertEqual(transform.tmdb_lookup(*follow), ({}, False))  # none asked
+        self.net.answers = [TMDB_TV, TMDB_TV]
+        follow = "tvshow", 1399, None, None, bar
+        self.assertFalse(transform.tmdb_follow(*follow))  # none asked: none started
         self.assertEqual((started, transform.ASIDES.asked), ([], {}))
         transform.tmdb_to_canonical("tvshow", 1399, aside=metadata)  # tmdb_art's
-        self.assertEqual(transform.tmdb_lookup(*follow), ({}, False))  # joins it
+        self.assertTrue(transform.tmdb_follow(*follow))  # joins it, art or not
         transform.ASIDES._drain()
         metadata.assert_called_once()
         bar.assert_called_once()  # 9010 served again as 9000 is
         self.assertEqual(len(self.net.requests), 1)  # no fetch of its own
+        self.tick(8 * DAY)  # stale: the same answer again is no news
+        metadata.reset_mock(), bar.reset_mock()
+        transform.tmdb_to_canonical(
+            "tvshow", 1399, append_artwork=False, aside=metadata
+        )
+        self.assertTrue(transform.tmdb_follow(*follow))
+        transform.ASIDES._drain()
+        metadata.assert_not_called()
+        bar.assert_called_once()  # told anyway: its masked wait is over
+        self.assertEqual(transform.ASIDES.followers, {})
 
     def test_aside_workers_are_capped(self):
         started = self.aside_queue()
@@ -3317,6 +3327,26 @@ class ProgressbarTest(unittest.TestCase):
         del cached["item"]["properties"]["tmdb_next_air_season"]  # the date alone
         self.assertEqual(self.prop("next_air", **season | {"Season": "3"}), "")
         self.assertNotEqual(self.prop("next_air", **show), "")
+
+    def test_follow_tmdb_is_opt_in_and_masked(self):
+        asks, followed = [], [False]
+
+        def tmdb(**kwargs):
+            asks.append(kwargs["follow"])
+            return None, followed[0]
+
+        self.handler._get_tmdb_item = tmdb
+        self.handler.again = served = mock.Mock()
+        show = {"DBType": "tvshow", "DBID": "7", "Property(WatchedEpisodes)": "9"}
+        show["Property(UnwatchedEpisodes)"] = "0"
+        self.assertEqual(self.prop("tmdb_pending", **show), "")
+        self.assertEqual(asks, [None])  # without follow_tmdb: no re-serve to mask
+        self.handler.params["follow_tmdb"] = "true"
+        followed[0] = True  # the metadata serve's fetch runs: the bar follows it
+        self.assertEqual(self.prop("tmdb_pending", **show), "true")
+        self.assertEqual(asks[-1], served)
+        followed[0] = False  # ended: its re-serve comes without the flag
+        self.assertEqual(self.prop("tmdb_pending", **show), "")
 
     def test_rewatch(self):
         def bar(counts, days=(), **labels):

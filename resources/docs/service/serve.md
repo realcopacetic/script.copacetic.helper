@@ -233,9 +233,10 @@ during an artwork call's art reads, is waited out and the list read again.
   reaches the list itself if it hasn't yet, or serves it again once it ends; one that
   lands while another ring has the window is served by its arrival's next ring. The
   line follows, as its label can change. A served [progress bar](../plugins/progressbar.md)
-  of a show or season asks nothing itself, but joins a fetch the metadata serve asked
-  for the same show (with art or not), so it is served again too when that lands
-  with news: its airing and aired rows appear on a first focus with nothing cached.
+  of a show or season with `follow_tmdb=true` asks nothing itself, but follows a fetch
+  the metadata serve asked for the same show (with art or not): it carries
+  `tmdb_pending` meanwhile and is served again when that fetch ends, news or not, so
+  the skin can hide its rows for the wait and fade them in once.
 - **An album's play counts.** A song heard serves again the list the window on top
   last served with the [progress bar](../plugins/progressbar.md).
 - **Multiart.** When an artwork row that names `slides=<list>:<probe>` binds a family
