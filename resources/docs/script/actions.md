@@ -1724,7 +1724,7 @@ in `rewatch_show`; a skin button can run it too, passing `id=$INFO[ListItem.DBID
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
-| `id` | the item's database id | — | Must equal `rewatch`, or nothing is done: a show's and a season's ids share one number space. The context item passes it |
+| `id` | the item's database id | — | Must equal `rewatch` (the item the last bar served), or nothing is done. The context item passes it |
 
 A part-play of the next episode moves its last play, so it brings a stopped rewatch
 back.

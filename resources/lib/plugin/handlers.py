@@ -1434,10 +1434,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         episodes, played = self._read_ahead(show) if show else (None, None)
         if rewatch := played and self._rewatch(played, show.show_id):
             resume, unwatched = rewatch.percent, str(rewatch.left)
-        # The context menu's Stop rewatch (addon.xml) shows for this item alone: every
-        # bar serve writes or clears them, as album_resume's
-        window_property("rewatch", value=show.dbid if rewatch else "")
-        window_property("rewatch_show", value=show.show_id if rewatch else "")
         # Seconds, so the item's EndTimeResume works; PercentPlayed (position / total)
         # is unchanged
         secs = pb.runtime(resume)
@@ -1470,6 +1466,10 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not guard.alive():
             return set_items([item], tag_applier=apply_videoinfotag)
 
+        # The context menu's Stop rewatch (addon.xml) shows for this item alone: every
+        # current bar serve writes or clears them, as album_resume's
+        window_property("rewatch", value=show.dbid if rewatch else "")
+        window_property("rewatch_show", value=show.show_id if rewatch else "")
         pb.update(
             percent=resume,
             opts=PlacementOpts.from_params(self.params),
