@@ -56,6 +56,7 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, an episode first aired, or for a show or season (see `new_kind`) the show was added or its unwatched episodes first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
+| `rewatch_days` | whole number | `90` | How long a [rewatch](#rewatches) lasts unplayed: it ends once its latest played episode was played more than this many days ago. |
 | `date_format` | [strftime](https://docs.python.org/3/library/datetime.html#format-codes) codes | `%d %b` | Format of `next_air` and `new_episode_aired`, e.g. `14 Nov`. `%b` is Kodi's own short month name, in its GUI language; the other codes follow Python's C locale (English names). A literal `%%b` isn't supported. Write `%` as `%25` in the URL when the next two characters could read as hex (`%Bd`). |
 | `language`, `tmdb_id`, `type`, `id`, `tvshowid`, `season` | | | Used only to find the TMDB data `next_air`, `next_air_episode`, `new_episode` and `show_status` read, as in [TMDB lookups](metadata.md#tmdb-lookups). Pass the same `language` as your `metadata` call, or leave it out in both. |
 | `focus_guard`, `focus_ids`, `identity_labels`, `identity_container` | | | Focus guard. See [Plugin Helpers](plugin_helpers.md#3-guarding-against-fast-scrolls-and-container-moves). |
@@ -76,6 +77,9 @@ The first rule that matches wins:
 3. For a movie set: the share of movies in the set with a play count, from
    `VideoLibrary.GetMovieSetDetails`.
 4. Otherwise: 0.
+
+A fully watched TV show or season in a [rewatch](#rewatches) takes the pass's share
+instead of 100.
 
 An album skips these rules; see [Albums](#albums). So does any item when the call
 has `resolution_span`; see [Pictures](#pictures).
@@ -148,10 +152,11 @@ One list item in the helper container:
 |---|---|
 | `ListItem.PercentPlayed` | The value above, 0–100, set as the resume point: in seconds for a part-watched movie or episode with a runtime, or a part-heard album (see below), otherwise out of 100. |
 | `ListItem.Duration`, `ListItem.EndTimeResume` | A part-watched movie or episode with a runtime, or a part-heard album: its runtime, and the time it would end if resumed now, e.g. `22:30` (Kodi's own label, kept current). Empty or meaningless for anything else, so test `time_left` first. |
-| `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies. Empty when the item is watched. |
+| `ListItem.Property(unwatchedepisodes)` | `ListItem.Property(UnwatchedEpisodes)` of the focused item. For a set, the number of unwatched movies; in a [rewatch](#rewatches), the episodes left in the pass. Empty when the item is watched. |
 | `ListItem.Property(plays)` | A film or episode played twice or more: its play count, e.g. `3`. Empty below 2, and for every other type (an album's `ListItem.PlayCount` is its songs' average). |
 | `ListItem.Property(time_left)` | A part-watched movie or episode, or a part-heard album: the runtime left, rounded up to the minute, e.g. `1h 23m`, `1h` or `48m`. The units are the add-on's strings 32615 (`h`) and 32616 (`m`), so they follow Kodi's language; `next_runtime` and `epg_time_left` use them too. |
 | `ListItem.Property(next_episode)` | A TV show or season with unwatched episodes, started or not: the lowest unwatched episode outside the specials, e.g. `2x10` (`1x01` for a show not yet begun, `3x01` for a Season 3 not yet begun). Empty when only specials are left (see `next_special`). |
+| `ListItem.Property(rewatch)` | `true` for a fully watched TV show or season in a [rewatch](#rewatches): the value, `unwatchedepisodes`, `next_episode` and `next_runtime` are then the pass's. Empty otherwise. |
 | `ListItem.Property(next_special)` | `true` when the only unwatched episodes of a show or season are specials (season 0), or for the Specials season itself with any left: the next is then its lowest unwatched special, for a label such as *Special next*. Empty otherwise. |
 | `ListItem.Property(next_runtime)` | That episode's (or special's) library runtime, to the nearest minute, e.g. `43m`, `1h` or `1h 2m`. Empty when the library has no runtime for it (a duration only in its stream details isn't read). |
 | `ListItem.Property(new)` | `true` for a TV show or season with a `new_kind`; for an episode with no resume point and no play count that first aired within `new_days`; or for a film with neither, added within `new_days`; or for an album none of whose songs has played, added within `new_days`. |
@@ -179,15 +184,16 @@ for them too. The library calls they add, per focus:
 | Focused item | Calls | Which |
 |---|---|---|
 | Show or season with episodes left, started or not (a favourite's season and the Specials season too) | 1 to 2 | `GetEpisodes`; `GetTVShowDetails` for the show's TMDB id, only with a TMDB token and no `UniqueID(tmdb)` (a season has none: always, unless the URL passes `tmdb_id`) |
-| Fully watched show | 0 to 2 | `GetTVShowDetails` for its TMDB id, as above; `GetEpisodes` for the newest episode, only when TMDB's cached data has a last aired episode |
-| Fully watched season | 0 to 1 | `GetTVShowDetails` for its show's TMDB id, as above |
+| Fully watched show | 1 to 2 | `GetEpisodes` for its episodes outside the specials, before the bar moves ([rewatches](#rewatches)); `GetTVShowDetails` for its TMDB id, as above |
+| Fully watched season (the Specials season: no `GetEpisodes`) | 1 to 2 | The same, for the season's episodes and its show's TMDB id |
 | Unwatched film (no resume point, no play count) | 1 | `GetMovieDetails` (`dateadded`) |
 | Unwatched episode (no resume point, no play count) | 1 | `GetEpisodeDetails` (`firstaired`) |
 | Album none of whose songs has played | 1 | `GetAlbumDetails` (`dateadded`) |
 | Watched or part-watched film or episode, set, album with a song played, plugin item | 0 | |
 
-A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), and an
-album's one `GetSongs` call, both made before the bar moves.
+A movie set's value itself costs one `GetMovieSetDetails` call (rule 3 above), an
+album's one `GetSongs` call, and a fully watched show's or season's its `GetEpisodes`
+call, all made before the bar moves.
 
 To see the cost on your device, turn on *Troubleshooting → Enable extra debug logs*
 in the add-on's settings and look for `PluginHandlers → progressbar took … seconds`
@@ -247,13 +253,13 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   `new_episode` and `show_status` only for a fully watched show (some episodes
   watched, none left). *All seasons* has no TMDB entry of its own, so none. [Served](../service/serve.md#the-services-own-news),
   the bar is served again when the metadata serve's fetch of the same show, asked on
-  a thread of its own, lands with news. `new_episode` costs one `VideoLibrary.GetEpisodes`
-  call for the library's newest episode outside the specials (sorted `episode`,
-  descending, limit 1), and is set only when TMDB's is later: an episode missing
-  mid-run, or one TMDB numbers differently (TVDB order, episode groups), is no news.
-  TMDB's must also have aired within `new_days` (on or after the date `new_days`
-  before today), so an ended show's long-past last episode is no news either; the
-  call is skipped otherwise.
+  a thread of its own, lands with news. `new_episode` compares the library's newest
+  episode outside the specials, from the fully watched show's own `GetEpisodes` call
+  (see [Rewatches](#rewatches)), and is set only when TMDB's is later: an episode
+  missing mid-run, or one TMDB numbers differently (TVDB order, episode groups), is
+  no news. TMDB's must also have aired within `new_days` (on or after the date
+  `new_days` before today), so an ended show's long-past last episode is no news
+  either.
   A special (season 0) is left out, as `next_episode` leaves it out. The [metadata](metadata.md#tmdb-lookups)
   plugin fills the cache when called with `enrich_with_tmdb=true`. Until it has, all
   four are empty; once the next air date is past, `next_air` and `next_air_episode`
@@ -266,6 +272,26 @@ in the Kodi log: compare a show with episodes left with a watched movie.
   A show whose listing has no `UniqueID(tmdb)` (one scraped with TVDB as its
   default id) costs one `VideoLibrary.GetTVShowDetails` call to find its TMDB id, as
   the metadata plugin does.
+
+## Rewatches
+
+A fully watched TV show or season (every episode has a play count, specials too)
+whose episodes on the highest play count run unbroken from its first episode, with
+the rest below it, is being watched again: the run is the pass so far. Episodes are
+taken in season and episode order, specials left out, from one
+`VideoLibrary.GetEpisodes` call (`playcount`, `lastplayed`, `runtime`) made before the
+bar moves; the Specials season is never a rewatch and makes no call. Then:
+
+- the value is the run's share of the episodes, `unwatchedepisodes` the episodes left
+  in the pass, `next_episode` the first after the run and `next_runtime` its runtime,
+  and `rewatch` is `true` (the item's own *watched* labels are unchanged);
+- the pass is always the highest play count, so watching the first episode a third
+  time while the rest have two starts a fresh pass at 1 of N;
+- it ends once the run's latest play (`lastplayed`) is more than `rewatch_days` days
+  ago (default 90): the item is then simply fully watched again.
+
+The airing (`next_air` …) and a show's news are still served beside it; which row
+shows is the skin's choice. Nothing is ever written to the library.
 
 ## Focus guard
 
