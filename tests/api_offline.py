@@ -647,8 +647,9 @@ class TmdbTest(Base):
         for days in (0, 3):  # today's, or to come: fresh
             item = cached(days)
             self.assertEqual(transform.tmdb_to_canonical("tvshow", 1399), item)
-        self.cache.put("tmdb:tvshow:1399:en-US", {"properties": {}}, 7 * DAY)
-        transform.tmdb_to_canonical("tvshow", 1399)  # none: ended, or between seasons
+        for none in ({}, {"tmdb_next_air_date": ""}):  # ended, or between seasons
+            self.cache.put("tmdb:tvshow:1399:en-US", {"properties": none}, 7 * DAY)
+            transform.tmdb_to_canonical("tvshow", 1399)
         self.assertEqual(self.net.requests, [])
         yesterday = {"air_date": str(date.today() - timedelta(1))}
         lagging = json.loads(TMDB_TV) | {"next_episode_to_air": yesterday}
@@ -711,11 +712,11 @@ class TmdbTest(Base):
         started = self.aside_queue()
         metadata, bar = self.asker(), self.asker()
         self.net.answers = [TMDB_TV, TMDB_TV]
-        follow = "tvshow", 1399, None, None, bar
-        self.assertFalse(transform.tmdb_follow(*follow))  # none asked: none started
+        follow = "tvshow", 1399, None, None, False, True, None, bar  # the bar's read
+        self.assertEqual(transform.tmdb_lookup(*follow), ({}, False))  # none asked
         self.assertEqual((started, transform.ASIDES.asked), ([], {}))
         transform.tmdb_to_canonical("tvshow", 1399, aside=metadata)  # tmdb_art's
-        self.assertTrue(transform.tmdb_follow(*follow))  # joins it, art or not
+        self.assertEqual(transform.tmdb_lookup(*follow), ({}, True))  # joins it
         transform.ASIDES._drain()
         metadata.assert_called_once()
         bar.assert_called_once()  # 9010 served again as 9000 is
@@ -725,10 +726,15 @@ class TmdbTest(Base):
         transform.tmdb_to_canonical(
             "tvshow", 1399, append_artwork=False, aside=metadata
         )
-        self.assertTrue(transform.tmdb_follow(*follow))
+        self.assertTrue(transform.tmdb_lookup(*follow)[1])
         transform.ASIDES._drain()
         metadata.assert_not_called()
         bar.assert_called_once()  # told anyway: its masked wait is over
+        self.assertEqual(transform.ASIDES.followers, {})
+        # Its own read fresh (the art-less entry) while an art fetch runs: no follow
+        self.cache.put("tmdb:tvshow:1399:en-US", {"properties": {}}, -1)
+        transform.tmdb_to_canonical("tvshow", 1399, aside=metadata)
+        self.assertEqual(transform.tmdb_lookup(*follow)[1], False)
         self.assertEqual(transform.ASIDES.followers, {})
 
     def test_aside_workers_are_capped(self):

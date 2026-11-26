@@ -88,17 +88,19 @@ def tmdb_lookup(
     append_artwork: bool,
     cache_only: bool,
     aside: Asker | None,
+    follow: Asker | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """
     tmdb_to_canonical's item (the same arguments) and whether it was asked aside,
-    missing or stale: known as it asks, however soon that fetch ends.
+    missing or stale: known as it asks, however soon that fetch ends. Missing or
+    stale, follow joins another serve's fetch of it (art or not): True if it did.
     """
     if tmdb_id <= 0:
         log.debug(f"tmdb_to_canonical → invalid {tmdb_id=} for {kind=}")
         return {}, False
     if kind == "episode":  # no episode lookup: never the show's Title or Plot
         show, asked = tmdb_lookup(
-            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside
+            "tvshow", tmdb_id, None, language, append_artwork, cache_only, aside, follow
         )
         return {key: show[key] for key in EPISODE_KEYS if key in show}, asked
 
@@ -129,7 +131,13 @@ def tmdb_lookup(
             args = kind, tmdb_id, season_number, language, append_artwork
             # A copy: the caller changes the answer it is handed (metadata's trailers)
             ASIDES.ask(args, aside, deepcopy(full or payload or {}))
-        return full or payload or {}, bool(aside)
+            return full or payload or {}, True
+        # A fetch that ended since the read isn't joined: no re-serve, nothing to mask
+        joined = bool(follow) and any(
+            ASIDES.join((kind, tmdb_id, season_number, language, art), follow)
+            for art in (True, False)
+        )
+        return full or payload or {}, joined
 
     if cache_kind == "tvshow":  # a past airing waits for tomorrow's fetch (_cached)
         cache.put(f"{key}|asked", date.today().isoformat(), DAY)
@@ -173,32 +181,12 @@ def _cached(cache: ApiCacheHandler, key: str, kind: str) -> tuple[Any, bool]:
     payload, fresh = cache.get(key) or (None, False)
     if fresh and payload and kind == "tvshow":
         today = date.today().isoformat()  # YYYY-MM-DD: string order is time order
-        if payload["properties"].get("tmdb_next_air_date", today) < today:
+        if (
+            airing := payload["properties"].get("tmdb_next_air_date")
+        ) and airing < today:
             # Asked once a day: TMDb can name a past airing a day on, offline keeps it
             fresh = (cache.get(f"{key}|asked") or (None,))[0] == today
     return payload, fresh
-
-
-def tmdb_follow(
-    kind: str,
-    tmdb_id: int,
-    season_number: int | None,
-    language: str | None,
-    asker: Asker,
-) -> bool:
-    """
-    Follow a fetch another serve asked aside for an item (its art entry's, else its
-    art-less one's): the asker is told once it ends, news or not (Asides.join).
-
-    :param kind: TMDb logical kind, as tmdb_lookup's.
-    :param tmdb_id: TMDb numeric identifier.
-    :param season_number: A season's number; None for others.
-    :param language: The TMDb language override, as the asking serve passed it.
-    :param asker: The follower's re-serve.
-    :return: Whether a fetch was running or queued to follow.
-    """
-    key = kind, tmdb_id, season_number, language
-    return any(ASIDES.join((*key, art), asker) for art in (True, False))
 
 
 def creator_shows(person_id: str) -> list[dict[str, Any]]:
