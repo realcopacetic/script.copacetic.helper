@@ -86,7 +86,7 @@ def properties(kind: str, found: dict[str, Any], title: str) -> dict[str, str]:
     else:
         source = found["source"]
         values = {
-            "music_by": " / ".join(found["music_by"]),
+            "music_by": kind == "movie" and " / ".join(found["music_by"]),
             "based_on": source and based_on(title, source),
             "set_in": found["set_in"],
         }

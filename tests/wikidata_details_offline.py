@@ -196,6 +196,8 @@ class DetailsTest(WikidataCase):
                 "wikidata_set_in": "Arrakis",
             },
         )
+        # films only: the TV details grid has no Music by cell
+        self.assertNotIn("wikidata_music_by", wd.properties("tvshow", found, "Dune"))
         # a title other than the work's names it, case and punctuation aside
         self.assertEqual(
             wd.properties("movie", found, "Dune: Part One")["wikidata_based_on"],
