@@ -1,6 +1,7 @@
 # author: realcopacetic
 
 from copy import deepcopy
+from datetime import date
 from typing import Any, Mapping
 
 from xbmcgui import Window
@@ -114,11 +115,11 @@ def tmdb_lookup(
     key = f"tmdb:{cache_kind}:{tmdb_id}:{language_key}"
     full = None
     if not append_artwork:
-        full, fresh = cache.get(key) or (None, False)
+        full, fresh = _cached(cache, key, cache_kind)
         if full and fresh:  # the art-bearing entry is a superset
             return full, False
         key += "|noart"
-    payload, fresh = cache.get(key) or (None, False)
+    payload, fresh = _cached(cache, key, cache_kind)
     if fresh:
         return payload or full or {}, False
     # Both stale: the art entry, which the metadata serve renews with TMDb multiart on
@@ -130,6 +131,8 @@ def tmdb_lookup(
             ASIDES.ask(args, aside, deepcopy(full or payload or {}))
         return full or payload or {}, bool(aside)
 
+    if cache_kind == "tvshow":  # a past airing waits for tomorrow's fetch (_cached)
+        cache.put(f"{key}|asked", date.today().isoformat(), DAY)
     try:
         raw = fetch_tmdb_fields(
             client,
@@ -155,6 +158,25 @@ def tmdb_lookup(
     item = _build_tmdb_canonical_item(raw=raw, language=language_key)
     cache.put(key, item, TTL_HIT)
     return item, False
+
+
+def _cached(cache: ApiCacheHandler, key: str, kind: str) -> tuple[Any, bool]:
+    """
+    A cached item and whether it is fresh: a show's is stale too once its next airing
+    is past (decision 11A), however young, until a fetch has asked TMDb today.
+
+    :param cache: The API cache.
+    :param key: The item's key.
+    :param kind: Its cache kind: "tvshow" for a show.
+    :return: (item, fresh); (None, False) when absent, item None for a negative entry.
+    """
+    payload, fresh = cache.get(key) or (None, False)
+    if fresh and payload and kind == "tvshow":
+        today = date.today().isoformat()  # YYYY-MM-DD: string order is time order
+        if payload["properties"].get("tmdb_next_air_date", today) < today:
+            # Asked once a day: TMDb can name a past airing a day on, offline keeps it
+            fresh = (cache.get(f"{key}|asked") or (None,))[0] == today
+    return payload, fresh
 
 
 def creator_shows(person_id: str) -> list[dict[str, Any]]:
