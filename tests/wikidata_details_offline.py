@@ -114,6 +114,7 @@ class WikidataCase(unittest.TestCase):
 
     def answer(self, url, params=None, headers=None, timeout=5, body=None):
         self.assertEqual(url, wikidata.API)  # by the wiki's API: never a query
+        self.assertEqual(timeout, wikidata.API_TIMEOUT)
         if self.refuse:
             raise self.refuse
         if params["action"] == "query":

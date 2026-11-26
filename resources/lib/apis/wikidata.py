@@ -24,6 +24,7 @@ SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary/"
 NEXT_CALL = "copacetic.wikidata_next"  # home property: epoch of the next free slot
 TTL_HIT, TTL_EMPTY = 30 * DAY, 7 * DAY
 TIMEOUT = 15  # seconds: a longer request would hold Kodi's exit, which waits for it
+API_TIMEOUT = 6  # the wiki's API answers in well under a second: Kodi's exit waits less
 ENTITY = "http://www.wikidata.org/entity/"
 PAINTER = "Q1028181"  # occupation (P106) the artist search asks for
 PAINTING = "Q3305213"  # instance of (P31) an artist's paintings count
@@ -455,7 +456,7 @@ def having(prop: str, value: str) -> list[str] | None:
                 "srprop": "",
                 "format": "json",
             },
-            timeout=TIMEOUT,
+            timeout=API_TIMEOUT,
         )
         return [hit["title"] for hit in answer["query"]["search"]]
 
@@ -506,7 +507,7 @@ def _entities(kind: str, qids: list[str], props: str) -> dict[str, dict] | None:
                 "props": props,
                 "format": "json",
             },
-            timeout=TIMEOUT,
+            timeout=API_TIMEOUT,
         )
         found = answer["entities"]
         return {qid: _shape(found.get(qid, {})) for qid in qids}
