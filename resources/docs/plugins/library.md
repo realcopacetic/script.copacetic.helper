@@ -644,8 +644,9 @@ names ("Motion Picture", "Film" or "Movie" for a movie; "Television", "TV", "Ser
 "Season", "HBO", "Netflix" or "Channel" for a show), then to the one nearest its first release year. The year is the album's
 original date when the tags have one, so a reissue still finds its movie. With only
 one candidate the year is never checked. With the `wikidata` setting on, before the
-year, the album goes to the one whose composers (P86) include its album artist, by
-MusicBrainz id (*Dune* 1984 and 2021).
+year, the album goes to the one Wikidata links it to (below), else the one whose
+composers (P86) include its album artist, by MusicBrainz id (*Dune* 1984 and 2021),
+so a movie's list and the album's own agree.
 
 **Wikidata's links.** With the `wikidata` setting on, an album also counts when
 Wikidata links it to the movie or show, whatever its tags or title say: the movie's

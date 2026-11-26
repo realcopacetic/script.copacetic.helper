@@ -28,6 +28,9 @@ def row(title, year, originaltitle=""):
     return {"title": title, "originaltitle": originaltitle, "year": year}
 
 
+UNRANKED = lambda fit: (False, False)  # no Wikidata ties: title and year alone
+
+
 class Claims(unittest.TestCase):
     def assertNames(self, album, title):
         self.assertIn(title_key(title), claim(album).keys, album)
@@ -146,6 +149,7 @@ class Owners(unittest.TestCase):
             claim("28 Days Later: The Soundtrack Album"),
             release_year(reissue),
             [("movie", row("28 Days Later", 2002))],
+            UNRANKED,
         )
         self.assertEqual(found[1]["title"], "28 Days Later")
 
@@ -162,35 +166,34 @@ class Owners(unittest.TestCase):
             ("movie", row("The Lion King", 2019)),
         ]
         album = claim("The Lion King (Original Motion Picture Soundtrack)")
-        self.assertEqual(owner(album, 1994, kings)[1]["year"], 1994)
-        self.assertEqual(owner(album, 2019, kings)[1]["year"], 2019)
+        self.assertEqual(owner(album, 1994, kings, UNRANKED)[1]["year"], 1994)
+        self.assertEqual(owner(album, 2019, kings, UNRANKED)[1]["year"], 2019)
+
+    def test_id_link_then_composer_then_year(self):
+        dunes = [("movie", row("Dune", 1984)), ("movie", row("Dune", 2021))]
+        album = claim("Dune (Original Motion Picture Soundtrack)")
+        ties = {1984: (True, False), 2021: (False, True)}
+        rank = lambda fit: ties[fit[1]["year"]]
+        self.assertEqual(owner(album, 2021, dunes, rank)[1]["year"], 1984)  # linked
+        ties[1984] = (False, False)
+        self.assertEqual(owner(album, 1984, dunes, rank)[1]["year"], 2021)  # scored
+        ties[2021] = (False, False)
+        self.assertEqual(owner(album, 1984, dunes, rank)[1]["year"], 1984)  # nearest
 
     def test_wording_picks_film_or_show(self):
         both = [("movie", row("Watchmen", 2009)), ("tvshow", row("Watchmen", 2019))]
-        self.assertEqual(
-            owner(claim("Watchmen: Volume 1: Music From the HBO Series"), 2019, both)[
-                0
-            ],
-            "tvshow",
-        )
-        self.assertEqual(
-            owner(claim("Watchmen (Original Motion Picture Score)"), 2009, both)[0],
-            "movie",
-        )
+        hbo = claim("Watchmen: Volume 1: Music From the HBO Series")
+        self.assertEqual(owner(hbo, 2019, both, UNRANKED)[0], "tvshow")
+        score = claim("Watchmen (Original Motion Picture Score)")
+        self.assertEqual(owner(score, 2009, both, UNRANKED)[0], "movie")
         # wording for a kind the library lacks still matches the other
         film = [("movie", row("Watchmen", 2009))]
-        self.assertEqual(
-            owner(claim("Watchmen: Volume 1: Music From the HBO Series"), 2019, film)[
-                0
-            ],
-            "movie",
-        )
+        self.assertEqual(owner(hbo, 2019, film, UNRANKED)[0], "movie")
 
     def test_original_title(self):
         film = [("movie", row("Spirited Away", 2001, "Sen to Chihiro no Kamikakushi"))]
-        self.assertIsNotNone(
-            owner(claim("Sen to Chihiro no Kamikakushi: Soundtrack"), 2001, film)
-        )
+        album = claim("Sen to Chihiro no Kamikakushi: Soundtrack")
+        self.assertIsNotNone(owner(album, 2001, film, UNRANKED))
 
     def test_no_match(self):
         self.assertIsNone(
@@ -198,6 +201,7 @@ class Owners(unittest.TestCase):
                 claim("Batman: Arkham Asylum: Original Video Game Score"),
                 2013,
                 [("movie", row("Batman", 1989))],
+                UNRANKED,
             )
         )
 
@@ -206,7 +210,7 @@ class Owners(unittest.TestCase):
         self.assertEqual(lead(album), "Mission")
         self.assertEqual(lead("(500) Days of Summer (Soundtrack)"), "(500")
         film = [("movie", row("Mission: Impossible - Fallout", 2018))]
-        self.assertIsNotNone(owner(claim(album), 2018, film))
+        self.assertIsNotNone(owner(claim(album), 2018, film, UNRANKED))
 
 
 if __name__ == "__main__":
