@@ -276,18 +276,18 @@ def video_key(type: str, uniqueid: dict[str, str]) -> tuple[str, ...] | None:
     return (type, *ids) if any(ids) else None
 
 
-def linked(key: tuple[str, ...] | None, field: str) -> list:
+def linked(key: tuple[str, ...] | None) -> dict[str, Any]:
     """
-    One of an item's details as kept, while the setting is on: never asked, as a
-    plugin call holds one of Kodi's three directory workers (the served call asks).
+    An item's details as kept, while the setting is on, for their links (soundtracks,
+    composers, films): never asked, as a plugin call holds one of Kodi's three
+    directory workers (the served call asks).
 
     :param key: As kept takes it; None for an item with no id.
-    :param field: soundtracks, composers or films.
-    :return: Its values; none when off, not kept, or for no item.
+    :return: The details; {} when off, not kept, or for no item.
     """
     if not (key and wanted()):
-        return []
-    return (kept(key)[0] or {}).get(field, [])
+        return {}
+    return kept(key)[0] or {}
 
 
 # Details looked up for served calls, one request at a time as the queue asks; before
