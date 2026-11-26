@@ -9,6 +9,7 @@ import time
 from collections import Counter
 from datetime import datetime, timedelta
 from functools import cached_property
+from itertools import takewhile
 from operator import itemgetter
 from threading import Lock
 from typing import Any, Callable, Collection, Iterable, Mapping, NamedTuple
@@ -630,6 +631,55 @@ def album_progress(album_id: int, days: int, *fields: str) -> AlbumProgress:
         return AlbumProgress(0, total, "unplayed", {}, 0, songs)
     state = "played" if len(played) == len(songs) else ""
     return AlbumProgress(0, total, state, {}, 0, songs)
+
+
+class ShowItem(NamedTuple):
+    """
+    A library show or season on the bar: its own id, its show's (0 for a plugin's
+    item), its season (None for a show or "* All seasons") and episode counts.
+    """
+
+    dbtype: str
+    dbid: int
+    show_id: int
+    season: int | None
+    watched: int
+    started: bool  # an episode watched or part-watched
+    left: int
+
+    @property
+    def done(self) -> bool:
+        """Whether every episode is watched, specials too."""
+        return bool(self.watched) and not self.left
+
+    @property
+    def scope(self) -> dict[str, int]:
+        """Its GetEpisodes params: GetEpisodes rejects season -1 (* All seasons)."""
+        return {"tvshowid": self.show_id} | (
+            {} if self.season is None else {"season": self.season}
+        )
+
+
+class Rewatch(NamedTuple):
+    """A rewatch's pass: its share played, the episodes left in it, the next one."""
+
+    percent: float
+    left: int
+    next: dict
+
+
+def rewatch_pass(episodes: list[dict]) -> int:
+    """
+    How far a rewatch has got: the episodes on the highest play count, when they run
+    unbroken from the first and some are below it (decision 15A); 0 for none.
+
+    :param episodes: A watched show's or season's episodes in order, specials out.
+    :return: The run's length; 0 when it is no rewatch.
+    """
+    counts = [ep["playcount"] for ep in episodes]
+    top = max(counts, default=0)
+    run = sum(1 for _ in takewhile(top.__eq__, counts))
+    return run if run == counts.count(top) < len(counts) else 0
 
 
 class ProgressBarManager:

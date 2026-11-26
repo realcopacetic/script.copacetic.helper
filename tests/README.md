@@ -23,7 +23,7 @@ python tests/skin_reach.py ../skin.copacetic2 [--json reach.json] [--list]
 # Artwork prepare + compose on synthetic posters: label rects, element step, colour, band alpha and ratio, palette PNG transparency, measure version, RGB PNG tRNS resize, timings (needs Pillow; reads the skin's fonts)
 python tests/artwork_check.py ../skin.copacetic2
 
-# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, LRCLIB, the top_songs/discography blend, music info's popularity words, TMDB and creator_credits, metadata's tagline_quotes) against recorded answers, no network
+# Web API layer (http, api_cache, ListenBrainz, Deezer, TheIntroDB, LRCLIB, the top_songs/discography blend, music info's popularity words, TMDB (a show's entry stale past its airing, once a day) and creator_credits, metadata's tagline_quotes) against recorded answers, no network; and info=progressbar's context values with JSON-RPC stubbed: a show's or season's next episode, a special next, new_kind, the airing and aired rows, a rewatch's pass and its end after rewatch_days
 python tests/api_offline.py
 
 # The artwork serve (plugin/handlers.py artwork()) with Kodi's reads stubbed: the logo
