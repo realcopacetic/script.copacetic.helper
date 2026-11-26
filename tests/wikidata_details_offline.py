@@ -110,6 +110,14 @@ class TenWide:
         return 10 * len(text)
 
 
+class Capitals:
+    """A font whose capitals are 20 wide, other characters 10."""
+
+    @staticmethod
+    def getlength(text):
+        return sum(20 if ch.isupper() else 10 for ch in text)
+
+
 class WikidataCase(unittest.TestCase):
     """Wikidata answers from the fixture; each request is in self.asked."""
 
@@ -608,9 +616,63 @@ class ServeTest(WikidataCase):
             self.assertEqual(one["wikidata_based_on"], "the novel by Mick Herron")
             self.assertNotIn("wikidata_story_rows", one)
             self.assertEqual(served("533")["wikidata_story_rows"], "2")
+            # no width: as served, uncut
+            for width in ("0", ""):
+                served_ = served(width)
+                self.assertEqual(
+                    served_["wikidata_based_on"], "the novel by Mick Herron"
+                )
+                self.assertNotIn("wikidata_story_rows", served_)
         with mock.patch.object(handlers, "skin_metric", lambda name: None):
             self.assertNotIn("wikidata_story_rows", served("533"))  # no such font
         self.assertNotIn("wikidata_story_rows", self.served("tvshow", None))
+
+    def test_the_chip_width(self):
+        params = {"info": "metadata", "target": "item", "type": "movie", "id": "4"}
+        params |= {"story_chip_font": "meta", "story_chip_padding": "12"}
+        width = lambda **more: handlers.PluginHandlers(
+            params | more, again=None
+        )._chip_width("story_chip_")
+        with mock.patch.object(handlers, "skin_metric", lambda name: Capitals):
+            self.assertEqual(width()("Paris"), 60 + 24)  # as written: upper off
+            self.assertEqual(width(story_chip_upper="true")("Paris"), 100 + 24)
+            self.assertEqual(
+                width(story_chip_upper="true", story_chip_max="100")("Paris"), 100
+            )
+        with mock.patch.object(handlers, "skin_metric", lambda name: None):
+            self.assertIsNone(width())  # no such font
+
+    def test_created_by_while_tmdb_is_asked(self):
+        # a show's first serve, TMDb asked aside: Writer is empty, Wikidata's stand
+        # in; TMDb's landing serves again with its creators (the skin's grid dips)
+        self.entities |= CREATED
+        wd.details(("tvshow", "920", ""), ALIVE)
+        self.labels["ListItem.UniqueID(tmdb)"] = "920"
+        for target, name, value in (
+            (sys.modules["xbmc"], "executeJSONRPC", lambda request: "{}"),
+            (handlers, "set_items", lambda items, **kwargs: items),
+            (helpers, "infolabel", lambda path: ""),
+        ):
+            patcher = mock.patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = {"enrich_with_tmdb": "true", "wikidata": "true"}
+        handler.item, handler.dbid, handler.dialog = False, "7", False
+        handler.dbtype, handler.target_item, handler.again = "tvshow", "ListItem", None
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        handler._apply_truncated_label = lambda *args, **kwargs: None
+        handler._get_tmdb_item = lambda **kwargs: ({}, True)
+        (item,) = handler.metadata()
+        self.assertEqual(item["properties"]["tmdb_pending"], "true")
+        self.assertEqual(
+            item["properties"]["wikidata_created_by"], "Jane Doe / John Roe"
+        )
+        landed = {"Writers": ["Will Smith"], "properties": {}}
+        handler._get_tmdb_item = lambda **kwargs: (landed, False)
+        (item,) = handler.metadata()
+        self.assertEqual(item["Writers"], ["Will Smith"])
+        self.assertNotIn("wikidata_created_by", item["properties"])
 
 
 class StoryTest(unittest.TestCase):
@@ -640,6 +702,13 @@ class StoryTest(unittest.TestCase):
         self.assertEqual(
             self.fit("the novel by Mick Herron", "", 300),
             {"wikidata_based_on": "the novel by Mick..."},
+        )
+
+    def test_the_words_are_never_cut(self):
+        # 30 left after "Based on " (90): the source alone ends, never the words
+        self.assertEqual(
+            self.fit("the novel by Mick Herron", "", 120),
+            {"wikidata_based_on": "..."},
         )
 
 

@@ -122,12 +122,11 @@ def fit_story(
     :return: wikidata_based_on, and wikidata_story_rows for two rows.
     """
     prefix = f"{words[0]} "
-    line = fit_lines(text, prefix + based, width, 1, sentences=False)[0]
-    fitted = {"wikidata_based_on": line.removeprefix(prefix)}
-    if place and (
-        text.getlength(line) + gap + text.getlength(words[1]) + gap + chip(place)
-        > width
-    ):
+    room = width - text.getlength(prefix)  # the words are never cut
+    cut = fit_lines(text, based, room, 1, sentences=False)[0]
+    fitted = {"wikidata_based_on": cut}
+    pieces = prefix + cut, words[1]
+    if place and sum(map(text.getlength, pieces)) + chip(place) + 2 * gap > width:
         fitted["wikidata_story_rows"] = "2"
     return fitted
 
@@ -163,9 +162,8 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
     if not found:
         return {}
     qid, claims = found
-    composers, sources, places, creators = (
-        claims.get(p, []) for p in ("P86", "P144", "P840", "P170")
-    )
+    composers, sources, places = (claims.get(p, []) for p in ("P86", "P144", "P840"))
+    creators = claims.get("P170", []) if kind == "tvshow" else []  # only shows serve
     albums = _once(claims.get("P406", []), ask(wikidata.having, "P9899", qid))
     linked = ask(wikidata.items, [*composers, *sources, *albums])
     source = next(

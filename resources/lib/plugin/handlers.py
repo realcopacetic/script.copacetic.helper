@@ -1341,32 +1341,33 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :param based: wikidata_based_on.
         :param place: wikidata_set_in; "" for none.
-        :return: The fitted properties; none for an unknown font.
+        :return: The fitted properties; none for an unknown font or no width.
         """
         from resources.lib.shared.wikidata_details import fit_story
 
-        text, chip = (
-            skin_metric(self.params.get(f"story_{font}", ""))
-            for font in ("font", "chip_font")
-        )
-        if not (text and chip):
+        text = skin_metric(self.params.get("story_font", ""))
+        chip = self._chip_width("story_chip_")
+        if not (text and chip and (width := to_float(self.params.get("story_width")))):
             return {}
-        upper = parse_bool(self.params.get("story_chip_upper"))
-        padding = 2 * to_float(self.params.get("story_chip_padding"))
-        widest = to_float(self.params.get("story_chip_max"), math.inf)
-        return fit_story(
-            based,
-            place,
-            text,
-            lambda name: min(
-                chip.getlength(name.upper() if upper else name) + padding, widest
-            ),
-            (
-                self.params.get("story_based_on", ""),
-                self.params.get("story_set_in", ""),
-            ),
-            to_float(self.params.get("story_width")),
-            to_float(self.params.get("story_gap")),
+        words = tuple(self.params.get(f"story_{k}", "") for k in ("based_on", "set_in"))
+        gap = to_float(self.params.get("story_gap"))
+        return fit_story(based, place, text, chip, words, width, gap)
+
+    def _chip_width(self, prefix: str) -> Callable[[str], float] | None:
+        """
+        A chip's width as Kodi sizes a button to its text: {prefix}font's text (in
+        capitals with {prefix}upper), {prefix}padding each side, {prefix}max at most.
+
+        :param prefix: The params' prefix, e.g. "chip_" or "story_chip_".
+        :return: The width of a chip of a text; None for an unknown font.
+        """
+        if not (metric := skin_metric(self.params.get(f"{prefix}font", ""))):
+            return None
+        upper = parse_bool(self.params.get(f"{prefix}upper"))
+        padding = 2 * to_float(self.params.get(f"{prefix}padding"))
+        widest = to_float(self.params.get(f"{prefix}max"), math.inf)
+        return lambda chip: min(
+            metric.getlength(chip.upper() if upper else chip) + padding, widest
         )
 
     def _wikidata_key(self) -> tuple[str, ...] | None:
@@ -1739,16 +1740,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         chips = [fields[k] for k in ("medium", "genre", "collection", "dimensions")]
         chips = [*filter(None, chips)]
         if (row := to_int(self.params.get("chip_row"))) and (
-            metric := skin_metric(self.params.get("chip_font", ""))
+            width := self._chip_width("chip_")
         ):
-            upper = parse_bool(self.params.get("chip_upper"))
-            padding = 2 * to_float(self.params.get("chip_padding"))
-            widest = to_float(self.params.get("chip_max"), math.inf)
             chips = fit_chips(
                 chips,
-                lambda chip: min(
-                    metric.getlength(chip.upper() if upper else chip) + padding, widest
-                ),
+                width,
                 row,
                 to_float(self.params.get("chip_gap")),
             )
