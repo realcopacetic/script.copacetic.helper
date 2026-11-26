@@ -192,7 +192,9 @@ python tests/picture_bar_offline.py
 # artist page (info=art_artist, info=art_rail, the art_artist action): its fields,
 # kept answers served and stale ones asked aside, the setting tested before each
 # request, the first country's demonym, a death year alone, a refresh marking the page
-# stale, the rails, the Back history (Wikidata's and Wikipedia's answers stubbed
+# stale, the rails, the Back history. The search (info=art_search): kept verdicts in
+# marked folders only, ranked title, artist, details, file name, never a request
+# (Wikidata's and Wikipedia's answers stubbed
 # from tests/fixtures)
 python tests/art_details_offline.py
 

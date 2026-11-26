@@ -27,6 +27,8 @@ from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
     ADDON,
     ADDONDATA,
+    file_label,
+    fold,
     replace_file,
     window_property,
 )
@@ -321,6 +323,55 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
         return None
     log.debug(f"art_details → {qid} at {score} for {path}")
     return fields(name, artist, qid, work, text)
+
+
+def search(query: str) -> list[tuple[str, dict]]:
+    """
+    Kept verdicts of pictures in marked folders whose details, or file name, hold
+    every word of a query, best first; with no words, every match. Asks nothing.
+
+    :param query: The words to find.
+    :return: (path, fields) pairs; fields {} for a picture no painting matched.
+    """
+    words = [*filter(None, map(fold, query.split()))]
+    folders, movements = marked(), {}
+
+    def movement(qid: str) -> str:
+        """The artist's movements, from its kept page; "" with none kept."""
+        if qid not in movements:
+            page = wikidata.kept("painter", qid)[0] or {}
+            movements[qid] = " ".join(label for _, label in page.get("movement", []))
+        return movements[qid]
+
+    def rank(path: str, fields: dict) -> int | None:
+        """0 the title holds the words, 1 the artist, 2 the details, 3 the name."""
+        details = [fields.get(key) or "" for key in ("title", "artist", "collection")]
+        details += [*fields.get("depicts", []), movement(fields.get("artist_qid", ""))]
+        tiers = (details[:1], details[1:2], details, [file_label(path)])
+        for tier, texts in enumerate(tiers):
+            texts = [*map(fold, texts)]
+            if all(any(word in text for text in texts) for word in words):
+                return tier
+        return None
+
+    found = []
+    prefix = _key("")
+    for key, kept in ApiCacheHandler().starting(prefix):
+        path, fields = key.removeprefix(prefix), kept["fields"]
+        if not covers(folders, path) or (tier := rank(path, fields)) is None:
+            continue
+        if fields or words:  # no words: the matches alone
+            found.append((tier, path, fields))
+    found.sort(
+        key=lambda hit: (
+            hit[0],
+            not hit[2],  # matches before misses
+            fold(hit[2].get("artist", "")),
+            int(hit[2].get("year") or 0),
+            fold(hit[2].get("title") or file_label(hit[1])),
+        )
+    )
+    return [(path, fields) for _, path, fields in found]
 
 
 def forget(path: str) -> None:

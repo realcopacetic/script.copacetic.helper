@@ -1671,6 +1671,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             }
         return set_items([item])
 
+    def art_search(self) -> list[DirectoryItem]:
+        """
+        Pictures in marked folders for a search (query=): kept art details and file
+        names only, never a request. An item's path is its picture's: select shows it.
+
+        :return: The pictures, best first; none with the wikidata setting off.
+        """
+        from resources.lib.shared import art_details as art
+
+        if not ADDON.getSettingBool("wikidata"):
+            return []
+        return set_items(
+            {
+                "file": path,
+                "label": fields.get("title") or file_label(path),
+                "label2": fields.get("artist", ""),
+                "art": {"thumb": path},
+                "properties": self._art_properties(fields),
+            }
+            for path, fields in art.search(self.params.get("query", ""))
+        )
+
     def art_rail(self) -> list[DirectoryItem]:
         """
         An artist's rail from Wikidata (qid=, kind=gallery, similar or influenced),
