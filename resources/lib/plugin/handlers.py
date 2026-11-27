@@ -1158,14 +1158,14 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not self._require("art") or not self._info_on_top():
             return
 
-        urls = [
-            *build_multiart_dict(
+        urls = list(
+            build_multiart_dict(
                 target="ListItem",
                 multiart_type=self.params["art"],
                 max_items=self.params.get("multiart_max"),
                 tmdb_art={},
             ).values()
-        ]
+        )
         register = self.params.get("register")
         shown = infolabel(f"Control.GetLabel({register})") if register else ""
         start = urls.index(shown) if shown in urls else 0
