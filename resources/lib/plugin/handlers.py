@@ -1315,15 +1315,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             data["properties"]["tagline"] = data["TagLine"]
         if parse_bool(self.params.get("wikidata")):
             data["properties"] |= self._wikidata(data["Title"], data["Writers"])
-        # heading_font=: the lines (1 or 2) the tagline, else the title, takes as Kodi
-        # wraps it, so a skin can size what sits under it
-        if (
-            (width := to_float(self.params.get("heading_width")))
-            and (metric := skin_metric(self.params.get("heading_font", "")))
-            and (heading := plain_text(data["TagLine"] or data["Title"]))
-        ):
-            lines = fit_lines(metric, heading, width, 2, sentences=False)
-            data["properties"]["heading_lines"] = str(len(lines))
+        # The tagline, else the title, else the label: an artist has no title
+        heading = data["TagLine"] or data["Title"] or data["label"]
+        data["properties"] |= self._heading_lines(heading)
         # set_suffix=: a film's collection without that last word ("… Collection")
         if (suffix := self.params.get("set_suffix")) and (
             collection := infolabel(f"{target}.Set")
@@ -1379,14 +1373,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         properties = wd.properties(self.dbtype, found)
         if writers:  # Wikidata's creators stand in only for a show TMDb names none for
             properties.pop("wikidata_created_by", None)
-        # based_on_font=: the work it is based on cut to one line, at a word
-        if (
-            (based := properties.get("wikidata_based_on"))
-            and (room := to_float(self.params.get("based_on_width")))
-            and (text := skin_metric(self.params.get("based_on_font", "")))
-        ):
-            cut = fit_lines(text, based, room, 1, sentences=False)
-            properties["wikidata_based_on"] = cut[0]
+        if based := properties.get("wikidata_based_on"):
+            properties["wikidata_based_on"] = self._one_line(based)
         # story_width=: the story band's chips, fitted in the skin's chip font
         if (
             self.dbtype in ("movie", "tvshow")
@@ -1410,6 +1398,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 labels = (f"{self.target_item}.Property(artist_{d})" for d in dates)
                 date = next(filter(None, map(infolabel, labels)), "")
                 properties["wikidata_place"] = clipped(place, chips - len(date))
+            # The Biography tab's: a group's members, a person's memberships
+            line = "member_of" if person else "members"
+            properties |= self._bio("artist", found or {}, line)
         if not fresh and self.again:
             wd.ASIDES.ask(key, self.again, found)
             properties["wikidata_pending"] = "true"  # the skin can mask the re-serve
@@ -1439,17 +1430,81 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         film = self.dbtype == "movie"  # a show has no collection
         collection = infolabel(f"{self.target_item}.Set") if film else ""
         columns = wd.story_chips(found, title, year, collection)
-        gaps = (to_float(self.params.get(f"story_{k}")) for k in ("gap", "chip_gap"))
-        captions = {}
-        if (font := self.params.get("story_caption_font")) and (
-            metric := skin_metric(font)
+        return wd.fit_band(columns, chip, width, *self._band(wd.COLUMNS))
+
+    def _bio(self, kind: str, found: dict[str, Any], line: str) -> dict[str, str]:
+        """
+        With story_bio, a Biography tab's line, wikidata_{line} (its names cut to one
+        line as Based on is), and its band (wikidata_details.bio_band) fitted as the
+        story band is, in the story band's params.
+
+        :param kind: artist or painter, as wikidata_details.BIOS names the bands.
+        :param found: The details: the line's and each column's labels by key.
+        :param line: The line's key: members or member_of.
+        :return: The properties; none without story_bio.
+        """
+        from resources.lib.shared import wikidata_details as wd
+
+        if not parse_bool(self.params.get("story_bio")):
+            return {}
+        names = wd.joined(found.get(line, []))
+        properties = {f"wikidata_{line}": self._one_line(names)} if names else {}
+        if (width := to_float(self.params.get("story_width"))) and (
+            chip := self._chip_width("story_chip_")
         ):
-            captions = {
-                key: metric.getlength(text)
-                for key in wd.COLUMNS
-                if (text := self.params.get(f"story_caption_{key}"))
-            }
-        return wd.fit_band(columns, chip, width, tuple(gaps), captions)
+            gaps, captions = self._band(wd.BIOS[kind][0])
+            properties |= wd.bio_band(kind, found, chip, width, gaps, captions)
+        return properties
+
+    def _band(
+        self, columns: tuple[str, ...]
+    ) -> tuple[tuple[float, float], dict[str, float]]:
+        """
+        A band's gaps, story_gap between columns and story_chip_gap between chips,
+        and its columns' story_caption_{column} widths in story_caption_font.
+
+        :param columns: The band's columns' keys.
+        :return: The gaps, and each captioned column's caption width.
+        """
+        gaps = tuple(
+            to_float(self.params.get(f"story_{k}")) for k in ("gap", "chip_gap")
+        )
+        font = self.params.get("story_caption_font")
+        if not (font and (metric := skin_metric(font))):
+            return gaps, {}
+        return gaps, {
+            key: metric.getlength(text)
+            for key in columns
+            if (text := self.params.get(f"story_caption_{key}"))
+        }
+
+    def _one_line(self, text: str) -> str:
+        """
+        Text cut to one line at a word in based_on_font at based_on_width, as the
+        line under the Plot tab's text (Based on) draws it; as it is without both.
+        """
+        if (room := to_float(self.params.get("based_on_width"))) and (
+            metric := skin_metric(self.params.get("based_on_font", ""))
+        ):
+            return fit_lines(metric, text, room, 1, sentences=False)[0]
+        return text
+
+    def _heading_lines(self, heading: str) -> dict[str, str]:
+        """
+        heading_lines: the lines (1 or 2) a heading takes in heading_font at
+        heading_width as Kodi wraps it, so a skin can size what sits under it.
+
+        :param heading: The heading's text, as an infolabel returns it.
+        :return: The property; none without both params, or for no heading.
+        """
+        if (
+            (width := to_float(self.params.get("heading_width")))
+            and (metric := skin_metric(self.params.get("heading_font", "")))
+            and (text := plain_text(heading))
+        ):
+            lines = fit_lines(metric, text, width, 2, sentences=False)
+            return {"heading_lines": str(len(lines))}
+        return {}
 
     def _chip_width(self, prefix: str) -> Callable[[str], float] | None:
         """
@@ -2074,7 +2129,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def art_artist(self) -> list[DirectoryItem]:
         """
         An artist's page from Wikidata (qid=) as art_* properties, its portrait as
-        thumb: kept answers only, one missing or stale asked aside for a served call.
+        thumb, its Biography line and band (story_bio), heading_lines (heading_*):
+        kept answers only, one missing or stale asked aside (wikidata_pending).
 
         :return: One item, its properties empty until the answers land.
         """
@@ -2084,15 +2140,19 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (ADDON.getSettingBool("wikidata") and (qid := self.params.get("qid"))):
             return set_items([item])
         found, fresh = art.page("painter", qid)
-        if not fresh and self.again:
+        if asked := not fresh and self.again:
             art.PAGES.ask(("painter", qid), self.again, found)
         if found:
             fields = art.artist_fields(found)
             item |= {
                 "label": fields["name"],
                 "art": {"thumb": fields.pop("portrait")},
-                "properties": {f"art_{key}": value for key, value in fields.items()},
+                "properties": {f"art_{key}": value for key, value in fields.items()}
+                | self._bio("painter", art.artist_bio(found), "member_of")
+                | self._heading_lines(fields["name"]),
             }
+            if asked and parse_bool(self.params.get("story_bio")):
+                item["properties"]["wikidata_pending"] = "true"  # the skin masks it
         return set_items([item])
 
     def art_search(self) -> list[DirectoryItem]:

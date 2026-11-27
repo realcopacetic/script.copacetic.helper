@@ -36,8 +36,20 @@ LANGUAGES = ", ".join(
 )
 SEPARATOR = "\t"  # between a work's labels in one answer row: never in a label
 _ITEMS = ("material", "genre", "collection", "depicts")  # kinds whose values are items
-# An artist's kinds whose values are items, kept as [qid, English label]
-_PEOPLE = ("birthplace", "deathplace", "occupation", "teacher", "movement", "influence")
+# An artist's kinds whose values are items, kept as [qid, English label]: the page's,
+# then its Biography line's and band's (memberships, notable works, genres, work places)
+_PEOPLE = (
+    "birthplace",
+    "deathplace",
+    "occupation",
+    "teacher",
+    "movement",
+    "influence",
+    "member",
+    "notable",
+    "genre",
+    "workplace",
+)
 # Kept as [ISO time, precision, calendar]: 9 a year, 10 a month, 11 a day; the
 # calendar's Q-id (an answer kept before calendars has none: Gregorian)
 _DATES = ("born", "died")
@@ -111,6 +123,10 @@ WHERE {
     ?country wdt:P1549 ?value FILTER(LANG(?value) = "en")
     BIND(COALESCE(YEAR(?start), 0) AS ?since) BIND("nationality" AS ?kind) }
   UNION { ?artist wdt:P737 ?value BIND("influence" AS ?kind) }
+  UNION { ?artist wdt:P463 ?value BIND("member" AS ?kind) }
+  UNION { ?artist wdt:P800 ?value BIND("notable" AS ?kind) }
+  UNION { ?artist wdt:P136 ?value BIND("genre" AS ?kind) }
+  UNION { ?artist wdt:P937 ?value BIND("workplace" AS ?kind) }
   UNION { ?artist wdt:P18 ?value BIND("portrait" AS ?kind) }
   UNION { SELECT ("paintings" AS ?kind) (COUNT(DISTINCT ?work) AS ?value) WHERE {
     ?work wdt:P170 wd:%(qid)s; wdt:P31 wd:%(painting)s } }
@@ -163,8 +179,8 @@ BATCH = 50  # the most ids wbgetentities answers in one request
 # The statements an item is kept with: the details' (wikidata_details.py) and the
 # external ids that lead back to the library
 CLAIMS = frozenset(
-    "P19 P31 P50 P86 P136 P144 P162 P170 P264 P345 P406 P434 P436 P740 P840 P921 "
-    "P1303 P1434 P2408 P4947 P4983 P7937 P8345 P9899".split()
+    "P19 P31 P50 P86 P136 P144 P162 P166 P170 P264 P345 P406 P434 P436 P463 P527 "
+    "P737 P740 P840 P921 P1303 P1434 P2408 P4947 P4983 P7937 P8345 P9899".split()
 )
 YEARS = 35  # the most a similar painter's birth year is from the artist's
 PAINTINGS = 5  # the fewest paintings a similar painter has on Wikidata
@@ -336,9 +352,9 @@ def painting(qid: str) -> dict[str, Any] | None:
 
 def artist(qid: str) -> dict[str, list] | None:
     """
-    An artist's page: name, birth and death (dates and places), occupations,
-    teachers, movements, nationality, influences, portrait, paintings, article.
-    An item with no English label, and an unknown value, is left out.
+    An artist's page: name, birth and death, occupations, teachers, movements,
+    nationality, influences, memberships, notable works, genres, work places,
+    portrait, paintings, article. An unlabelled item or unknown value is left out.
 
     :param qid: The artist's Q-id.
     :return: Lists of values by kind; None if not asked.

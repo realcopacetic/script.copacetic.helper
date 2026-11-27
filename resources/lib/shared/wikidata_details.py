@@ -4,8 +4,9 @@
 Wikidata details for library films, TV shows, artists and albums, found by their
 TMDb, IMDb and MusicBrainz ids alone (no id, no look-up): a film's composers, the
 written work it is based on, where and when it is set, what it is about and its
-universe; a show's creators; an artist's labels, place and instruments; an album's
-producers; the soundtrack albums and films they link. Kept per item.
+universe; a show's creators; an artist's labels, place, instruments, members,
+memberships, awards and influences; an album's producers; the soundtrack albums and
+films they link. Kept per item. Also the story band's and the Biography bands' fitting.
 """
 
 import re
@@ -72,6 +73,24 @@ DROPS = (
     ("places", 1),
     ("period", 0),
 )
+BIO = 2  # a Biography band column's chips at most
+LISTED = 6  # an artist's members or memberships labelled for its Biography line
+# A Biography line's and band's statements on an artist's item, and the labels asked
+ARTIST_BIO = {
+    "members": ("P527", LISTED),
+    "member_of": ("P463", LISTED),
+    "awards": ("P166", BIO),
+    "influences": ("P737", BIO),
+}
+# The Biography tabs' bands by kind: their columns as drawn, then their cuts in turn
+# while one overflows, as the story band's (the last column first, then the chips)
+BIOS = {
+    "artist": (("awards", "influences"), (("influences", 0), ("awards", 1))),
+    "painter": (
+        ("known_for", "genre", "worked_in"),
+        (("worked_in", 0), ("genre", 1), ("genre", 0), ("known_for", 1)),
+    ),
+}
 
 
 class Unanswered(Exception):
@@ -157,23 +176,37 @@ def story_chips(
     return columns | {"part_of": [collection] if collection and one else []}
 
 
+def _rows(columns: dict[str, list[str]]) -> dict[str, list[str]]:
+    """The story band's columns as drawn: Set in holds the places, then the period."""
+    return {
+        "set_in": columns["places"] + columns["period"],
+        "about": columns["about"],
+        "universe": columns["universe"],
+        "part_of": columns["part_of"],
+    }
+
+
 def fit_band(
     columns: dict[str, list[str]],
     chip: Callable[[str], float],
     width: float,
     gaps: tuple[float, float],
     captions: dict[str, float],
+    drops: tuple[tuple[str, int], ...] = DROPS,
+    rows: Callable[[dict], dict[str, list[str]]] = _rows,
 ) -> dict[str, str]:
     """
-    The story band fitted to its width, cut in DROPS' turn while it overflows, as
-    wikidata_{column}_{n}: set_in (places, then period), about, universe, part_of. A
+    A band fitted to its width, cut in drops' turn while it overflows, as
+    wikidata_{column}_{n} of the columns rows draws (the story band's by default). A
     column takes its chips' width, or its caption's if wider ({column}_caption_wide).
 
-    :param columns: story_chips' columns.
+    :param columns: Each column's chips, as the drops cut them (story_chips').
     :param chip: A chip's width.
     :param width: The band's width.
     :param gaps: The gap between two columns, and between two chips of a column.
     :param captions: Each drawn column's caption width, by its key; none for none.
+    :param drops: The cuts in turn, each a column to so many chips.
+    :param rows: The columns as drawn, by their keys.
     :return: The properties.
     """
     gap, chip_gap = gaps
@@ -181,36 +214,61 @@ def fit_band(
     def chips(row: list[str]) -> float:
         return sum(map(chip, row)) + chip_gap * (len(row) - 1)
 
-    for key, keep in DROPS:
+    for key, keep in drops:
         drawn = [
             max(captions.get(name, 0), chips(row))
-            for name, row in _rows(columns).items()
+            for name, row in rows(columns).items()
             if row
         ]
         if sum(drawn) + gap * (len(drawn) - 1) <= width:
             break
         columns = columns | {key: columns[key][:keep]}
-    rows = _rows(columns)
+    fitted = rows(columns)
     wide = {
         f"wikidata_{key}_caption_wide": "true"
-        for key, row in rows.items()
+        for key, row in fitted.items()
         if row and captions.get(key, 0) > chips(row)
     }
     return wide | {
         f"wikidata_{key}_{n}": name
-        for key, row in rows.items()
+        for key, row in fitted.items()
         for n, name in enumerate(row, 1)
     }
 
 
-def _rows(columns: dict[str, list[str]]) -> dict[str, list[str]]:
-    """The band's columns as drawn: Set in holds the places, then the period."""
-    return {
-        "set_in": columns["places"] + columns["period"],
-        "about": columns["about"],
-        "universe": columns["universe"],
-        "part_of": columns["part_of"],
-    }
+def bio_band(
+    kind: str,
+    found: dict[str, Any],
+    chip: Callable[[str], float],
+    width: float,
+    gaps: tuple[float, float],
+    captions: dict[str, float],
+) -> dict[str, str]:
+    """
+    A Biography tab's band (BIOS' kind), fitted as the story band is: BIO chips a
+    column at most, the columns drawn as they are.
+
+    :param kind: artist or painter.
+    :param found: The details: each column's labels by its key; none for none.
+    :param chip: A chip's width.
+    :param width: The band's width.
+    :param gaps: The gap between two columns, and between two chips of a column.
+    :param captions: Each drawn column's caption width, by its key; none for none.
+    :return: The band's wikidata_{column}_{n} and _caption_wide properties.
+    """
+    keys, drops = BIOS[kind]
+    columns = {key: found.get(key, [])[:BIO] for key in keys}
+    return fit_band(columns, chip, width, gaps, captions, drops, dict)
+
+
+def joined(names: list[str]) -> str:
+    """
+    Names as one line of text: "Royal Academy of Arts", "A and B", "A, B and C".
+
+    :param names: The names, in order.
+    :return: The text; "" for none.
+    """
+    return " and ".join(filter(None, (", ".join(names[:-1]), *names[-1:])))
 
 
 def _words(text: str, generic: frozenset[str] = frozenset()) -> str:
@@ -324,7 +382,8 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
 def _artist(ask: Callable, mbid: str) -> dict[str, Any]:
     """
     An artist's details: its labels and instruments (NAMES named, an instrument
-    capitalised), where it formed or was born.
+    capitalised), where it formed or was born, and its Biography line's and band's
+    labels (ARTIST_BIO: members, memberships, awards, influences).
     """
     if not (found := _item(ask, "P434", mbid)):
         return {}
@@ -332,8 +391,17 @@ def _artist(ask: Callable, mbid: str) -> dict[str, Any]:
     signed, played = claims.get("P264", []), claims.get("P1303", [])
     # A group's formation, else a person's birth
     place = (claims.get("P740") or claims.get("P19") or [""])[0]
+    bio = {
+        key: claims.get(prop, [])[:asked] for key, (prop, asked) in ARTIST_BIO.items()
+    }
     names = ask(
-        wikidata.labels, [*signed[:NAMES], *filter(None, [place]), *played[:NAMES]]
+        wikidata.labels,
+        [
+            *signed[:NAMES],
+            *filter(None, [place]),
+            *played[:NAMES],
+            *(qid for qids in bio.values() for qid in qids),
+        ],
     )
     shown = [*filter(None, map(names.get, signed[:NAMES]))]  # an unlabelled one counts
     instruments = [n[:1].upper() + n[1:] for q in played[:NAMES] if (n := names[q])]
@@ -343,6 +411,7 @@ def _artist(ask: Callable, mbid: str) -> dict[str, Any]:
         "place": names.get(place, ""),
         "instruments": instruments,
         "instruments_more": len(played) - len(instruments),
+        **{key: _labelled(names, qids) for key, qids in bio.items()},
     }
 
 

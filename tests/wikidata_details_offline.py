@@ -5,7 +5,8 @@ compilation_artists=true; the soundtracks listing's second pass): items found by
 TMDb, IMDb and MusicBrainz ids, never by a query; labels in English, else
 multilingual, else any language; Based on from written works only, cut to its line
 (based_on_*); the Plot tab's story band (story_*): places, period, subjects,
-universe and collection chosen, deduplicated and fitted; the heading's lines
+universe and collection chosen, deduplicated and fitted; an artist's Biography line
+and band (story_bio: members or memberships by type, awards, influences); the heading's lines
 (heading_*); a collection's short name (set_suffix); Music by; a show's creators
 where TMDb names none; an artist's labels (+N), place and instruments, and its years
 active (years_present); an album's producers; a compilation's track artists from the
@@ -70,6 +71,14 @@ FIXTURE = json.loads(
 ALIVE = lambda: True  # a look-up's live test that never stops it
 ZIMMER = "e6de1f3b-6484-491c-88dd-6d619f142abc"  # Hans Zimmer's MusicBrainz id
 DAFT_PUNK = "056e4f3e-d505-4dad-8ec1-d04f521cbb56"
+DAFT_PUNK_ITEM = "Q185828"
+# The Biography tab's properties: its line's and its band's columns'
+BIO_KEYS = (
+    "wikidata_members",
+    "wikidata_member_of",
+    "wikidata_awards_",
+    "wikidata_influences_",
+)
 DUNE = ("movie", "438631", "")  # Dune (2021) by its TMDb id
 SLOW_HORSES = ("tvshow", "95480", "tt5875444")
 
@@ -875,6 +884,126 @@ class ServeTest(WikidataCase):
             },
         )
 
+    def daft_punk_bio(self):
+        """Daft Punk's members and awards (real Q-ids, 25 Nov fetch; labels by hand)."""
+        self.entities[DAFT_PUNK_ITEM]["claims"] |= item(
+            "Q",
+            "",
+            P527=["Q471656", "Q471650"],
+            P166=["Q1027880", "Q1542147", "Q904528", "Q3334536"],
+        )["claims"]
+        self.entities |= {
+            "Q471656": item("Q471656", "Guy-Manuel de Homem-Christo"),
+            "Q471650": item("Q471650", "Thomas Bangalter"),
+            "Q1027880": item("Q1027880", "Grammy Award for Album of the Year"),
+            "Q1542147": item("Q1542147", "Grammy Award for Record of the Year"),
+            "Q904528": item("Q904528", "Grammy Award for Best Dance/Electronic Album"),
+            "Q3334536": item("Q3334536", "Grammy Award for Best Pop Duo/Group"),
+        }
+
+    def test_the_biography_look_up(self):
+        # no request of its own: the members and the first two awards ride the
+        # labels request
+        self.daft_punk_bio()
+        found = wd.details(("artist", DAFT_PUNK), ALIVE)
+        self.assertEqual(
+            self.asked[-1],
+            "labels Q847971|Q203059|Q90|Q471656|Q471650|Q1027880|Q1542147",
+        )
+        self.assertEqual(
+            found["members"], ["Guy-Manuel de Homem-Christo", "Thomas Bangalter"]
+        )
+        self.assertEqual(
+            found["awards"],
+            [
+                "Grammy Award for Album of the Year",
+                "Grammy Award for Record of the Year",
+            ],
+        )
+        self.assertEqual((found["member_of"], found["influences"]), ([], []))
+        self.assertEqual(
+            wd.properties("artist", found).keys(), {"wikidata_labels", "wikidata_place"}
+        )
+
+    def bio(self, kind="", **params):
+        """The artist's Biography properties, with story_bio and the band's params."""
+        self.labels["ListItem.Property(artist_type)"] = kind
+        params = {
+            "story_bio": "true",
+            "story_chip_font": "meta",
+            "story_chip_gap": "15",
+            "story_chip_padding": "12",
+            "story_gap": "60",
+        } | params
+        served = self.served("artist", None, **params)
+        return {k: v for k, v in served.items() if k.startswith(BIO_KEYS)}
+
+    def test_the_biography_band(self):
+        self.daft_punk_bio()
+        wd.details(("artist", DAFT_PUNK), ALIVE)
+        with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+            # a group: its members on the line; two awards, 364 + 15 + 374 = 753
+            self.assertEqual(
+                self.bio(story_width="1480"),
+                {
+                    "wikidata_members": (
+                        "Guy-Manuel de Homem-Christo and Thomas Bangalter"
+                    ),
+                    "wikidata_awards_1": "Grammy Award for Album of the Year",
+                    "wikidata_awards_2": "Grammy Award for Record of the Year",
+                },
+            )
+            # trailing chips go: the awards to one; never the first
+            self.assertIn("wikidata_awards_2", self.bio(story_width="753"))
+            self.assertNotIn("wikidata_awards_2", self.bio(story_width="752"))
+            self.assertIn("wikidata_awards_1", self.bio(story_width="10"))
+            # the line cut to one line at a word, as Based on
+            line = self.bio(based_on_font="description_l", based_on_width="300")
+            self.assertEqual(line["wikidata_members"], "Guy-Manuel de Homem-Christo...")
+            # no band width: the line alone
+            self.assertEqual(self.bio().keys(), {"wikidata_members"})
+        # a person or character: its memberships (none here), never members
+        for kind in ("Person", "character"):
+            self.assertNotIn("wikidata_members", self.bio(kind))
+        # a group's memberships and a person's members aren't shown
+        self.entities |= {
+            "Q917": item(
+                "Q917",
+                "Singer",
+                P434=["m-917"],
+                P463=["Q918", "Q919", "Q924"],
+                P527=["Q471656"],
+                P737=["Q921", "Q922", "Q923"],
+            ),
+            "Q918": item("Q918", "N.E.R.D"),
+            "Q919": item("Q919", "The Neptunes"),
+            "Q924": item("Q924", "Club"),
+            "Q921": item("Q921", "Stevie Wonder"),
+            "Q922": item("Q922", ""),  # unlabelled: left out
+            "Q923": item("Q923", "Prince"),
+        }
+        wd.details(("artist", "m-917"), ALIVE)
+        self.assertEqual(self.asked[-1].split()[-1].count("Q923"), 0)  # BIO asked
+        with mock.patch.object(handlers, "artist_identity", lambda *a: ("", "m-917")):
+            with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+                self.assertEqual(
+                    self.bio("Person", story_width="1480"),
+                    {
+                        "wikidata_member_of": "N.E.R.D, The Neptunes and Club",
+                        "wikidata_influences_1": "Stevie Wonder",
+                    },
+                )
+                self.assertEqual(self.bio("Group").keys(), {"wikidata_members"})
+
+    def test_the_biography_band_is_opt_in(self):
+        # wikidata=true and the story band's params without story_bio: nothing new
+        self.daft_punk_bio()
+        wd.details(("artist", DAFT_PUNK), ALIVE)
+        with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+            self.assertEqual(self.bio(story_bio="", story_width="1480"), {})
+            served = self.served("artist", None)
+        self.assertEqual(served.keys(), {"wikidata_labels", "wikidata_place"})
+
     def test_the_chip_width(self):
         params = {"info": "metadata", "target": "item", "type": "movie", "id": "4"}
         params |= {"story_chip_font": "meta", "story_chip_padding": "12"}
@@ -1081,6 +1210,48 @@ class BandTest(unittest.TestCase):
         self.assertEqual(self.fit(10, part_of=["Set"]), {"wikidata_part_of_1": "Set"})
         self.assertEqual(self.fit(1480), {})
 
+    def test_the_biography_drop_order(self):
+        # a painter's band, BIO chips a column, no count: Known for 2 x 74 + 15,
+        # Genre 2 x 74 + 15, Worked in 74 + 15 + 104; columns 60 apart
+        chip = lambda name: 10 * len(name) + 24
+        found = {
+            "known_for": ["works", "seven", "third"],
+            "genre": ["genre", "style"],
+            "worked_in": ["Paris", "Mainland"],
+        }
+        bio = lambda width, captions={}: wd.bio_band(
+            "painter", found, chip, width, (60, 15), captions
+        )
+        full = 163 + 60 + 163 + 60 + 193
+        self.assertEqual(len(bio(full)), 6)
+        self.assertNotIn("wikidata_known_for_3", bio(full))
+        for name, width, left in (
+            ("wikidata_worked_in_1", full - 1, 4),  # the last column first: 386
+            ("wikidata_genre_2", 385, 3),  # then trailing chips: 297
+            ("wikidata_genre_1", 296, 2),  # 163
+            ("wikidata_known_for_2", 162, 1),  # 74
+        ):
+            fitted = bio(width)
+            self.assertNotIn(name, fitted, width)
+            self.assertEqual(len(fitted), left, width)
+        self.assertEqual(bio(10), {"wikidata_known_for_1": "works"})  # never none
+        self.assertTrue(all("+" not in chip for chip in bio(full).values()))
+        # a caption wider than its column's chips counts: Genre's 300 drops Worked in
+        self.assertNotIn("wikidata_worked_in_1", bio(full, {"genre": 300}))
+        # an artist's: Awards, then Influenced by, which goes first
+        artist = {"awards": ["award", "prize", "medal"], "influences": ["Prince"]}
+        fitted = wd.bio_band("artist", artist, chip, 300, (60, 15), {})
+        self.assertEqual(
+            fitted, {"wikidata_awards_1": "award", "wikidata_awards_2": "prize"}
+        )
+        self.assertEqual(wd.bio_band("artist", {}, chip, 1480, (60, 15), {}), {})
+
+    def test_joined(self):
+        self.assertEqual(wd.joined([]), "")
+        self.assertEqual(wd.joined(["Royal Academy of Arts"]), "Royal Academy of Arts")
+        self.assertEqual(wd.joined(["A", "B"]), "A and B")
+        self.assertEqual(wd.joined(["A", "B", "C"]), "A, B and C")
+
 
 class HeadingTest(unittest.TestCase):
     """heading_lines, set_name and artist_years on the metadata serve."""
@@ -1124,6 +1295,11 @@ class HeadingTest(unittest.TestCase):
         self.assertNotIn("heading_lines", self.served("movie", heading_font="x"))
         with mock.patch.object(handlers, "skin_metric", lambda name: None):
             self.assertNotIn("heading_lines", self.served("movie", **heading))
+        # an artist has no title (Kodi sets none on its tag): its label, its name
+        self.labels["ListItem.Label"] = "Daft"
+        self.assertEqual(self.served("artist", **heading)["heading_lines"], "1")
+        self.labels["ListItem.Label"] = "Thirty Seconds to Mars"
+        self.assertEqual(self.served("artist", **heading)["heading_lines"], "2")
 
     def test_set_name(self):
         self.labels["ListItem.Set"] = "Planet of the Apes (Reboot) Collection"
