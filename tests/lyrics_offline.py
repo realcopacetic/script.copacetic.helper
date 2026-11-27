@@ -3,9 +3,10 @@ Offline checks for lyrics: the LRC parser (shared/lrc.py); the service's sources
 order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it steps
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
-service/player.py); the info=lyrics and info=lyrics_plain plugin paths, the
-lyrics_seek action, the LRCLIB row's toggle_setting and the Lyrics row's
-toggle_skin_bool.
+service/player.py); a library song's (lyrics.library, shared/tags.py: ID3v2 and
+FLAC tags, art unread); the info=lyrics and info=lyrics_plain plugin paths, with
+type=song&id= served or not, the lyrics_seek action, the LRCLIB row's
+toggle_setting and the Lyrics row's toggle_skin_bool.
 Infolabels and conditions are dicts; nothing reaches the network.
 Run from the helper root: python tests/lyrics_offline.py
 """
@@ -37,10 +38,15 @@ sys.modules["xbmcplugin"].SORT_METHOD_LASTPLAYED = 0
 
 
 class File:
-    """xbmcvfs.File over a local path: readBytes gives a bytearray, as Kodi's does."""
+    """
+    xbmcvfs.File over a local path: readBytes gives a bytearray, as Kodi's does (0,
+    the rest), seek moves from the start (0) or here (1); read counts the bytes read.
+    """
+
+    read = 0
 
     def __init__(self, path):
-        self.path = path
+        self.data, self.pos = Path(path).read_bytes(), 0
 
     def __enter__(self):
         return self
@@ -48,8 +54,15 @@ class File:
     def __exit__(self, *exc):
         return False
 
-    def readBytes(self):
-        return bytearray(Path(self.path).read_bytes())
+    def readBytes(self, count=0):
+        chunk = self.data[self.pos : self.pos + count if count else None]
+        self.pos += len(chunk)
+        File.read += len(chunk)
+        return bytearray(chunk)
+
+    def seek(self, offset, whence=0):
+        self.pos = offset + self.pos * whence
+        return self.pos
 
 
 sys.modules["xbmcvfs"].File = File
@@ -644,6 +657,179 @@ class PollerHookTest(Kodi):
         self.assertEqual(len(self.lookups), 1)
 
 
+def syncsafe(size):
+    """An ID3v2 size: four bytes of seven bits."""
+    return bytes(size >> shift & 0x7F for shift in (21, 14, 7, 0))
+
+
+def id3_frame(name, data, version=4):
+    """One ID3v2.3 or 2.4 frame, no flags."""
+    size = syncsafe(len(data)) if version == 4 else len(data).to_bytes(4, "big")
+    return name + size + b"\0\0" + data
+
+
+def id3(*frames, version=4):
+    """An ID3v2 tag of frames and 20 bytes of padding, then a little audio."""
+    body = b"".join(frames) + b"\0" * 20
+    return b"ID3" + bytes([version, 0, 0]) + syncsafe(len(body)) + body + b"\xff\xfb"
+
+
+def flac(*comments, picture=b""):
+    """fLaC, STREAMINFO, a PICTURE block, then the VORBIS_COMMENT block, last."""
+    fields = [comment.encode() for comment in comments]
+    vorbis = b"".join(
+        (
+            (4).to_bytes(4, "little"),
+            b"test",
+            len(fields).to_bytes(4, "little"),
+            *(len(field).to_bytes(4, "little") + field for field in fields),
+        )
+    )
+    blocks = ((0, b"\0" * 34), (6, picture), (0x80 | 4, vorbis))
+    return b"fLaC" + b"".join(
+        bytes([kind]) + len(data).to_bytes(3, "big") + data for kind, data in blocks
+    )
+
+
+# Invented lines: no real song's lyrics in fixtures
+VERSES = "Paper lanterns over the harbour\nWe counted ships until the morning"
+TIMED = "[ar:The Inventions]\n[00:04.00]Paper lanterns over the harbour\n[00:09.50]\n"
+DETAILS = {
+    "displayartist": "The Inventions",
+    "title": "Paper Lanterns",
+    "album": "Harbour Lights",
+    "duration": 201,
+}
+KEY = ("The Inventions", "Paper Lanterns", "Harbour Lights", 201)
+
+
+class LibrarySongTest(Kodi):
+    """lyrics.library and info=lyrics_plain&type=song: a song that isn't playing."""
+
+    def song(self, data=b"", name="Paper Lanterns.mp3", lrc_text=None):
+        folder = Path(tempfile.mkdtemp())
+        (folder / name).write_bytes(data)
+        if lrc_text is not None:
+            (folder / name).with_suffix(".lrc").write_text(lrc_text)
+        return DETAILS | {"file": str(folder / name)}
+
+    def test_id3_lyrics_skip_the_art_unread(self):
+        art = id3_frame(b"APIC", b"\0image/jpeg\0\3\0" + b"\x89" * 50000)
+        lyric = id3_frame(b"USLT", b"\3eng" + b"note\0" + VERSES.encode())
+        path = self.song(id3(id3_frame(b"TIT2", b"\3Paper Lanterns"), art, lyric))[
+            "file"
+        ]
+        File.read = 0
+        self.assertEqual(lyrics.tags.lyrics(path), VERSES)
+        self.assertLess(File.read, 1000)  # frame headers and the lyrics alone
+        utf16 = b"\1eng" + "d".encode("utf-16") + b"\0\0" + VERSES.encode("utf-16")
+        path = self.song(id3(id3_frame(b"USLT", utf16, version=3), version=3))["file"]
+        self.assertEqual(lyrics.tags.lyrics(path), VERSES)
+        self.assertEqual(lyrics.tags.lyrics(self.song(id3())["file"]), "")
+
+    def test_flac_lyrics_comment_past_its_picture(self):
+        data = flac("TITLE=Paper Lanterns", f"lyrics={VERSES}", picture=b"\0" * 50000)
+        path = self.song(data, "Paper Lanterns.flac")["file"]
+        File.read = 0
+        self.assertEqual(lyrics.tags.lyrics(path), VERSES)
+        self.assertLess(File.read, 1000)
+        self.assertEqual(lyrics.tags.lyrics(self.song(flac("TITLE=x"))["file"]), "")
+        self.assertEqual(lyrics.tags.lyrics(self.song(b"OggS\0\0")["file"]), "")
+
+    def test_embedded_first_synced_lines_lose_their_times(self):
+        song = self.song(id3(id3_frame(b"USLT", b"\3eng\0" + TIMED.encode())))
+        self.assertEqual(lyrics.library(song, None), "Paper lanterns over the harbour")
+        self.assertEqual(self.asked, [])
+        # a .lrc beside it comes first, as for the playing song
+        song = self.song(lrc_text="[00:01.00]Salt on the window\n[00:02.00]On the wire")
+        self.assertEqual(lyrics.library(song, None), "Salt on the window\nOn the wire")
+
+    def test_lrclib_synced_as_plain_lines(self):
+        self.cache[KEY] = (
+            {"synced": [[0, ""], [4000, "Paper lanterns"], [9000, "Ships"]]}
+            | {"plain": None, "instrumental": False},
+            True,
+        )
+        self.assertEqual(lyrics.library(self.song(), None), "Paper lanterns\nShips")
+        self.assertEqual(self.asked, [])  # kept: no request
+
+    def test_instrumental_and_none_serve_nothing(self):
+        self.cache[KEY] = ({"synced": None, "plain": None, "instrumental": True}, True)
+        self.assertEqual(lyrics.library(self.song(), None), "")
+        self.cache[KEY] = (None, True)  # a failure, still fresh: not asked again
+        self.assertEqual(lyrics.library(self.song(), None), "")
+        self.assertEqual(self.asked, [])
+
+    def test_a_plugin_call_asks_a_served_call_asks_aside(self):
+        self.lrclib[KEY] = {"synced": None, "plain": VERSES, "instrumental": False}
+        self.assertEqual(lyrics.library(self.song(), None), VERSES)
+        self.assertEqual(self.asked, [("lyrics", KEY)])
+        asides = []
+        with patch.object(lyrics.ASIDES, "ask", lambda *a: asides.append(a)):
+            self.assertIsNone(lyrics.library(self.song(), "again"))
+        self.assertEqual(asides, [(KEY, "again")])
+        with patch.object(lyrics.lrclib, "enabled", lambda: False):  # no consent
+            self.assertEqual(lyrics.library(self.song(), "again"), "")
+        self.assertEqual(len(self.asked), 1)
+
+    def test_an_aside_the_dialog_left_skips_its_search(self):
+        self.lrclib[KEY] = {}
+        self.assertEqual(lyrics._ask(KEY, lambda: True), {})
+        self.assertIsNone(lyrics._ask(KEY, lambda: False))  # Aborted: nothing kept
+
+    def test_a_broken_tag_reads_as_none(self):
+        bad = id3(id3_frame(b"USLT", b"\x09eng\0text"))  # no such encoding
+        self.lrclib[KEY] = {"synced": None, "plain": VERSES, "instrumental": False}
+        self.assertEqual(lyrics.library(self.song(bad), None), VERSES)
+        self.assertEqual(len(self.errors), 1)  # logged, with its traceback
+
+    def serve(self, song, again=None, **params):
+        """info=lyrics_plain&type=song&id=7 as a served call (again) or a plugin's."""
+        params = {"info": "lyrics_plain", "type": "song", "id": "7"} | params
+        handler = handlers.PluginHandlers(params, again=again)
+        with (
+            patch.object(handlers, "set_items", list),
+            patch.object(handlers, "condition", lambda key: key in self.conditions),
+            patch.object(handlers, "library_details", lambda *args: song),
+        ):
+            return handler.lyrics_plain()
+
+    def test_the_song_listing_pending_then_lines(self):
+        self.conditions.add(lyrics.ENABLED)
+        song = self.song()
+        with patch.object(lyrics.ASIDES, "ask", lambda *a: None):
+            self.assertEqual(
+                self.serve(song, again="again"),
+                [
+                    {
+                        "file": "plugin://script.copacetic.helper/lyrics/plain",
+                        "label": "",
+                        "properties": {"lyrics_pending": "true"},
+                    }
+                ],
+            )
+        self.cache[KEY] = ({"synced": None, "plain": VERSES, "instrumental": False}, 1)
+        metric = type("Metric", (), {"getlength": lambda self, text: 10 * len(text)})
+        with patch.object(handlers, "skin_metric", lambda name: metric()):
+            rows = self.serve(song, again="again", wrap_font="plot", wrap_width="200")
+        self.assertEqual(
+            [row["label"] for row in rows],
+            [
+                "Paper lanterns over",  # 20 characters a row at 10 px
+                "the harbour",
+                "We counted ships",
+                "until the morning",
+            ],
+        )
+
+    def test_the_song_listing_is_off_with_the_lyrics_setting(self):
+        song = self.song(id3(id3_frame(b"USLT", b"\3eng\0" + VERSES.encode())))
+        self.assertEqual(self.serve(song), [])  # Skin.HasSetting(lyrics) is off
+        self.conditions.add(lyrics.ENABLED)
+        self.assertEqual(len(self.serve(song)), 2)
+        self.assertEqual(self.serve(None), [])  # an id Kodi no longer has
+
+
 class PluginAndActionTest(unittest.TestCase):
     def setUp(self):
         self.home = sys.modules["xbmcgui"].Window(10000)
@@ -717,8 +903,7 @@ class PluginAndActionTest(unittest.TestCase):
         self.assertIsNone(object.__new__(handlers.PluginHandlers).lyrics())
 
     def plain(self, **params):
-        handler = object.__new__(handlers.PluginHandlers)
-        handler.params = params
+        handler = handlers.PluginHandlers(params)  # no type=: the playing song's
         return [(item["file"], item["label"]) for item in handler.lyrics_plain() or ()]
 
     def test_plain_lines_wrap_to_the_width_in_the_font(self):

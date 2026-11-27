@@ -327,6 +327,20 @@ where Kodi would wrap it, one item each part; without them, or for a font that i
 there, each line is one item. Every item has the same path, so when the list fetches a
 new song's lines Kodi selects the first. The text is also `lyrics_plain`, for a textbox.
 
+**A library song's lyrics**, playing or not (an info dialog's Lyrics page): add
+`type=song&id=<DBID>` to the plain path, with no `revision`. The lines are the same
+kind of items, from the same sources in the same order: a `.lrc` beside the file, its
+tags (an MP3's ID3v2 lyrics frame or a FLAC file's `LYRICS` comment, the ones Kodi
+reads), then LRCLIB's saved answer. Synced lyrics come without their time stamps, one
+item per line, an empty one between verses. An instrumental, or none found, lists
+nothing; so does every song while the skin's `lyrics` setting is off, the switch the
+[CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on. A song LRCLIB has never
+been asked for is asked then (with the helper's LRCLIB setting on): a plugin call
+waits for the answer; a [served](serve.md) call answers at
+once with one empty item carrying `lyrics_pending` = `true`, and serves the list again
+when LRCLIB's answer lands, so the skin can mask lines that arrive late. The playing
+song's lookup and properties are untouched, and the two share one saved answer.
+
 **Following the song.** On each line's time, and every 0.2 seconds while the
 visualisation shows, the service puts one list on the current line when it isn't,
 with `Control.Move(<id>,<lines>)` by the distance from the list's own selected item
