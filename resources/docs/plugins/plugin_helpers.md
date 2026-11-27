@@ -37,6 +37,7 @@ the focus guard below protects a served run too.
 |--------|--------------|------|
 | `artwork` | Crops clearlogos, blurs backgrounds, works out darken values, element colours and palettes, collects multiart and can fill a FadeLabel with it. | [Artwork](artwork.md) |
 | `multiart_tiles` | Fills several FadeLabels in an info dialog with the item's artwork, so they change one at a time. | [Artwork](artwork.md#multiart_tiles) |
+| `multiart_family` | Lists one art type of an info dialog's item, one image an item, for a viewer to step through. | [Artwork](artwork.md#multiart_family) |
 | `metadata` | Returns tidied details of the focused item, with optional TMDB details. | [Metadata](metadata.md) |
 | `progressbar` | Works out watched (or, for an album, heard) progress and context labels (time left, next episode, new, next air date, new episode, show status) and places a progress bar. | [Progress Bar](progressbar.md) |
 | `epg_time_left` | Works out the time left of the TV guide's focused programme while it is on air. | [Progress Bar](progressbar.md#epg_time_left) |
@@ -171,7 +172,7 @@ one of these, else the one a context menu, Select or busy dialog covers. With no
 them up (its close outran the path, or another dialog replaced it, such as Play's
 resume menu or Refresh's prompts) the path stops, never reading another window's
 controls. Every path takes its window once. `artwork`, `metadata`, `progressbar`,
-`text` and `multiart_tiles` first wait for that dialog to be topmost, for up to a
+`text`, `multiart_tiles` and `multiart_family` first wait for that dialog to be topmost, for up to a
 second, plus up to five behind the busy dialog (Kodi's own Information shows it while it swaps the item), since under a menu a bare
 `ListItem` read answers for the window under the info dialog. If it never is, or the
 dialog closes meanwhile, the path stops (`artwork` returns its held item). It stops
@@ -261,7 +262,7 @@ Guarded handlers don't check once at startup — they re-check before every stag
 - **`text`** checks before and after drawing the image.
 - **`typewriter`** receives the guard's `alive` callable and checks it **after every 25 ms wait** (once before the textbox shows, then after each character), alongside a supersession lease (`typewriter_current_<id>` window property): each run claims the property with a unique token, and any later writer — a newer run, or the skin writing `scroll` into it on a reset — aborts the older one. The skin-side reset lines are therefore part of the contract, not just visual plumbing.
 - **`progressbar`** checks before calculating, before moving UI controls, and after moving them (the progress value is still returned; what remains, the UI update or the context values, is skipped).
-- **`reposition`**, `multiart_tiles`, the library listings and `speed_dial` are unguarded. `multiart_tiles` has its own check instead (see [Artwork](artwork.md#multiart_tiles)).
+- **`reposition`**, `multiart_tiles`, `multiart_family`, the library listings and `speed_dial` are unguarded. `multiart_tiles` has its own check instead (see [Artwork](artwork.md#multiart_tiles)).
 
 ---
 

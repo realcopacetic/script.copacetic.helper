@@ -75,6 +75,7 @@ EXCLUDED = {
     "lyrics",
     "lyrics_plain",
     "metadata",
+    "multiart_family",
     "multiart_tiles",
     "popularity_label",
     "progressbar",

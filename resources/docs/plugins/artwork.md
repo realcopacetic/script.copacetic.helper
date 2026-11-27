@@ -538,6 +538,41 @@ There is no focus guard.
 
 ---
 
+## `multiart_family`
+
+Lists one art family of an info dialog's item, one list item per image, so a viewer
+can step through it with `Control.Move` (a list wraps round at its ends). Use it for a
+full-screen view of a `multiart_tiles` tile.
+
+```xml
+<control type="list" id="9402"><!-- hidden helper container; ids are examples -->
+  <itemlayout />
+  <focusedlayout />
+  <content>plugin://script.copacetic.helper/?info=multiart_family&amp;art=poster&amp;multiart_max=15&amp;register=3402</content>
+</control>
+```
+
+| Param | Accepted values | Default | What it does |
+|---|---|---|---|
+| `art` | an art type, or several joined by `,` | — | **Required.** The family to list, as for `multiart` above. |
+| `multiart_max` | whole number, `0`–`50` | `15` | Highest number to look for in the family. |
+| `register` | a control id | — | A FadeLabel (a `multiart_tiles` register) whose current image the list opens on. |
+
+- The artwork is read from the window's own item, as `multiart_tiles` reads it, and
+  the call waits for the info dialog to be topmost in the same way. Library artwork
+  only.
+- Each item has the image as `ListItem.Art(multiart)`. The first item is the image
+  `Control.GetLabel(<register>)` reads, when the family holds it; the rest follow in
+  the family's order, wrapping round, so `Control.Move(<id>,1)` shows the next one.
+  Otherwise, or with no `register`, the main image comes first.
+- Each item's path names its place in the list, so a reload leaves the list on the
+  place it was on. Move the list back to its first item before the path changes.
+- An item with one image in the family gets one list item.
+
+There is no focus guard.
+
+---
+
 ## Is this result for the focused item?
 
 A plugin call can take a moment. While it runs, focus may move on, and the old result
@@ -614,3 +649,4 @@ The helper reads these when you use the matching parameters:
 | `Window(home).Property(artwork_visit)`, changed once per focus change and passed as `visit` | `visit` | The skin. |
 | `Window(home).Property(infoscreen_gallery_visit)` | `multiart_tiles` with `visit` | The skin, once each time the dialog shows the artwork. |
 | FadeLabel controls with the ids in `tiles`, in the info dialog | `multiart_tiles` | The skin. |
+| A FadeLabel control with id `register`, in the info dialog | `multiart_family` with `register` | The skin (or `multiart_tiles`). |

@@ -75,7 +75,8 @@ python tests/genre_snapshot.py [--cache /tmp/mb-genres]
 # unless a tile has no other image free; a joined family; the first frame
 # (multiart_first) leading a family and dropped from later in it; seed_multiart's
 # blind seed under a dialog and its seed keys; a slide's open test (slide_opens), its
-# temp copy dropped
+# temp copy dropped; multiart_family's items, opened on the register's image and
+# wrapping round
 python tests/multiart_offline.py
 
 # Service build boundary (service/monitor.py): a build that raises is logged, the

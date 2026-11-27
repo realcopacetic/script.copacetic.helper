@@ -1146,6 +1146,36 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         )
 
     @log.duration
+    def multiart_family(self) -> list[DirectoryItem] | None:
+        """
+        One item per image in a multiart family of the info dialog's item, for a
+        viewer to step through: it opens on the image the register shows, if any.
+
+        :return: The family as Art(multiart), wrapped round to the shown image.
+        """
+        from resources.lib.art.multiart import build_multiart_dict
+
+        if not self._require("art") or not self._info_on_top():
+            return
+
+        urls = [
+            *build_multiart_dict(
+                target="ListItem",
+                multiart_type=self.params["art"],
+                max_items=self.params.get("multiart_max"),
+                tmdb_art={},
+            ).values()
+        ]
+        register = self.params.get("register")
+        shown = infolabel(f"Control.GetLabel({register})") if register else ""
+        start = urls.index(shown) if shown in urls else 0
+        # A path per slot: a reload keeps the list on the slot it was on
+        return set_items(
+            {"file": plugin_path(f"multiart_family/{i}"), "art": {"multiart": url}}
+            for i, url in enumerate(urls[start:] + urls[:start])
+        )
+
+    @log.duration
     def favourite(self) -> list[DirectoryItem] | None:
         """
         A favourite's library item, whole, for the metadata, progress bar and
