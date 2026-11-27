@@ -717,6 +717,29 @@ class PlayedVersion(unittest.TestCase):
         service.onNotification("xbmc", "AudioLibrary.OnUpdate", '{"type": "song"}')
         service._song_update.assert_called_once_with()
 
+    def test_a_video_update_serves_the_bar_and_details_again(self):
+        service = object.__new__(monitor.Monitor)
+        service.player_monitor, service._video_update = None, Mock()
+        update = '{"item": {"type": "episode", "id": 5}, "playcount": 1}'
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", update)
+        service.player_monitor = Mock()  # active from here
+        scan = (
+            '{"item": {"type": "movie", "id": 6}, "added": true, "transaction": true}'
+        )
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", scan)
+        service._video_update.assert_not_called()  # inactive, then a scan's
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", update)
+        service._video_update.assert_called_once_with()
+        lists = {"progressbar": 9010, "metadata": 9000}
+        service.server = Mock(**{"served.side_effect": lambda info: lists.get(info, 0)})
+        service._video_bump()
+        self.assertEqual(service.server.again.call_args_list, [call(9010), call(9000)])
+        lists, service.server.again = {"metadata": 9000}, Mock()  # a plugin bar's
+        service._video_bump()
+        service.server.again.assert_called_once_with(9000)
+        service.server = None  # the skin left
+        service._video_bump()
+
     def test_overlapping_bumps_share_nothing(self):
         service = object.__new__(monitor.Monitor)
         seen = []

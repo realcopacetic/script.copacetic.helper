@@ -48,6 +48,9 @@ SETTLE_PROPERTY = "helper_settle"
 RELOAD_COVER_SECS = 0.2
 # A plugin progress bar's container, the id its page asks a skin to give it for the skip
 PLUGIN_BAR = 9010
+# Wait after a video update's burst: the listing it rebuilds rings in the landing's
+# second, so a re-serve this late reads the rebuilt item, past a ring dropped as repeat
+VIDEO_UPDATE_SECS = 1.0
 # Edits to a queue: Kodi's list providers refresh on play, resume and stop, not on these
 # (nor on a shuffle, a Player.OnPropertyChanged; a move announces nothing).
 PLAYLIST_EDITS = {"Playlist.OnAdd", "Playlist.OnRemove", "Playlist.OnClear"}
@@ -85,6 +88,7 @@ class Monitor(xbmc.Monitor):
         self.slideshow = None
         self.server = None  # served focus calls (serve.py)
         self.song_bump = None  # a pending album bar re-serve
+        self.video_bump = None  # a pending bar and details re-serve
         self.closed = {}  # songs closed since the last bump: id → start play count
         self.clash_features = ()  # clashes.features() after the last apply
         log.info(f"{self.__class__.__name__} → Started, Python {sys.version}")
@@ -174,8 +178,9 @@ class Monitor(xbmc.Monitor):
         """Leaving the skin: hide the context items, release the monitors."""
         window_property(ACTIVE_PROPERTY)
         window_property(SPEED_DIAL_PROPERTY)
-        if self.song_bump:
-            self.song_bump.cancel()
+        for bump in (self.song_bump, self.video_bump):
+            if bump:
+                bump.cancel()
         self.player_monitor.release()
         self.slideshow.clear()
         self.server.stop()
@@ -305,7 +310,7 @@ class Monitor(xbmc.Monitor):
         """
         Kodi event hook, on the service's thread: the clashes writes scripts hand over;
         while active, a new playlist_revision on each music queue edit (a shuffle too),
-        progress_version after song updates outside a scan, the bar after Stop rewatch.
+        the bar after song or video updates outside a scan, and after Stop rewatch.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
@@ -335,6 +340,12 @@ class Monitor(xbmc.Monitor):
                 and not self.closed  # a close's wait, for its write, bumps them too
             ):
                 self._song_update()
+            return
+        if method == "VideoLibrary.OnUpdate":
+            # A plugin list refetches itself; a served one is rebound only on an
+            # arrival, and the rebuilt listing's ring repeats its visit (same second)
+            if self.player_monitor and "transaction" not in json.loads(data):
+                self._video_update()
             return
         shuffle = method == "Player.OnPropertyChanged"
         if not (shuffle or method in PLAYLIST_EDITS) or not self.player_monitor:
@@ -395,6 +406,21 @@ class Monitor(xbmc.Monitor):
         closed, self.closed = self.closed, {}  # a started Timer can't be cancelled
         if any(_play_count(songid) != count for songid, count in closed.items()):
             window_property("played_version", value=str(time.monotonic_ns()))
+
+    def _video_update(self) -> None:
+        """One bar and details re-serve (_video_bump) after the last of a burst."""
+        if self.video_bump:
+            self.video_bump.cancel()
+        self.video_bump = Timer(VIDEO_UPDATE_SECS, self._video_bump)
+        self.video_bump.daemon = True
+        self.video_bump.start()
+
+    def _video_bump(self) -> None:
+        """Timer: the lists the topmost window served its bar and details in, again."""
+        if server := self.server:  # None once the skin has left
+            for info in ("progressbar", "metadata"):
+                if served := server.served(info):
+                    server.again(served)
 
     @staticmethod
     def _serve_bar(server: Server | None, served: int) -> None:
