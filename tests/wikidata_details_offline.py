@@ -3,12 +3,16 @@ Offline checks for Wikidata details (apis/wikidata.py's having, items and labels
 shared/wikidata_details.py; the metadata serve's wikidata=true and
 compilation_artists=true; the soundtracks listing's second pass): items found by
 TMDb, IMDb and MusicBrainz ids, never by a query; labels in English, else
-multilingual, else any language; Based on from written works only, worded by the
-item's title; Set in; the story line on one row or two (story_*); Music by; a
-show's creators where TMDb names none; an artist's labels (+N) and place; an album's
-producers; a compilation's track artists from the library; a served item's details
-kept, missing ones asked aside; the soundtrack id link both ways and the composer
-tie-break, and the title matching alone with the setting off or Wikidata down.
+multilingual, else any language; Based on from written works only, cut to its line
+(based_on_*); the Plot tab's story band (story_*): places, period, subjects,
+universe and collection chosen, deduplicated and fitted; the heading's lines
+(heading_*); a collection's short name (set_suffix); Music by; a show's creators
+where TMDb names none; an artist's labels (+N), place and instruments, and its years
+active (years_present); an album's producers; a compilation's track artists from the
+library; a served item's details kept, missing ones asked aside; a call with none of
+those params given nothing of them; the soundtrack id link both ways and the
+composer tie-break, and the title matching alone with the setting off or Wikidata
+down.
 
 Wikidata answers from tests/fixtures/wikidata_details.json (items as wbgetentities
 gives them; see its note), the statement search worked out from their statements;
@@ -55,7 +59,7 @@ sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import cache, wikidata  # noqa: E402
 from resources.lib.apis.http import HttpError  # noqa: E402
-from resources.lib.plugin import handlers  # noqa: E402
+from resources.lib.plugin import handlers, music  # noqa: E402
 from resources.lib.shared import helpers  # noqa: E402
 from resources.lib.shared import wikidata_details as wd  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
@@ -71,7 +75,10 @@ SLOW_HORSES = ("tvshow", "95480", "tt5875444")
 
 
 def item(qid, label, **claims):
-    """An item as wbgetentities gives it: an English label, statements by property."""
+    """
+    An item as wbgetentities gives it: an English label, statements by property; a
+    value starting + is a time, Q an item, else a string.
+    """
     statements = {
         prop: [
             {
@@ -81,7 +88,11 @@ def item(qid, label, **claims):
                     "datavalue": (
                         {"value": {"id": value}, "type": "wikibase-entityid"}
                         if value[:1] == "Q"
-                        else {"value": value, "type": "string"}
+                        else (
+                            {"value": {"time": value, "precision": 9}, "type": "time"}
+                            if value[:1] == "+"
+                            else {"value": value, "type": "string"}
+                        )
                     ),
                 },
                 "rank": "normal",
@@ -100,6 +111,70 @@ CREATED = {
     "Q921": item("Q921", "Jane Doe"),
     "Q922": item("Q922", "John Roe"),
 }
+# Oppenheimer's story, as the 26 Nov coverage fetch found it (wdstory)
+OPPENHEIMER = {
+    "Q108839994": item(
+        "Q108839994",
+        "Oppenheimer",
+        P4947=["872585"],
+        P144=["Q4744748"],
+        P840=["Q35794", "Q27832090", "Q61"],
+        P2408=["Q6927", "Q362", "Q36561"],
+        P921=["Q132537", "Q207066", "Q8016240", "Q650051", "Q127050", "Q7098557"],
+    ),
+    "Q4744748": item(
+        "Q4744748",
+        "American Prometheus",
+        P31=["Q47461344"],  # written work
+        P136=["Q36279"],  # biography
+        P50=["Q6347357", "Q45811"],
+    ),
+    "Q6347357": item("Q6347357", "Kai Bird"),
+    "Q45811": item("Q45811", "Martin J. Sherwin"),
+    "Q35794": item("Q35794", "University of Cambridge", P31=["Q3354859"], P17=["Q145"]),
+    "Q27832090": item("Q27832090", "Project Y", P31=["Q483242"], P17=["Q30"]),
+    "Q61": item("Q61", "Washington, D.C.", P31=["Q1093829"], P17=["Q30"]),
+    "Q6927": item(
+        "Q6927",
+        "20th century",
+        P31=["Q578"],
+        P580=["+1901-01-01T00:00:00Z"],
+        P582=["+2000-12-31T00:00:00Z"],
+    ),
+    "Q362": item(
+        "Q362",
+        "World War II",
+        P31=["Q103495", "Q11514315"],
+        P580=["+1939-09-01T00:00:00Z"],
+        P582=["+1945-09-02T00:00:00Z"],
+    ),
+    "Q36561": item(
+        "Q36561",
+        "1940s",
+        P31=["Q39911"],
+        P580=["+1940-00-00T00:00:00Z"],
+        P582=["+1949-00-00T00:00:00Z"],
+    ),
+    "Q132537": item("Q132537", "J. Robert Oppenheimer", P31=["Q5"]),
+    "Q207066": item("Q207066", "McCarthyism", P31=["Q622454"], P17=["Q30"]),
+    "Q8016240": item("Q8016240", "trial"),
+    "Q650051": item("Q650051", "nuclear bomb", P31=["Q124078422"]),
+    "Q127050": item("Q127050", "Manhattan Project", P31=["Q27665152"]),
+    "Q7098557": item("Q7098557", "Oppenheimer security hearing", P31=["Q545861"]),
+}
+# A Knight of the Seven Kingdoms: a universe (P1434) alone
+KNIGHT = {
+    "Q120277524": item(
+        "Q120277524",
+        "A Knight of the Seven Kingdoms",
+        P4983=["224372"],
+        P1434=["Q2461698"],
+    ),
+    "Q2461698": item("Q2461698", "World of Ice and Fire", P31=["Q559618"]),
+}
+# Despicable Me 4's universe (its item is the fixture's)
+MINIONS = {"Q131324716": item("Q131324716", "Despicable Me universe")}
+DESPICABLE_ME = "Q113373276"
 
 
 class TenWide:
@@ -186,21 +261,19 @@ class DetailsTest(WikidataCase):
             {"title": "Slow Horses", "type": "novel", "authors": ["Mick Herron"]},
         )
         self.assertEqual(
-            wd.properties("tvshow", found, "Slow Horses"),
-            {
-                "wikidata_based_on": "the novel by Mick Herron",
-                "wikidata_set_in": "London",
-            },
+            wd.properties("tvshow", found),
+            {"wikidata_based_on": "Slow Horses, novel by Mick Herron"},
         )
-        # five requests, none a query; the place by its label alone
+        self.assertEqual(found["places"], ["London"])
+        # five requests, none a query; the place's classes with the source's
         self.assertEqual(
             self.asked,
             [
                 "having P4983=95480",
                 "labels|claims Q104880809",
                 "having P9899=Q104880809",
-                "labels|claims Q108063656",
-                "labels Q24929761|Q84",
+                "labels|claims Q108063656|Q84",
+                "labels Q24929761",
             ],
         )
         self.asked.clear()
@@ -211,42 +284,31 @@ class DetailsTest(WikidataCase):
         self.entities |= CREATED
         found = wd.details(("tvshow", "920", ""), ALIVE)
         self.assertEqual(found["created_by"], ["Jane Doe", "John Roe"])
-        self.assertEqual(self.asked[-1], "labels Q84|Q921|Q922")  # with the place's
+        self.assertEqual(self.asked[-1], "labels Q921|Q922")
         self.assertEqual(
-            wd.properties("tvshow", found, "Show"),
-            {"wikidata_created_by": "Jane Doe / John Roe", "wikidata_set_in": "London"},
+            wd.properties("tvshow", found),
+            {"wikidata_created_by": "Jane Doe / John Roe"},
         )
-        self.assertNotIn("wikidata_created_by", wd.properties("movie", found, "Show"))
+        self.assertNotIn("wikidata_created_by", wd.properties("movie", found))
         del found["created_by"]  # details kept before creators were looked up
-        self.assertEqual(
-            wd.properties("tvshow", found, "Show"), {"wikidata_set_in": "London"}
-        )
+        self.assertEqual(wd.properties("tvshow", found), {})
 
     def test_a_film(self):
         found = wd.details(DUNE, ALIVE)
         self.assertEqual(found["music_by"], ["Hans Zimmer"])
         self.assertEqual(found["composers"], [ZIMMER])
-        self.assertEqual(found["set_in"], "Arrakis")  # P840's first
+        self.assertEqual(found["places"], ["Arrakis"])  # P840
         self.assertEqual(found["soundtracks"], ["6790ad81-5b9c-4362-87c0-6c8e8d3d4100"])
+        # the work alone, whatever the film's title
         self.assertEqual(
-            wd.properties("movie", found, "Dune"),
+            wd.properties("movie", found),
             {
                 "wikidata_music_by": "Hans Zimmer",
-                "wikidata_based_on": "the novel by Frank Herbert",
-                "wikidata_set_in": "Arrakis",
+                "wikidata_based_on": "Dune, novel by Frank Herbert",
             },
         )
         # films only: the TV details grid has no Music by cell
-        self.assertNotIn("wikidata_music_by", wd.properties("tvshow", found, "Dune"))
-        # a title other than the work's names it, case and punctuation aside
-        self.assertEqual(
-            wd.properties("movie", found, "Dune: Part One")["wikidata_based_on"],
-            "Dune, novel by Frank Herbert",
-        )
-        self.assertEqual(
-            wd.properties("movie", found, "DUNE")["wikidata_based_on"],
-            "the novel by Frank Herbert",
-        )
+        self.assertNotIn("wikidata_music_by", wd.properties("tvshow", found))
 
     def test_imdb_when_tmdb_finds_none(self):
         found = wd.details(("movie", "999999", "tt1160419"), ALIVE)
@@ -258,20 +320,20 @@ class DetailsTest(WikidataCase):
     def test_no_item(self):
         self.assertEqual(wd.details(("movie", "999999", ""), ALIVE), {})
         self.assertEqual(wd.kept(("movie", "999999", "")), ({}, True))  # kept empty
-        self.assertEqual(wd.properties("movie", {}, "Anything"), {})
+        self.assertEqual(wd.properties("movie", {}), {})
 
     def test_written_works_only(self):
         # Backrooms: a web series, then a short story (a literary work in form)
         found = wd.details(("movie", "1083381", ""), ALIVE)
         self.assertEqual(
-            wd.properties("movie", found, "Backrooms")["wikidata_based_on"],
+            wd.properties("movie", found)["wikidata_based_on"],
             "The Backrooms, short story",  # no author
         )
-        # a manga's authors by " and "; Old Boy is Oldboy, spaces aside
+        # a manga's authors by " and "
         found = wd.details(("movie", "670", ""), ALIVE)
         self.assertEqual(
-            wd.properties("movie", found, "Oldboy")["wikidata_based_on"],
-            "the manga by Garon Tsuchiya and Nobuaki Minegishi",
+            wd.properties("movie", found)["wikidata_based_on"],
+            "Old Boy, manga by Garon Tsuchiya and Nobuaki Minegishi",
         )
         # a game, a character and a film are no source
         self.entities |= {
@@ -281,7 +343,7 @@ class DetailsTest(WikidataCase):
         }
         found = wd.details(("movie", "900", ""), ALIVE)
         self.assertIsNone(found["source"])
-        self.assertEqual(wd.properties("movie", found, "Game Movie"), {})
+        self.assertEqual(wd.properties("movie", found), {})
         # a novel series is a written work
         self.entities |= {
             "Q904": item("Q904", "Series Movie", P4947=["904"], P144=["Q905"]),
@@ -289,8 +351,15 @@ class DetailsTest(WikidataCase):
         }
         found = wd.details(("movie", "904", ""), ALIVE)
         self.assertEqual(
-            wd.properties("movie", found, "Series Movie")["wikidata_based_on"],
+            wd.properties("movie", found)["wikidata_based_on"],
             "The Saga, novel series",
+        )
+        # a written work whose genre (P136) is biography
+        self.entities |= OPPENHEIMER
+        found = wd.details(("movie", "872585", ""), ALIVE)
+        self.assertEqual(
+            wd.properties("movie", found)["wikidata_based_on"],
+            "American Prometheus, biography by Kai Bird and Martin J. Sherwin",
         )
 
     def test_the_type_word(self):
@@ -301,8 +370,12 @@ class DetailsTest(WikidataCase):
         self.assertEqual(wd._kind({"P31": ["Q1667921"]}), "novel series")
         self.assertEqual(wd._kind({"P31": ["Q277759"]}), "book series")
         self.assertEqual(wd._kind({"P31": ["Q7725634"], "P7937": ["Q1"]}), "book")
+        # a form outranks a genre, a genre the type
+        biography = {"P31": ["Q47461344"], "P136": ["Q36279"]}
+        self.assertEqual(wd._kind(biography), "biography")
+        self.assertEqual(wd._kind(biography | {"P7937": ["Q8261"]}), "novel")
         source = {"title": "Room", "type": "novel", "authors": []}
-        self.assertEqual(wd.based_on("Room", source), "the novel")
+        self.assertEqual(wd.based_on(source), "Room, novel")
 
     def test_label_languages(self):
         # Despicable Me 4 and Pharrell Williams have no English label: multilingual
@@ -339,7 +412,7 @@ class DetailsTest(WikidataCase):
     def test_artist_labels_and_place(self):
         found = wd.details(("artist", DAFT_PUNK), ALIVE)
         self.assertEqual(
-            wd.properties("artist", found, "Daft Punk"),
+            wd.properties("artist", found),
             {
                 "wikidata_labels": "Soma Quality Recordings, Virgin Records +2",
                 "wikidata_place": "Paris",  # formed (P740)
@@ -354,12 +427,10 @@ class DetailsTest(WikidataCase):
         }
         duo = wd.details(("artist", "m-910"), ALIVE)
         self.assertEqual((duo["place"], duo["labels"], duo["more"]), ("London", [], 0))
-        self.assertEqual(
-            wd.properties("artist", duo, "Duo"), {"wikidata_place": "London"}
-        )
+        self.assertEqual(wd.properties("artist", duo), {"wikidata_place": "London"})
         singer = wd.details(("artist", "m-911"), ALIVE)  # born (P19)
         self.assertEqual(
-            wd.properties("artist", singer, "Singer"),
+            wd.properties("artist", singer),
             {"wikidata_labels": "Daft Life", "wikidata_place": "Paris"},
         )
         # an unlabelled one of the first two counts in +N
@@ -369,7 +440,7 @@ class DetailsTest(WikidataCase):
         }
         trio = wd.details(("artist", "m-912"), ALIVE)
         self.assertEqual(
-            wd.properties("artist", trio, "Trio"), {"wikidata_labels": "Daft Life +1"}
+            wd.properties("artist", trio), {"wikidata_labels": "Daft Life +1"}
         )
         # neither of the first two labelled: no bare "+N"
         self.entities |= {
@@ -378,13 +449,61 @@ class DetailsTest(WikidataCase):
         }
         quartet = wd.details(("artist", "m-914"), ALIVE)
         self.assertEqual((quartet["labels"], quartet["more"]), ([], 2))
-        self.assertEqual(wd.properties("artist", quartet, "Quartet"), {})
+        self.assertEqual(wd.properties("artist", quartet), {})
+
+    def test_the_story_look_up(self):
+        # places, periods and subjects asked with the source, in one request; the
+        # universe's label with the authors'
+        self.entities |= OPPENHEIMER
+        found = wd.details(("movie", "872585", ""), ALIVE)
+        story = "Q4744748|Q35794|Q27832090|Q61|Q6927|Q362|Q36561"
+        subjects = "Q132537|Q207066|Q8016240|Q650051|Q127050|Q7098557"
+        self.assertEqual(self.asked[-2], f"labels|claims {story}|{subjects}")
+        self.assertEqual(self.asked[-1], "labels Q6347357|Q45811")
+        self.assertEqual(found["places"], ["University of Cambridge", "Project Y"])
+        self.assertEqual(found["period"], ["World War II", 1939, 1945])
+        self.assertEqual(len(found["about"]), 6)
+        self.assertEqual(found["universe"], "")
+        self.entities |= KNIGHT
+        found = wd.details(("tvshow", "224372", ""), ALIVE)
+        self.assertEqual(self.asked[-1], "labels Q2461698")
+        self.assertEqual(found["universe"], "World of Ice and Fire")
+        self.assertEqual((found["places"], found["period"]), ([], []))
+        # a franchise (P8345) only without a universe
+        self.entities |= {
+            "Q930": item("Q930", "Westworld", P4983=["930"], P8345=["Q931"]),
+            "Q931": item("Q931", "Westworld"),
+            "Q932": item("Q932", "Both", P4983=["932"], P1434=["Q2461698"]),
+        }
+        self.entities["Q932"]["claims"] |= item("Q", "", P8345=["Q931"])["claims"]
+        self.assertEqual(
+            wd.details(("tvshow", "930", ""), ALIVE)["universe"], "Westworld"
+        )
+        found = wd.details(("tvshow", "932", ""), ALIVE)
+        self.assertEqual(found["universe"], "World of Ice and Fire")
+
+    def test_artist_instruments(self):
+        # Wikidata's labels are lower case: capitalised; NAMES named, the rest counted
+        self.entities |= {
+            "Q916": item(
+                "Q916", "Singer", P434=["m-916"], P1303=["Q6607", "Q17172850", "Q5994"]
+            ),
+            "Q6607": item("Q6607", "guitar"),
+            "Q17172850": item("Q17172850", "voice"),
+            "Q5994": item("Q5994", "piano"),
+        }
+        singer = wd.details(("artist", "m-916"), ALIVE)
+        self.assertEqual(self.asked[-1], "labels Q6607|Q17172850")
+        self.assertEqual(
+            wd.properties("artist", singer),
+            {"wikidata_instruments": "Guitar, Voice +1"},
+        )
+        del singer["instruments"]  # details kept before instruments were looked up
+        self.assertEqual(wd.properties("artist", singer), {})
 
     def test_album_producer_and_films(self):
         found = wd.details(("album", "baf438d5-47ce-399c-9389-40a5d5f14632"), ALIVE)
-        self.assertEqual(
-            wd.properties("album", found, "Dune"), {"wikidata_producer": "Toto"}
-        )
+        self.assertEqual(wd.properties("album", found), {"wikidata_producer": "Toto"})
         # Dune (1984)'s P406 names it: its TMDb and IMDb ids
         self.assertCountEqual(
             found["films"], [["movie", "tmdb", "841"], ["", "imdb", "tt0087182"]]
@@ -548,8 +667,7 @@ class ServeTest(WikidataCase):
             self.served("movie", asker),
             {
                 "wikidata_music_by": "Hans Zimmer",
-                "wikidata_based_on": "the novel by Frank Herbert",
-                "wikidata_set_in": "Arrakis",
+                "wikidata_based_on": "Dune, novel by Frank Herbert",
             },
         )
         self.assertEqual(len(self.started), 1)  # fresh: no second ask
@@ -578,10 +696,29 @@ class ServeTest(WikidataCase):
         self.labels["ListItem.Property(artist_formed)"] = "1993"
         self.assertEqual(place(), "Paris")
         self.labels["ListItem.Property(artist_born)"] = "21 March 1974 in a town"
+        self.assertEqual(place(), "Paris")  # a group's date is its formation's
+        self.labels["ListItem.Property(artist_type)"] = "Person"  # a person's, birth
         self.assertEqual(place(), "")  # no room: no chip
         self.labels["ListItem.Property(artist_born)"] = "21st of March 1974"  # 18
         self.assertEqual(place(), "Par…")
         self.assertEqual(self.served("artist", None)["wikidata_place"], "Paris")
+
+    def test_instruments_are_a_persons(self):
+        self.entities |= {
+            "Q916": item("Q916", "Singer", P434=["m-916"], P1303=["Q6607"]),
+            "Q6607": item("Q6607", "guitar"),
+        }
+        wd.details(("artist", "m-916"), ALIVE)
+        with mock.patch.object(handlers, "artist_identity", lambda *a: ("", "m-916")):
+            for kind, served in (
+                ("Person", "Guitar"),
+                ("character", "Guitar"),
+                ("Group", None),
+                ("", None),
+            ):
+                self.labels["ListItem.Property(artist_type)"] = kind
+                found = self.served("artist", None).get("wikidata_instruments")
+                self.assertEqual(found, served, kind)
 
     def test_created_by_stands_in_for_tmdbs(self):
         self.entities |= CREATED
@@ -594,38 +731,106 @@ class ServeTest(WikidataCase):
         served = self.served("tvshow", None, writers=["Will Smith"])
         self.assertNotIn("wikidata_created_by", served)
 
-    def test_the_story_line_fits_its_row(self):
+    def test_based_on_fits_its_line(self):
         wd.details(SLOW_HORSES, ALIVE)
         self.labels["ListItem.UniqueID(tmdb)"] = "95480"
         self.labels["ListItem.UniqueID(imdb)"] = "tt5875444"
-        story = {
-            "story_based_on": "Based on",
+        served = lambda width: self.served(
+            "tvshow", None, based_on_font="description_l", based_on_width=width
+        )["wikidata_based_on"]
+        # "Slow Horses, novel by Mick Herron" is 330 in TenWide: cut at a word
+        with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+            self.assertEqual(served("330"), "Slow Horses, novel by Mick Herron")
+            self.assertEqual(served("329"), "Slow Horses, novel by Mick...")
+            self.assertEqual(served(""), "Slow Horses, novel by Mick Herron")
+        with mock.patch.object(handlers, "skin_metric", lambda name: None):
+            self.assertEqual(served("100"), "Slow Horses, novel by Mick Herron")
+
+    def test_the_story_band(self):
+        self.entities |= OPPENHEIMER
+        wd.details(("movie", "872585", ""), ALIVE)
+        self.labels |= {"ListItem.UniqueID(tmdb)": "872585", "ListItem.Year": "2023"}
+        band = {
             "story_chip_font": "meta",
+            "story_chip_gap": "15",
             "story_chip_padding": "12",
-            "story_chip_upper": "true",
-            "story_font": "description_l",
-            "story_gap": "15",
-            "story_set_in": "•  Set in",
+            "story_gap": "60",
         }
         served = lambda width: self.served(
-            "tvshow", None, title="Slow Horses", story_width=width, **story
+            "movie", None, title="Oppenheimer", story_width=width, **band
         )
-        # "Based on the novel by Mick Herron" 330, Set in 90, LONDON's chip 84
+        # in TenWide, a chip 10 a character and 24: Set in 542, About 472 (J. Robert
+        # Oppenheimer's isn't named by the title "Oppenheimer"), 60 between
         with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
-            one = served("534")
-            self.assertEqual(one["wikidata_based_on"], "the novel by Mick Herron")
-            self.assertNotIn("wikidata_story_rows", one)
-            self.assertEqual(served("533")["wikidata_story_rows"], "2")
-            # no width: as served, uncut
-            for width in ("0", ""):
-                served_ = served(width)
-                self.assertEqual(
-                    served_["wikidata_based_on"], "the novel by Mick Herron"
-                )
-                self.assertNotIn("wikidata_story_rows", served_)
+            self.assertEqual(
+                {k: v for k, v in served("1480").items() if k[-2] == "_"},
+                {
+                    "wikidata_set_in_1": "University of Cambridge",
+                    "wikidata_set_in_2": "Project Y",
+                    "wikidata_set_in_3": "World War II",
+                    "wikidata_about_1": "J. Robert Oppenheimer",
+                    "wikidata_about_2": "McCarthyism",
+                    "wikidata_about_3": "trial",
+                },
+            )
+            self.assertNotIn("wikidata_about_3", served("1000"))  # 1074 to 985
+            self.assertNotIn("wikidata_about_1", served("600"))
+            # a band of more than one chip: no collection
+            self.labels["ListItem.Set"] = "Oppenheimer Collection"
+            self.assertNotIn("wikidata_part_of_1", served("1480"))
+        # no width, or no chip font: no band
+        self.assertNotIn("wikidata_set_in_1", served(""))
         with mock.patch.object(handlers, "skin_metric", lambda name: None):
-            self.assertNotIn("wikidata_story_rows", served("533"))  # no such font
-        self.assertNotIn("wikidata_story_rows", self.served("tvshow", None))
+            self.assertNotIn("wikidata_set_in_1", served("1480"))
+
+    def test_part_of_on_a_sparse_band(self):
+        # Despicable Me 4: its universe is named by its title, so the band holds its
+        # collection alone
+        self.entities |= MINIONS
+        self.entities[DESPICABLE_ME]["claims"] |= item("Q", "", P1434=["Q131324716"])[
+            "claims"
+        ]
+        found = wd.details(("movie", "519182", ""), ALIVE)
+        self.assertEqual(found["universe"], "Despicable Me universe")
+        self.labels |= {
+            "ListItem.UniqueID(tmdb)": "519182",
+            "ListItem.Set": "Despicable Me Collection",
+        }
+        band = {"story_chip_font": "meta", "story_width": "1480"}
+        with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+            served = self.served("movie", None, title="Despicable Me 4", **band)
+            self.assertEqual(served["wikidata_part_of_1"], "Despicable Me Collection")
+            self.assertNotIn("wikidata_universe_1", served)
+            # another title: its universe, and the collection beside one chip
+            served = self.served("movie", None, title="Minions", **band)
+            self.assertNotIn("wikidata_universe_1", served)  # the collection names it
+            self.labels["ListItem.Set"] = "Illumination"
+            served = self.served("movie", None, title="Minions", **band)
+            self.assertEqual(served["wikidata_universe_1"], "Despicable Me universe")
+            self.assertEqual(served["wikidata_part_of_1"], "Illumination")
+            # a show: no collection
+            served = self.served("tvshow", None, title="Minions", **band)
+            self.assertNotIn("wikidata_part_of_1", served)
+
+    def test_another_skins_call(self):
+        # wikidata=true alone: the details, none of the band's, heading's or
+        # collection's properties, whatever the item has
+        self.entities |= OPPENHEIMER
+        wd.details(("movie", "872585", ""), ALIVE)
+        self.labels |= {
+            "ListItem.UniqueID(tmdb)": "872585",
+            "ListItem.Set": "Oppenheimer Collection",
+        }
+        with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
+            served = self.served("movie", None, title="Oppenheimer")
+        self.assertEqual(
+            served,
+            {
+                "wikidata_based_on": (
+                    "American Prometheus, biography by Kai Bird and Martin J. Sherwin"
+                )
+            },
+        )
 
     def test_the_chip_width(self):
         params = {"info": "metadata", "target": "item", "type": "movie", "id": "4"}
@@ -675,41 +880,271 @@ class ServeTest(WikidataCase):
         self.assertNotIn("wikidata_created_by", item["properties"])
 
 
-class StoryTest(unittest.TestCase):
-    """fit_story: the Plot tab's story line on one row or two, cut past its own."""
+def kept(**items):
+    """Items as items() keeps them, by Q-id: each given as (label, claims)."""
+    return {
+        qid: wikidata._shape(item(qid, label, **claims))
+        for qid, (label, claims) in items.items()
+    }
 
-    def fit(self, based, place, width):
+
+class BandTest(unittest.TestCase):
+    """The story band's choices (the coverage fetch's cases) and its fitting."""
+
+    def test_places(self):
+        # Coco: Mexico is Santa Cecilia's country; Wikidata's order otherwise
+        coco = kept(
+            Q96=("Mexico", {"P31": ["Q6256"], "P17": ["Q96"]}),
+            Q101=("Land of the Dead", {"P31": ["Q101"]}),
+            Q102=("Santa Cecilia Acatitlan", {"P17": ["Q96"]}),
+        )
+        self.assertEqual(
+            wd._places([*coco], coco), ["Land of the Dead", "Santa Cecilia Acatitlan"]
+        )
+        # Room: a country alone is its own country, not another's
+        room = kept(Q16=("Canada", {"P17": ["Q16"]}))
+        self.assertEqual(wd._places([*room], room), ["Canada"])
+        # 2001: the moon, Jupiter and Africa beside a base and a crater
+        odyssey = kept(
+            Q5=("Clavius Base", {}),
+            Q319=("Jupiter", {"P31": ["Q121750", "Q30014"]}),
+            Q15=("Africa", {"P31": ["Q5107"]}),
+            Q631696=("Tycho", {"P31": ["Q55818"]}),
+        )
+        self.assertEqual(wd._places([*odyssey], odyssey), ["Clavius Base", "Tycho"])
+        # Elio: Earth alone stays; an unlabelled place is none
+        elio = kept(Q2=("Earth", {"P31": ["Q3504248"]}), Q9=("", {}))
+        self.assertEqual(wd._places([*elio], elio), ["Earth"])
+
+    def test_period(self):
+        found = {
+            q: wikidata._shape(OPPENHEIMER[q]) for q in ("Q6927", "Q362", "Q36561")
+        }
+        self.assertEqual(wd._period([*found], found), ["World War II", 1939, 1945])
+        del found["Q362"]  # a decade before a century
+        self.assertEqual(wd._period([*found], found), ["1940s", 1940, 1949])
+        # years, the first in Wikidata's order; with no end, a decade spans ten
+        years = kept(
+            Q2062=("1991", {"P31": ["Q3186692"], "P585": ["+1991-01-01T00:00:00Z"]}),
+            Q2437=("1981", {"P31": ["Q3186692"], "P585": ["+1981-01-01T00:00:00Z"]}),
+            Q39847=("1870s", {"P31": ["Q39911"], "P585": ["+1870-01-01T00:00:00Z"]}),
+        )
+        self.assertEqual(wd._period([*years], years), ["1991", 1991, 1991])
+        self.assertEqual(wd._period(["Q39847"], years), ["1870s", 1870, 1879])
+        # a century alone, and a named period with no dates
+        alone = kept(Q7015=("18th century", {"P31": ["Q578"]}), Q8=("Regency", {}))
+        self.assertEqual(wd._period(["Q7015"], alone), ["18th century", None, None])
+        self.assertEqual(wd._period([*alone], alone), ["Regency", None, None])
+        self.assertEqual(wd._period([], {}), [])
+
+    def test_subjects(self):
+        subjects = kept(
+            Q1=("bear", {"P31": ["Q55983715"]}),  # Brave's: organisms by a name
+            Q2=("1970s", {"P31": ["Q39911"]}),  # The Virgin Suicides'
+            Q3=("suicide", {}),
+            Q4=("", {}),
+        )
+        self.assertEqual(wd._subjects([*subjects], subjects), ["suicide"])
+
+    def chips(self, title="Film", year=0, collection="", **found):
+        return wd.story_chips(found, title, year, collection)
+
+    def test_the_period_near_its_release(self):
+        # The Thing (1982) in the 1980s, Amélie (2001) in the 1990s: their own time
+        for period, year, shown in (
+            (["1980s", 1980, 1989], 1982, []),
+            (["1990s", 1990, 1999], 2001, []),
+            (["1990s", 1990, 1999], 2005, ["1990s"]),
+            (["World War II", 1939, 1945], 2023, ["World War II"]),
+            (["World War II", 1939, 1945], 0, ["World War II"]),  # no year
+            (["Regency", None, None], 1995, ["Regency"]),  # no dates
+        ):
+            columns = self.chips(year=year, period=period)
+            self.assertEqual(columns["period"], shown, (period, year))
+
+    def test_about(self):
+        # what the title names goes (Peaky Blinders' gang), word by word; three
+        about = ["Peaky Blinders", "art", "crime", "family", "war"]
+        columns = self.chips("Peaky Blinders", about=about)
+        self.assertEqual(columns["about"], ["art", "crime", "family"])
+        self.assertEqual(self.chips("Smart People", about=["art"])["about"], ["art"])
+
+    def test_universe(self):
+        for title, collection, universe, shown in (
+            ("A Knight of the Seven Kingdoms", "", "World of Ice and Fire", True),
+            ("Despicable Me 4", "", "Despicable Me universe", False),  # held
+            ("Minions", "Despicable Me Collection", "Despicable Me universe", False),
+            ("Westworld", "", "Westworld", False),
+            ("Dune", "", "The Dune Saga", False),  # holds the title
+            ("Coco", "Pixar Collection", "Universe", True),  # nothing but generic
+        ):
+            columns = self.chips(title, 0, collection, universe=universe)
+            self.assertEqual(columns["universe"], [universe] * shown, title)
+
+    def test_part_of(self):
+        # only on a band of one chip or none
+        self.assertEqual(self.chips(collection="Set")["part_of"], ["Set"])
+        self.assertEqual(
+            self.chips(collection="Set", places=["London"])["part_of"], ["Set"]
+        )
+        both = self.chips(collection="Set", places=["London"], about=["spies"])
+        self.assertEqual(both["part_of"], [])
+        self.assertEqual(self.chips()["part_of"], [])
+        # kept before the band: nothing of it
+        self.assertEqual(
+            self.chips(),
+            {"places": [], "period": [], "about": [], "universe": [], "part_of": []},
+        )
+
+    def fit(self, width, **columns):
         chip = lambda name: 10 * len(name) + 24
-        words = ("Based on", "•  Set in")
-        return wd.fit_story(based, place, TenWide, chip, words, width, 15)
+        empty = dict.fromkeys(("places", "period", "about", "universe", "part_of"), [])
+        return wd.fit_band(empty | columns, chip, width, 60, 15)
 
-    def test_one_row_or_two(self):
-        based = "the novel by Mick Herron"
-        self.assertEqual(self.fit(based, "London", 600), {"wikidata_based_on": based})
+    def test_the_drop_order(self):
+        # chips 10 a character and 24, 15 apart; columns 60 apart. Set in: two
+        # places and a period, 254 + 114 + 144 + 30; About 3 x 74 + 30; Universe 104
+        band = {
+            "places": ["University of Cambridge", "Project Y"],
+            "period": ["World War II"],
+            "about": ["trial", "crime", "drama"],
+            "universe": ["Universe"],
+        }
+        full = 542 + 60 + 252 + 60 + 104
+        self.assertEqual(len(self.fit(full, **band)), 7)
+        for name, width, left in (
+            ("wikidata_universe_1", full - 1, 6),  # 854 left
+            ("wikidata_about_3", 853, 5),  # 765
+            ("wikidata_about_2", 764, 4),  # 676
+            ("wikidata_about_1", 675, 3),  # 542
+            ("wikidata_set_in_3", 541, 2),  # the second place: 413
+            ("wikidata_set_in_2", 412, 1),  # the period: 254
+        ):
+            fitted = self.fit(width, **band)
+            self.assertNotIn(name, fitted, width)
+            self.assertEqual(len(fitted), left, width)
         self.assertEqual(
-            self.fit(based, "London", 500),
-            {"wikidata_based_on": based, "wikidata_story_rows": "2"},
+            self.fit(412, **band), {"wikidata_set_in_1": "University of Cambridge"}
         )
-        # no place: one row, however full
-        self.assertEqual(self.fit(based, "", 330), {"wikidata_based_on": based})
+        self.assertEqual(
+            self.fit(542 - 1, **band),
+            {
+                "wikidata_set_in_1": "University of Cambridge",
+                "wikidata_set_in_2": "World War II",
+            },
+        )
+        # the first place stays, however narrow; part_of is never dropped
+        self.assertEqual(
+            self.fit(10, **band), {"wikidata_set_in_1": "University of Cambridge"}
+        )
+        self.assertEqual(self.fit(10, part_of=["Set"]), {"wikidata_part_of_1": "Set"})
+        self.assertEqual(self.fit(1480), {})
 
-    def test_cut_only_past_its_own_row(self):
-        # "Based on the novel by Mick Herron" is 330: it ends cut at a word
-        self.assertEqual(
-            self.fit("the novel by Mick Herron", "London", 300),
-            {"wikidata_based_on": "the novel by Mick...", "wikidata_story_rows": "2"},
-        )
-        self.assertEqual(
-            self.fit("the novel by Mick Herron", "", 300),
-            {"wikidata_based_on": "the novel by Mick..."},
-        )
 
-    def test_the_words_are_never_cut(self):
-        # 30 left after "Based on " (90): the source alone ends, never the words
-        self.assertEqual(
-            self.fit("the novel by Mick Herron", "", 120),
-            {"wikidata_based_on": "..."},
-        )
+class HeadingTest(unittest.TestCase):
+    """heading_lines, set_name and artist_years on the metadata serve."""
+
+    def setUp(self):
+        self.labels = {}
+        for target, name, value in (
+            (handlers, "infolabel", lambda label: self.labels.get(label, "")),
+            (handlers, "set_items", lambda items, **kwargs: items),
+            (helpers, "infolabel", lambda label: self.labels.get(label, "")),
+            (sys.modules["xbmc"], "executeJSONRPC", lambda request: "{}"),
+            (handlers, "skin_metric", lambda name: TenWide),
+        ):
+            patcher = mock.patch.object(target, name, value, create=True)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def served(self, dbtype, **params):
+        handler = object.__new__(handlers.PluginHandlers)
+        handler.params = params
+        handler.item, handler.dbid, handler.dialog = False, "7", False
+        handler.dbtype, handler.target_item, handler.again = dbtype, "ListItem", None
+        handler._guard = lambda: mock.Mock(alive=lambda: True)
+        handler._apply_truncated_label = lambda *args, **kwargs: None
+        return handler.metadata()[0]["properties"]
+
+    def test_heading_lines(self):
+        # 10 a character: the tagline, else the title, in two lines at most
+        heading = {"heading_font": "title_wide_xl", "heading_width": "100"}
+        self.labels["ListItem.Title"] = "Slow Horses"
+        self.assertEqual(self.served("tvshow", **heading)["heading_lines"], "2")
+        self.labels["ListItem.Title"] = "Oppenheimer"  # 110: a word wider than a line
+        self.assertEqual(self.served("movie", **heading)["heading_lines"], "2")
+        self.labels["ListItem.Tagline"] = "The world forever changes."
+        self.assertEqual(self.served("movie", **heading)["heading_lines"], "2")
+        self.labels["ListItem.Tagline"] = "Short."
+        self.assertEqual(self.served("movie", **heading)["heading_lines"], "1")
+        self.assertNotIn("heading_lines", self.served("movie"))
+        self.assertNotIn("heading_lines", self.served("movie", heading_font="x"))
+        with mock.patch.object(handlers, "skin_metric", lambda name: None):
+            self.assertNotIn("heading_lines", self.served("movie", **heading))
+
+    def test_set_name(self):
+        self.labels["ListItem.Set"] = "Planet of the Apes (Reboot) Collection"
+        served = lambda **params: self.served("movie", **params).get("set_name")
+        self.assertEqual(served(set_suffix="Collection"), "Planet of the Apes (Reboot)")
+        self.assertEqual(served(set_suffix="collection"), "Planet of the Apes (Reboot)")
+        self.assertEqual(served(set_suffix="Filmreihe"), self.labels["ListItem.Set"])
+        self.assertIsNone(served())  # no suffix asked: none
+        self.labels["ListItem.Set"] = "Collection"  # the word alone stays
+        self.assertEqual(served(set_suffix="Collection"), "Collection")
+        self.labels["ListItem.Set"] = ""
+        self.assertIsNone(served(set_suffix="Collection"))
+
+    def test_artist_years(self):
+        self.labels |= {
+            "ListItem.Property(artist_type)": "Group",
+            "ListItem.Property(artist_formed)": "2001-01-01",
+            "ListItem.Property(artist_born)": "1997-03-04",
+        }
+        served = lambda: self.served("artist", years_present="present")["artist_years"]
+        self.assertEqual(served(), "2001–present")
+        self.labels["ListItem.Property(artist_yearsactive)"] = "1990s / 2000s"
+        self.assertEqual(served(), "1990s / 2000s")  # Kodi's own first
+        self.assertNotIn("artist_years", self.served("artist"))  # not asked
+        self.assertNotIn("artist_years", self.served("movie", years_present="now"))
+
+    def test_another_skins_call(self):
+        self.labels |= {
+            "ListItem.Title": "Oppenheimer",
+            "ListItem.Set": "Oppenheimer Collection",
+            "ListItem.Property(artist_formed)": "2001",
+        }
+        for dbtype in ("movie", "artist"):
+            served = self.served(dbtype)
+            for name in ("heading_lines", "set_name", "artist_years"):
+                self.assertNotIn(name, served)
+
+
+class YearsTest(unittest.TestCase):
+    """artist_years: Kodi's years active, else its dates by the artist's type."""
+
+    def years(self, kind="", present="present", **dates):
+        fields = ("yearsactive", "born", "formed", "died", "disbanded")
+        artist = dict.fromkeys(fields, "") | {"type": kind} | dates
+        return music.artist_years(artist, present)
+
+    def test_by_type(self):
+        both = {"born": "1971-08-18", "formed": "1985", "died": "", "disbanded": ""}
+        self.assertEqual(self.years("Person", **both), "1971–present")
+        self.assertEqual(self.years("character", **both), "1971–present")
+        for kind in ("Group", "Orchestra", "Choir", "Other", ""):
+            self.assertEqual(self.years(kind, **both), "1985–present", kind)
+        # each falls back to the other's dates
+        self.assertEqual(self.years("Person", formed="1985"), "1985–present")
+        self.assertEqual(self.years("Group", born="1997-03-04"), "1997–present")
+        ended = {"formed": "1991", "disbanded": "2008-02-22", "died": "2010"}
+        self.assertEqual(self.years("Group", **ended), "1991–2008")
+        self.assertEqual(self.years("Person", **ended), "1991–2010")
+        self.assertEqual(self.years("Group", "nu", formed="1991"), "1991–nu")
+
+    def test_kodis_own_and_none(self):
+        self.assertEqual(self.years(yearsactive="1990s", formed="1991"), "1990s")
+        self.assertEqual(self.years("Group", disbanded="2008"), "")  # no start
+        self.assertEqual(self.years(formed="in the nineties"), "")
 
 
 class CompilationTest(unittest.TestCase):
