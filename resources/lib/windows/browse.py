@@ -143,178 +143,219 @@ _PLAYLIST_SOURCES = {
 # Menu-mode static shortcut sources
 # ---------------------------------------------------------------------------
 
-_COMMON_SHORTCUTS = [
-    (
-        xbmc.getLocalizedString(3),
-        "ActivateWindow(Videos)",
-        "DefaultVideo.png",
-    ),  # Videos
-    (
-        xbmc.getLocalizedString(342),
-        "ActivateWindow(Videos,videodb://movies/titles/,return)",
-        "DefaultMovies.png",
-    ),  # Movies
-    (
-        xbmc.getLocalizedString(20343),
-        "ActivateWindow(Videos,videodb://tvshows/titles/,return)",
-        "DefaultTVShows.png",
-    ),  # TV Shows
-    (
-        xbmc.getLocalizedString(2),
-        "ActivateWindow(Music,musicdb://,return)",
-        "DefaultMusicAlbums.png",
-    ),  # Music
-    (
-        xbmc.getLocalizedString(20389),
-        "ActivateWindow(Videos,videodb://musicvideos/titles/,return)",
-        "DefaultMusicVideos.png",
-    ),  # Music Videos
-    (
-        xbmc.getLocalizedString(589),
-        "PlayerControl(PartyMode)",
-        "DefaultAudio.png",
-    ),  # Party Mode
-    (
-        xbmc.getLocalizedString(589) + " (" + xbmc.getLocalizedString(20389) + ")",
-        "PlayerControl(PartyMode(video))",
-        "DefaultMusicVideos.png",
-    ),  # Party Mode (Music Videos)
-    (
-        xbmc.getLocalizedString(1),
-        "ActivateWindow(Pictures)",
-        "DefaultPicture.png",
-    ),  # Pictures
-    (
-        xbmc.getLocalizedString(8),
-        "ActivateWindow(Weather)",
-        "DefaultAddonWeather.png",
-    ),  # Weather
-    (
-        xbmc.getLocalizedString(350),
-        "ActivateWindow(Programs)",
-        "DefaultProgram.png",
-    ),  # Programs
-    (xbmc.getLocalizedString(341), "PlayDVD", "DefaultDVDFull.png"),  # Play disc
-    (xbmc.getLocalizedString(13391), "EjectTray()", "DefaultDVDFull.png"),  # Eject Tray
-    (
-        xbmc.getLocalizedString(5),
-        "ActivateWindow(Settings)",
-        "DefaultAddon.png",
-    ),  # Settings
-    (
-        xbmc.getLocalizedString(7),
-        "ActivateWindow(FileManager)",
-        "DefaultFolder.png",
-    ),  # File manager
-    (
-        xbmc.getLocalizedString(13200),
-        "ActivateWindow(LoginScreen)",
-        "DefaultUser.png",
-    ),  # Profiles
-    (
-        xbmc.getLocalizedString(10007),
-        "ActivateWindow(SystemInformation)",
-        "DefaultAddon.png",
-    ),  # System information
-    (
-        xbmc.getLocalizedString(14111),
-        "ActivateWindow(EventLog)",
-        "DefaultAddon.png",
-    ),  # Events
-    (
-        xbmc.getLocalizedString(10134),
-        "ActivateWindow(FavouritesBrowser)",
-        "DefaultFavourites.png",
-    ),  # Favourites
-]
 
-_SETTINGS_SHORTCUTS = [
-    (
-        xbmc.getLocalizedString(14200),
-        "ActivateWindow(Settings,player)",
-        "DefaultAddon.png",
-    ),  # Player
-    (
-        xbmc.getLocalizedString(14211),
-        "ActivateWindow(Settings,media)",
-        "DefaultAddon.png",
-    ),  # Media
-    (
-        xbmc.getLocalizedString(14204),
-        "ActivateWindow(Settings,pvr)",
-        "DefaultAddon.png",
-    ),  # PVR & Live TV
-    (
-        xbmc.getLocalizedString(14206),
-        "ActivateWindow(Settings,interface)",
-        "DefaultAddon.png",
-    ),  # Interface
-    (
-        xbmc.getLocalizedString(14036),
-        "ActivateWindow(Settings,services)",
-        "DefaultAddon.png",
-    ),  # Services
-    (
-        xbmc.getLocalizedString(13000),
-        "ActivateWindow(Settings,system)",
-        "DefaultAddon.png",
-    ),  # System
-    (
-        xbmc.getLocalizedString(10035),
-        "ActivateWindow(SkinSettings)",
-        "DefaultAddon.png",
-    ),  # Skin Settings
-]
+@cache
+def _get_common_shortcuts() -> list[tuple[str, str, str]]:
+    """
+    Build and cache the menu-mode Common shortcuts.
 
-_KODI_COMMANDS = [
-    (xbmc.getLocalizedString(13013), "Reboot", "DefaultShortcut.png"),  # Reboot
-    (xbmc.getLocalizedString(13005), "Shutdown", "DefaultShortcut.png"),  # Shut down
-    (xbmc.getLocalizedString(13016), "Powerdown", "DefaultShortcut.png"),  # Power off
-    (xbmc.getLocalizedString(13009), "Quit", "DefaultShortcut.png"),  # Quit
-    (xbmc.getLocalizedString(13010), "Hibernate", "DefaultShortcut.png"),  # Hibernate
-    (xbmc.getLocalizedString(13011), "Suspend", "DefaultShortcut.png"),  # Suspend
-    (
-        xbmc.getLocalizedString(20150),
-        "AlarmClock(shutdowntimer,Shutdown())",
-        "DefaultShortcut.png",
-    ),  # Custom shutdown timer
-    (
-        xbmc.getLocalizedString(20151),
-        "CancelAlarm(shutdowntimer)",
-        "DefaultShortcut.png",
-    ),  # Cancel shutdown timer
-    (
-        xbmc.getLocalizedString(360),
-        "ActivateScreensaver",
-        "DefaultShortcut.png",
-    ),  # Screensaver
-    (xbmc.getLocalizedString(13014), "Minimize", "DefaultShortcut.png"),  # Minimise
-    (
-        xbmc.getLocalizedString(20045),
-        "MasterMode",
-        "DefaultShortcut.png",
-    ),  # Master mode
-    (
-        xbmc.getLocalizedString(653) + " (" + xbmc.getLocalizedString(3) + ")",
-        "UpdateLibrary(video)",
-        "DefaultMovies.png",
-    ),  # Update library (Videos)
-    (
-        xbmc.getLocalizedString(653) + " (" + xbmc.getLocalizedString(2) + ")",
-        "UpdateLibrary(music)",
-        "DefaultMusicAlbums.png",
-    ),  # Update library (Music)
-    (
-        xbmc.getLocalizedString(334) + " (" + xbmc.getLocalizedString(3) + ")",
-        "CleanLibrary(video)",
-        "DefaultMovies.png",
-    ),  # Clean library... (Videos)
-    (
-        xbmc.getLocalizedString(334) + " (" + xbmc.getLocalizedString(2) + ")",
-        "CleanLibrary(music)",
-        "DefaultMusicAlbums.png",
-    ),  # Clean library... (Music)
-]
+    :return: List of (label, action, icon) tuples.
+    """
+    return [
+        (
+            xbmc.getLocalizedString(3),
+            "ActivateWindow(Videos)",
+            "DefaultVideo.png",
+        ),  # Videos
+        (
+            xbmc.getLocalizedString(342),
+            "ActivateWindow(Videos,videodb://movies/titles/,return)",
+            "DefaultMovies.png",
+        ),  # Movies
+        (
+            xbmc.getLocalizedString(20343),
+            "ActivateWindow(Videos,videodb://tvshows/titles/,return)",
+            "DefaultTVShows.png",
+        ),  # TV Shows
+        (
+            xbmc.getLocalizedString(2),
+            "ActivateWindow(Music,musicdb://,return)",
+            "DefaultMusicAlbums.png",
+        ),  # Music
+        (
+            xbmc.getLocalizedString(20389),
+            "ActivateWindow(Videos,videodb://musicvideos/titles/,return)",
+            "DefaultMusicVideos.png",
+        ),  # Music Videos
+        (
+            xbmc.getLocalizedString(589),
+            "PlayerControl(PartyMode)",
+            "DefaultAudio.png",
+        ),  # Party Mode
+        (
+            xbmc.getLocalizedString(589) + " (" + xbmc.getLocalizedString(20389) + ")",
+            "PlayerControl(PartyMode(video))",
+            "DefaultMusicVideos.png",
+        ),  # Party Mode (Music Videos)
+        (
+            xbmc.getLocalizedString(1),
+            "ActivateWindow(Pictures)",
+            "DefaultPicture.png",
+        ),  # Pictures
+        (
+            xbmc.getLocalizedString(8),
+            "ActivateWindow(Weather)",
+            "DefaultAddonWeather.png",
+        ),  # Weather
+        (
+            xbmc.getLocalizedString(350),
+            "ActivateWindow(Programs)",
+            "DefaultProgram.png",
+        ),  # Programs
+        (xbmc.getLocalizedString(341), "PlayDVD", "DefaultDVDFull.png"),  # Play disc
+        (
+            xbmc.getLocalizedString(13391),
+            "EjectTray()",
+            "DefaultDVDFull.png",
+        ),  # Eject Tray
+        (
+            xbmc.getLocalizedString(5),
+            "ActivateWindow(Settings)",
+            "DefaultAddon.png",
+        ),  # Settings
+        (
+            xbmc.getLocalizedString(7),
+            "ActivateWindow(FileManager)",
+            "DefaultFolder.png",
+        ),  # File manager
+        (
+            xbmc.getLocalizedString(13200),
+            "ActivateWindow(LoginScreen)",
+            "DefaultUser.png",
+        ),  # Profiles
+        (
+            xbmc.getLocalizedString(10007),
+            "ActivateWindow(SystemInformation)",
+            "DefaultAddon.png",
+        ),  # System information
+        (
+            xbmc.getLocalizedString(14111),
+            "ActivateWindow(EventLog)",
+            "DefaultAddon.png",
+        ),  # Events
+        (
+            xbmc.getLocalizedString(10134),
+            "ActivateWindow(FavouritesBrowser)",
+            "DefaultFavourites.png",
+        ),  # Favourites
+    ]
+
+
+@cache
+def _get_settings_shortcuts() -> list[tuple[str, str, str]]:
+    """
+    Build and cache the menu-mode Settings shortcuts.
+
+    :return: List of (label, action, icon) tuples.
+    """
+    return [
+        (
+            xbmc.getLocalizedString(14200),
+            "ActivateWindow(Settings,player)",
+            "DefaultAddon.png",
+        ),  # Player
+        (
+            xbmc.getLocalizedString(14211),
+            "ActivateWindow(Settings,media)",
+            "DefaultAddon.png",
+        ),  # Media
+        (
+            xbmc.getLocalizedString(14204),
+            "ActivateWindow(Settings,pvr)",
+            "DefaultAddon.png",
+        ),  # PVR & Live TV
+        (
+            xbmc.getLocalizedString(14206),
+            "ActivateWindow(Settings,interface)",
+            "DefaultAddon.png",
+        ),  # Interface
+        (
+            xbmc.getLocalizedString(14036),
+            "ActivateWindow(Settings,services)",
+            "DefaultAddon.png",
+        ),  # Services
+        (
+            xbmc.getLocalizedString(13000),
+            "ActivateWindow(Settings,system)",
+            "DefaultAddon.png",
+        ),  # System
+        (
+            xbmc.getLocalizedString(10035),
+            "ActivateWindow(SkinSettings)",
+            "DefaultAddon.png",
+        ),  # Skin Settings
+    ]
+
+
+@cache
+def _get_kodi_commands() -> list[tuple[str, str, str]]:
+    """
+    Build and cache the menu-mode Kodi commands.
+
+    :return: List of (label, action, icon) tuples.
+    """
+    return [
+        (xbmc.getLocalizedString(13013), "Reboot", "DefaultShortcut.png"),  # Reboot
+        (
+            xbmc.getLocalizedString(13005),
+            "Shutdown",
+            "DefaultShortcut.png",
+        ),  # Shut down
+        (
+            xbmc.getLocalizedString(13016),
+            "Powerdown",
+            "DefaultShortcut.png",
+        ),  # Power off
+        (xbmc.getLocalizedString(13009), "Quit", "DefaultShortcut.png"),  # Quit
+        (
+            xbmc.getLocalizedString(13010),
+            "Hibernate",
+            "DefaultShortcut.png",
+        ),  # Hibernate
+        (xbmc.getLocalizedString(13011), "Suspend", "DefaultShortcut.png"),  # Suspend
+        (
+            xbmc.getLocalizedString(20150),
+            "AlarmClock(shutdowntimer,Shutdown())",
+            "DefaultShortcut.png",
+        ),  # Custom shutdown timer
+        (
+            xbmc.getLocalizedString(20151),
+            "CancelAlarm(shutdowntimer)",
+            "DefaultShortcut.png",
+        ),  # Cancel shutdown timer
+        (
+            xbmc.getLocalizedString(360),
+            "ActivateScreensaver",
+            "DefaultShortcut.png",
+        ),  # Screensaver
+        (xbmc.getLocalizedString(13014), "Minimize", "DefaultShortcut.png"),  # Minimise
+        (
+            xbmc.getLocalizedString(20045),
+            "MasterMode",
+            "DefaultShortcut.png",
+        ),  # Master mode
+        (
+            xbmc.getLocalizedString(653) + " (" + xbmc.getLocalizedString(3) + ")",
+            "UpdateLibrary(video)",
+            "DefaultMovies.png",
+        ),  # Update library (Videos)
+        (
+            xbmc.getLocalizedString(653) + " (" + xbmc.getLocalizedString(2) + ")",
+            "UpdateLibrary(music)",
+            "DefaultMusicAlbums.png",
+        ),  # Update library (Music)
+        (
+            xbmc.getLocalizedString(334) + " (" + xbmc.getLocalizedString(3) + ")",
+            "CleanLibrary(video)",
+            "DefaultMovies.png",
+        ),  # Clean library... (Videos)
+        (
+            xbmc.getLocalizedString(334) + " (" + xbmc.getLocalizedString(2) + ")",
+            "CleanLibrary(music)",
+            "DefaultMusicAlbums.png",
+        ),  # Clean library... (Music)
+    ]
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1052,11 +1093,11 @@ def browse_content(cfg) -> dict[str, str] | str | None:
         elif label == s["custom_path"]:
             result = _custom_path()
         elif label == s["common"]:
-            result = _browse_static_list(_COMMON_SHORTCUTS, heading)
+            result = _browse_static_list(_get_common_shortcuts(), heading)
         elif label == s["settings"]:
-            result = _browse_static_list(_SETTINGS_SHORTCUTS, heading)
+            result = _browse_static_list(_get_settings_shortcuts(), heading)
         elif label == s["kodi_commands"]:
-            result = _browse_static_list(_KODI_COMMANDS, heading)
+            result = _browse_static_list(_get_kodi_commands(), heading)
         elif label == s["favourites"]:
             result = _browse_favourites(heading)
         else:
