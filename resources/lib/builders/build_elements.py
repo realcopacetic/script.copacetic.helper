@@ -103,8 +103,7 @@ class BuildElements:
         values_to_write = {}
         for mapping_name, items_data in self._merged_inputs():
             for builder, builder_elements in (items_data or {}).items():
-                builder_info = BUILDER_CONFIG.get(builder)
-                if not builder_info or not builder_info["module"]:
+                if not (builder_info := BUILDER_CONFIG.get(builder)):
                     continue
                 partitioned = self._partition_by_mapping(mapping_name, builder_elements)
                 target = values_to_write.setdefault(builder, {})
@@ -193,19 +192,12 @@ class BuildElements:
         Write builder output to disk using the handler in BUILDER_CONFIG.
 
         :param processed_data: Dictionary containing processed builder output.
-        :param builder_name: Builder identifier used to look up file details.
+        :param builder_name: A BUILDER_CONFIG key, as _process_builders gives it.
         :return: True when the file was written.
         """
-        builder_info = BUILDER_CONFIG.get(builder_name, {})
-        write_path = builder_info.get("write_path")
-        write_handler = builder_info.get("write_handler")
-        write_kwargs = builder_info.get("write_kwargs", {})
-
-        if not write_path or not write_handler:
-            return False
-
-        write_path = skin_path(write_path)
-        handler = write_handler(write_path)
-        if written := handler.write_xml(processed_data, **write_kwargs):
+        builder_info = BUILDER_CONFIG[builder_name]
+        write_path = skin_path(builder_info["write_path"])
+        handler = builder_info["write_handler"](write_path)
+        if written := handler.write_xml(processed_data, **builder_info["write_kwargs"]):
             log.info(f"{builder_name.capitalize()} saved to XML file: {write_path}")
         return written

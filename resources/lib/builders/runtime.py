@@ -164,10 +164,8 @@ class RuntimeStateManager:
                 )
         if held is None:
             handler.write_json(state)
+        self.reload_state()
         self._runtime_state_cache = held
-        self._resolved_cache.clear()
-        self._substitutions_cache.clear()
-        self.state_version += 1
         self._sync_skin_mirrors(state)
 
     def reload_state(self) -> None:
@@ -526,8 +524,6 @@ class RuntimeStateManager:
         :param state: Full runtime state dict, mutated in place.
         """
         for key, entries in state.items():
-            if not isinstance(entries, list):
-                continue
             parent_mapping = self.mappings.get(key, {}).get("parent_mapping")
             if not parent_mapping:
                 continue
@@ -574,8 +570,6 @@ class RuntimeStateManager:
         :return: The entry's mapping_item, or None if not found.
         """
         for entries in self.runtime_state.values():
-            if not isinstance(entries, list):
-                continue
             for entry in entries:
                 if entry.get("runtime_id") == runtime_id:
                     return entry.get("mapping_item")
@@ -619,7 +613,7 @@ class RuntimeStateManager:
         for i, _ in self.live_rows(mapping_key):
             if i == index:
                 continue
-            for k, v in (self.resolved_entry(mapping_key, i) or {}).items():
+            for k, v in self.resolved_entry(mapping_key, i).items():
                 if isinstance(v, str):
                     base.setdefault(k, v)
         self._substitutions_cache[key] = base
@@ -904,7 +898,7 @@ class RuntimeStateManager:
         }
 
         for key, entries in state.items():
-            if key == mapping_key or not isinstance(entries, list):
+            if key == mapping_key:
                 continue
             child = self.mappings.get(key, {})
             # Metadata parents name parent_mapping items: only those children fall back
