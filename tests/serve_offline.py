@@ -565,6 +565,22 @@ class ServeTest(unittest.TestCase):
         self.assertEqual(server.failed, {})
         server._bind.assert_called_once()
 
+    def test_a_mark_that_flips_back_records_no_failure(self) -> None:
+        server = _server()
+        marks = []  # the mark after the handler: moved, then back
+
+        def handle(params, superseded, again, cursors):
+            marks.extend(("m2", CURSOR))
+            return None
+
+        home = lambda key: (
+            marks.pop(0) if key == SETTLE.mark and marks else self.props.get(key, "")
+        )
+        server._handle = handle
+        with patch.object(serve, "home_property", home):
+            self._run(server, SETTLE)  # stale() reads True, then False
+        self.assertEqual(server.failed, {})
+
     def test_a_finished_again_leaves_the_next_one_its_own_list(self) -> None:
         server = _server()
         arrival = SETTLE._replace(lists=_lists(9000, 9010))
