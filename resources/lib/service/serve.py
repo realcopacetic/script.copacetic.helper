@@ -483,6 +483,7 @@ class Server:
                     )
                     with self.lock:
                         self.binds += 1
+                        self.quiet.pop(window_id, None)  # its probes moved on
                         self.failed.pop((window_id, list_id), None)
                         self.owed.pop((window_id, list_id), None)
                         if info:
