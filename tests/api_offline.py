@@ -1168,8 +1168,10 @@ class TmdbTest(Base):
         fetched = mock.Mock()
         tagline = 'Putting the "criminal" in "criminal lawyer."'
         fetched.return_value.fetch_data = lambda **kwargs: {
+            "label": "",
             "Plot": "",
             "TagLine": tagline,
+            "Title": "",
             "properties": {},
         }
         with mock.patch.object(handlers, "DataHandler", fetched), mock.patch.object(
@@ -1275,8 +1277,11 @@ class TmdbTest(Base):
         clamp = lambda text, **kwargs: f"{text}..."
         fetched = mock.Mock()
         fetched.return_value.fetch_data.return_value = {
+            "label": "",
             "Plot": "This plot",
             "TagLine": "",
+            "Title": "",
+            "properties": {},
         }
         with mock.patch.object(handlers, "infolabel", probe), mock.patch.object(
             handlers, "clamp_text", clamp

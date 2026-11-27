@@ -8,7 +8,8 @@ path and mtime, a miss kept too, none kept when Wikidata isn't asked or refuses,
 429 holding the queue); the marked folders; the serve's properties and Home
 properties; chips fitted to a row. The artist page (art_artist, art_rail and the
 art_artist action): its fields, kept answers served and stale ones asked aside, the
-setting tested before each request, the rails, and the Back history, each press's
+setting tested before each request, its Biography line and band (story_bio, a stale
+page marked pending), the rails, and the Back history, each press's
 step taken by the service in turn, so quick presses all land. The search
 (art_search): kept verdicts in marked folders, ranked, with no request.
 
@@ -745,6 +746,74 @@ class ArtDetailsTest(unittest.TestCase):
             },
         )
         self.assertTrue(props["art_biography"].startswith("Joseph Mallord William"))
+
+    def test_the_biography_band(self):
+        # story_bio: Member of on the line, two chips a column of Known for, Genre and
+        # Worked in, fitted as the story band; none of it without story_bio
+        band = (
+            "&story_chip_font=meta&story_chip_gap=15&story_chip_padding=12"
+            "&story_gap=60&story_width={}"
+        )
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            art._ask(("painter", TURNER), ALIVE)
+            served = lambda params: {
+                k: v
+                for k, v in self.artist(params)["properties"].items()
+                if k.startswith("wikidata_")
+            }
+            ten_wide = SimpleNamespace(getlength=lambda text: 10.0 * len(text))
+            with mock.patch.object(handlers, "skin_metric", lambda name: ten_wide):
+                self.assertEqual(served(band.format(1480)), {})  # not asked
+                bio = "&story_bio=true" + band
+                self.assertEqual(
+                    served(bio.format(1480)),
+                    {
+                        "wikidata_member_of": "Royal Academy of Arts",
+                        "wikidata_known_for_1": "The Fighting Temeraire",
+                        "wikidata_known_for_2": "Rain, Steam and Speed",
+                        "wikidata_genre_1": "landscape art",
+                        "wikidata_genre_2": "marine art",
+                        "wikidata_worked_in_1": "London",  # once
+                        "wikidata_worked_in_2": "Venice",
+                    },
+                )
+                # 10 a character and 24: 493 + 60 + 293 + 60 + 183 = 1089; Worked
+                # in goes first (846 left), then Genre's trailing chip (707)
+                self.assertIn("wikidata_worked_in_2", served(bio.format(1089)))
+                fitted = served(bio.format(1088))
+                self.assertNotIn("wikidata_worked_in_1", fitted)
+                self.assertIn("wikidata_genre_2", fitted)
+                self.assertNotIn("wikidata_genre_2", served(bio.format(845)))
+                # the heading's lines, as the metadata serve's
+                heading = "&heading_font=title_wide_xl&heading_width=100"
+                props = self.artist(heading)["properties"]
+                self.assertEqual(props["heading_lines"], "2")  # 150 in two lines
+                # the line alone with no band width; cut as Based on
+                line = "&story_bio=true&based_on_font=description_l&based_on_width=160"
+                self.assertEqual(
+                    served(line), {"wikidata_member_of": "Royal Academy..."}
+                )
+        # kept before the band was looked up: none of it
+        found = art.page("painter", TURNER)[0]
+        for kind in art.BIO.values():
+            found.pop(kind, None)
+        self.assertEqual(
+            art.artist_bio(found),
+            {"member_of": [], "known_for": [], "genre": [], "worked_in": []},
+        )
+
+    def test_the_biography_band_masks_its_landing(self):
+        # a stale page served with story_bio is marked pending: the skin dips the
+        # page when the fresh one lands
+        started, asker = self.asides(), mock.Mock(current=lambda: True)
+        with mock.patch.object(art, "getLocalizedString", MONTHS.get):
+            art._ask(("painter", TURNER), ALIVE)
+            ApiCacheHandler().expire(f"wikidata:painter:{TURNER}")
+            props = self.artist("&story_bio=true", again=asker)["properties"]
+            self.assertEqual(props["wikidata_pending"], "true")
+            props = self.artist(again=asker)["properties"]  # another skin's
+            self.assertNotIn("wikidata_pending", props)
+        self.assertTrue(started)
 
     def test_first_country_and_a_death_alone(self):
         found = {

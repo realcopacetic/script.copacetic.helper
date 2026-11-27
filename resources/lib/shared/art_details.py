@@ -58,6 +58,13 @@ SURFACES = frozenset(
 YEAR_SAME, YEAR_NEAR, YEAR_FAR = 0.15, 0.05, -0.1  # in the file's years, one off, more
 DEPICTS = 3  # values kept
 NAMES = 2  # teachers and influences named on the artist page, the rest counted
+# The Biography tab's line and band (wikidata_details.BIOS) by the page's kinds
+BIO = {
+    "member_of": "member",
+    "known_for": "notable",
+    "genre": "genre",
+    "worked_in": "workplace",
+}
 # A demonym's adjective endings: Wikidata lists a country's noun too, in no set order
 # (Briton before British, Spaniard after Spanish); the shortest of them wins
 ADJECTIVES = ("sh", "ch", "an", "ese", "ic", "i")
@@ -639,6 +646,20 @@ def artist_fields(found: dict[str, Any]) -> dict[str, str]:
         "paintings": str(first("paintings") or ""),
         "portrait": portrait and commons(portrait, TILE),
         "biography": found["biography"],
+    }
+
+
+def artist_bio(found: dict[str, Any]) -> dict[str, list[str]]:
+    """
+    A painter's Biography line and band from its page, as wikidata_details.bio_band
+    takes them: each one's labels (BIO's kinds), each once in Wikidata's order.
+
+    :param found: page's answer for the painter.
+    :return: member_of, known_for, genre and worked_in's labels.
+    """
+    return {
+        key: [*dict.fromkeys(label for _, label in found.get(kind, []))]
+        for key, kind in BIO.items()
     }
 
 

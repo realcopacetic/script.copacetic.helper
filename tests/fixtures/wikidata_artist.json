@@ -1,5 +1,5 @@
 {
-  "note": "Hand-written in the query service's row shapes for J. M. W. Turner's artist page (the Figma mockup's): his page as [kind, value, value's English label, date precision, date calendar, a demonym's country, its citizenship's start year], his three rails as [item, English label, P18 picture, year], and his article's summary. Turner's and the named people's Q-ids are real; Q9100xx are placeholders, and the counts approximate. The rows test a day-precise birth, a year-precise death, an unlabelled teacher and an unknown birthplace (both left out), two countries' demonyms with the later citizenship (the United Kingdom, from 1801) listed first and the noun Briton before British (as the live answer has it), the painter occupation picked over others, a second movement counted, and a gallery work with no English label.",
+  "note": "Hand-written in the query service's row shapes for J. M. W. Turner's artist page (the Figma mockup's): his page as [kind, value, value's English label, date precision, date calendar, a demonym's country, its citizenship's start year], his three rails as [item, English label, P18 picture, year], and his article's summary. Turner's and the named people's Q-ids are real; Q9100xx are placeholders, and the counts approximate. The rows test a day-precise birth, a year-precise death, an unlabelled teacher and an unknown birthplace (both left out), two countries' demonyms with the later citizenship (the United Kingdom, from 1801) listed first and the noun Briton before British (as the live answer has it), the painter occupation picked over others, a second movement counted, and a gallery work with no English label. The Biography band's rows (27 Nov, by hand: Wikidata was refusing this workspace) give a membership, three notable works, four genres (one unlabelled, left out) and a work place listed twice (shown once).",
   "pages": {
     "Q159758": [
       ["name", "J. M. W. Turner"],
@@ -22,6 +22,17 @@
       ["nationality", "British", "", "", "", "http://www.wikidata.org/entity/Q161885", "0"],
       ["influence", "http://www.wikidata.org/entity/Q130777", "Claude Lorrain"],
       ["influence", "http://www.wikidata.org/entity/Q910107", "Thomas Girtin"],
+      ["member", "http://www.wikidata.org/entity/Q270920", "Royal Academy of Arts"],
+      ["notable", "http://www.wikidata.org/entity/Q910111", "The Fighting Temeraire"],
+      ["notable", "http://www.wikidata.org/entity/Q910112", "Rain, Steam and Speed"],
+      ["notable", "http://www.wikidata.org/entity/Q910113", "The Slave Ship"],
+      ["genre", "http://www.wikidata.org/entity/Q191163", "landscape art"],
+      ["genre", "http://www.wikidata.org/entity/Q158607", "marine art"],
+      ["genre", "http://www.wikidata.org/entity/Q910114", "history painting"],
+      ["genre", "http://www.wikidata.org/entity/Q910115"],
+      ["workplace", "http://www.wikidata.org/entity/Q84", "London"],
+      ["workplace", "http://www.wikidata.org/entity/Q641", "Venice"],
+      ["workplace", "http://www.wikidata.org/entity/Q84", "London"],
       ["portrait", "http://commons.wikimedia.org/wiki/Special:FilePath/Turner%20selfportrait.jpg"],
       ["paintings", "575"],
       ["enwiki", "J. M. W. Turner"]
