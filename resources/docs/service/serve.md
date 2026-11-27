@@ -250,8 +250,9 @@ during an artwork call's art reads, is waited out and the list read again.
 - **A video library update.** Outside a scan, one second after the last of a burst (a
   watched toggle, a play's saved state), the lists the window on top last served with
   the [progress bar](../plugins/progressbar.md) and [metadata](../plugins/metadata.md)
-  are served again: a listing rebuilt within its visit's second rings a repeat. A scan
-  marks every update it makes, a watched toggle's too, so its end serves them once.
+  are served again: a listing rebuilt within its visit's second rings a repeat. A scan or
+  clean marks every update made meanwhile, a watched toggle's too, so its end serves
+  them once.
 - **Multiart.** When an artwork row that names `slides=<list>:<probe>` binds a family
   (`multiart`, `multiart1` …, two images or more), the service turns it on that list:
   every 5 s it makes the next slide with the params in that probe and binds one item
