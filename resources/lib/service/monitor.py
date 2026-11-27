@@ -8,6 +8,7 @@ from threading import Thread, Timer
 
 import xbmc
 
+from resources.lib.apis.tmdb.context import forget_tmdb_id
 from resources.lib.art.slideshow import Slideshow
 from resources.lib.art.splash import bake_profiles
 from resources.lib.builders.build_elements import BuildElements, output_digests
@@ -308,9 +309,9 @@ class Monitor(xbmc.Monitor):
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
-        Kodi event hook, on the service's thread: the clashes writes scripts hand over;
-        while active, a new playlist_revision on each music queue edit (a shuffle too),
-        the bar after song or video updates outside a scan, and after Stop rewatch.
+        Kodi event hook, on the service's thread: the clashes writes scripts hand over,
+        a video update's kept TMDb id; while active, playlist_revision on music queue
+        edits (a shuffle too), the bar after Stop rewatch or library updates (no scan).
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
@@ -342,9 +343,12 @@ class Monitor(xbmc.Monitor):
                 self._song_update()
             return
         if method == "VideoLibrary.OnUpdate":
+            data = json.loads(data)
+            item = data.get("item", data)  # an announced item's, or AnnounceUpdate's
+            forget_tmdb_id(item.get("type"), item.get("id"))  # a rescrape's new id
             # A plugin list refetches itself; a served one is rebound only on an
             # arrival, and the rebuilt listing's ring repeats its visit (same second)
-            if self.player_monitor and "transaction" not in json.loads(data):
+            if self.player_monitor and "transaction" not in data:
                 self._video_update()
             return
         shuffle = method == "Player.OnPropertyChanged"

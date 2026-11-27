@@ -20,9 +20,20 @@ _DETAILS_LOOKUP_BY_KIND = {
 }
 
 
-# A library movie's or show's TMDb id once found, kept for the process: a season's
-# bar and its metadata serve, and every later focus, look its show up once
+# A library movie's or show's TMDb id once found, kept for the process until its next
+# library update: a season's bar and its metadata serve look its show up once
 _TMDB_IDS = {}
+
+
+def forget_tmdb_id(kind: str, dbid: int) -> None:
+    """
+    Drop a library item's kept TMDb id, read again at its next lookup: a rescrape
+    can give it another.
+
+    :param kind: Its library type, as VideoLibrary.OnUpdate names it.
+    :param dbid: Its library id.
+    """
+    _TMDB_IDS.pop((kind, dbid), None)
 
 
 def _library_tmdb_id(kind: str, dbid: int) -> str | None:
