@@ -218,9 +218,14 @@ item with no properties.
 | `art_paintings` | How many paintings Wikidata credits to the artist |
 | `art_influence`, `art_influence_more` | The first two the artist was influenced by, and how many more |
 | `art_biography` | The English Wikipedia summary, whole: pass it to [`text`](text.md) to draw it as a page |
+| `wikidata_member_of` | With `story_bio`: the artist's memberships (P463), `Royal Academy of Arts`, cut as the [metadata](metadata.md) serve cuts it (`based_on_font`, `based_on_width`) |
+| `wikidata_known_for_1`, `_2`, `wikidata_genre_1`, `_2`, `wikidata_worked_in_1`, `_2` | With `story_bio`, `story_width` and `story_chip_font`: its Biography band, notable works (P800), genres (P136) and work places (P937), fitted as the metadata serve's story band (the same `story_*` params, captions `story_caption_known_for`, `_genre`, `_worked_in`; `wikidata_{column}_caption_wide` too): two chips a column, no count; while they overflow, Worked in goes first, then Genre's chips, then Known for's second |
+| `heading_lines` | With `heading_font` and `heading_width`: the lines, 1 or 2, the name takes, as the metadata serve's |
+| `wikidata_pending` | `true` on a served page whose saved answer was stale and is being asked again: the page is served again when it lands, so a skin can hide it for that serve |
 
 An item with no English label, and an unknown value, is left out; an empty field is
-an empty property.
+an empty property. Pages saved before the Biography band was added have none of it
+until they are asked again.
 
 ### info=art_rail
 
