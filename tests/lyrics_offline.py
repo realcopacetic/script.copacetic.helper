@@ -4,8 +4,8 @@ order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it step
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
 service/player.py); a library song's (lyrics.library, shared/tags.py: ID3v2, FLAC,
-Ogg and APEv2 tags, art unread); the info=lyrics and info=lyrics_plain plugin paths, with
-type=song&id= served or not, the lyrics_seek action, the LRCLIB row's
+Ogg and APEv2 tags, art unread); the info=lyrics and info=lyrics_plain plugin paths,
+with type=song&id= served or not, the lyrics_seek action, the LRCLIB row's
 toggle_setting and the Lyrics row's toggle_skin_bool.
 Infolabels and conditions are dicts; nothing reaches the network.
 Run from the helper root: python tests/lyrics_offline.py
@@ -888,10 +888,21 @@ class LibrarySongTest(Kodi):
         asides = []
         with patch.object(lyrics.ASIDES, "ask", lambda *a: asides.append(a)):
             self.assertIsNone(lyrics.library(self.song(), "again"))
-        self.assertEqual(asides, [(KEY, "again")])
+        self.assertEqual(asides, [(KEY, "again", None)])
         with patch.object(lyrics.lrclib, "enabled", lambda: False):  # no consent
             self.assertEqual(lyrics.library(self.song(), "again"), "")
         self.assertEqual(len(self.asked), 1)
+
+    def test_a_stale_answer_serves_while_it_is_asked_again(self):
+        stale = {"synced": None, "plain": "Salt on the window", "instrumental": False}
+        self.cache[KEY] = (stale, False)  # Refresh cached data marked it stale
+        asides = []
+        with patch.object(lyrics.ASIDES, "ask", lambda *a: asides.append(a)):
+            self.assertEqual(lyrics.library(self.song(), "again"), "Salt on the window")
+        self.assertEqual((asides, self.asked), ([(KEY, "again", stale)], []))
+        self.lrclib[KEY] = {"synced": None, "plain": VERSES, "instrumental": False}
+        self.assertEqual(lyrics.library(self.song(), None), VERSES)  # a plugin waits
+        self.assertEqual(self.asked, [("lyrics", KEY)])
 
     def test_an_aside_the_dialog_left_skips_its_search(self):
         self.lrclib[KEY] = {}

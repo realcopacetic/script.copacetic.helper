@@ -336,11 +336,11 @@ Kodi reads), then LRCLIB's saved answer. Synced lyrics come without their time s
 item per line, an empty one between verses. An instrumental, or none found, lists
 nothing. Ask for it only while your skin shows lyrics, say behind its `lyrics`
 setting, the switch the [CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
-A song LRCLIB has never been asked for is asked then (with the helper's LRCLIB
-setting on): a plugin call
-waits for the answer; a [served](serve.md) call answers at
-once with one empty item carrying `lyrics_pending` = `true`, and serves the list again
-when LRCLIB's answer lands, so the skin can mask lines that arrive late. The playing
+A song LRCLIB has never been asked for, or whose saved answer is stale (after
+*Refresh cached data*), is asked then (with the helper's LRCLIB setting on): a plugin
+call waits for the answer; a [served](serve.md) call answers at once, with the stale
+answer's lines or else one empty item carrying `lyrics_pending` = `true`, and serves
+the list again when a new answer lands, so the skin can mask lines that arrive late. The playing
 song's lookup and properties are untouched, and the two share one saved answer.
 
 **Following the song.** On each line's time, and every 0.2 seconds while the

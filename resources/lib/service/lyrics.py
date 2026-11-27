@@ -228,12 +228,12 @@ ASIDES = Asides(_ask)
 def library(song: dict[str, Any], again: Asker | None) -> str | None:
     """
     A library song's lyrics as plain text, synced lines without their times: a .lrc
-    beside its file, its tags, else LRCLIB's kept answer. One never kept is asked:
-    in the call for a plugin, aside for a served call (again), which reads None.
+    beside its file, its tags, else LRCLIB's kept answer. One stale or never kept is
+    asked: in the call for a plugin, aside for a served call (again), which serves it.
 
     :param song: Its details, SONG_FIELDS.
     :param again: A served list's re-serve; None for a plugin call.
-    :return: The text; "" for none or an instrumental; None while LRCLIB is asked.
+    :return: The text; "" for none or an instrumental; None while asked with none kept.
     """
     key = library_song(song)
     try:
@@ -243,10 +243,11 @@ def library(song: dict[str, Any], again: Asker | None) -> str | None:
         found = None
     if not found and _wanted(key):
         payload, fresh = _saved(key)
-        if payload is None and not fresh:
-            if again:
-                ASIDES.ask(key, again)
+        if not fresh and again:  # the stale answer serves meanwhile, if any
+            ASIDES.ask(key, again, payload)
+            if payload is None:
                 return None
+        elif not fresh:  # a failed refresh keeps the stale answer (cache.cached)
             payload = _ask(key, lambda: True)
         found = _found(payload)
     _, synced, text, instrumental = found or NONE
