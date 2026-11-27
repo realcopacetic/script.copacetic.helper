@@ -320,7 +320,7 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
         return None
     article = next(iter(work.get("enwiki", [])), "")
     text = (wikidata.summary(article) if live() else None) if article else ""
-    if text is None:
+    if text is None or not live():  # stopped: a stale answer keeps no verdict
         return None
     log.debug(f"art_details → {qid} at {score} for {path}")
     return fields(name, artist, qid, work, text)
