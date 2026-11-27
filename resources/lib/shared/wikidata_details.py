@@ -128,7 +128,7 @@ def story_chips(
     """
     A film's or show's story band by column, before fitting: places, period, about,
     universe, and part_of (its collection) for a band of one chip at most. A subject
-    the title names, a universe the title or collection names, aren't repeated.
+    or universe that holds or is held by the title (a universe: or collection) goes.
 
     :param found: The kept details; {} for none (kept before the band: none of it).
     :param title: The item's title.
@@ -139,13 +139,15 @@ def story_chips(
     label, start, end = found.get("period") or ("", None, None)
     near = year and start is not None and start - NEAR <= year <= end + NEAR
     universe = found.get("universe", "")
-    names = _words(title, GENERIC), _words(collection, GENERIC)
-    about = [s for s in found.get("about", []) if _words(s) not in _words(title)]
+    named = _words(title, GENERIC), _words(collection, GENERIC)
+    titled = (_words(title),)
+    about = [s for s in found.get("about", []) if not _overlaps(_words(s), titled)]
+    repeats = _overlaps(_words(universe, GENERIC), named)
     columns = {
         "places": found.get("places", []),
         "period": [label] if label and not near else [],
         "about": about[:SUBJECTS],
-        "universe": [universe] if universe and not _repeats(universe, names) else [],
+        "universe": [universe] if universe and not repeats else [],
     }
     one = sum(map(len, columns.values())) < 2
     return columns | {"part_of": [collection] if collection and one else []}
@@ -200,11 +202,10 @@ def _words(text: str, generic: frozenset[str] = frozenset()) -> str:
     return f" {' '.join(filter(None, words))} "
 
 
-def _repeats(universe: str, named: tuple[str, ...]) -> bool:
-    """Whether a universe's name, generic words aside, holds or is held by another."""
-    words = _words(universe, GENERIC)
+def _overlaps(words: str, others: tuple[str, ...]) -> bool:
+    """Whether matched words (_words) hold, or are held by, any of the others."""
     return words.strip() != "" and any(
-        other.strip() and (words in other or other in words) for other in named
+        other.strip() and (words in other or other in words) for other in others
     )
 
 
