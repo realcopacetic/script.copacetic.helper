@@ -155,8 +155,9 @@ it up.
 Kodi passes a plugin URL's options as written, still percent-encoded, so `query` is
 decoded once, then its JSON escapes are read (`ô`), as
 [`set_search_query`](../script/actions.md#set_search_query) writes them; plain text
-works too. Two things a skin can't pass: a `|` ends a plugin URL's options in Kodi, and
-text such as `&limit=` inside the query starts a param of its own. Pass the query last.
+works too. Two things plain text can't carry: a `|` ends a plugin URL's options in Kodi,
+and text such as `&limit=` inside the query starts a param of its own. Both pass
+percent-encoded, as `set_search_query` writes them. Pass the query last.
 
 Every word of the query (case, accents and punctuation aside) must be in one of these,
 tried in turn; the first that holds them all ranks the picture:
