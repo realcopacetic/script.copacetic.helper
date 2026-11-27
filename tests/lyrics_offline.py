@@ -3,8 +3,8 @@ Offline checks for lyrics: the LRC parser (shared/lrc.py); the service's sources
 order (a .lrc beside the song, its tags, LRCLIB), what it publishes, how it steps
 the visualisation's follow list (3510) and the music OSD's browse list (3511) by
 their selected item, and the player monitor's poller hook (service/lyrics.py,
-service/player.py); a library song's (lyrics.library, shared/tags.py: ID3v2 and
-FLAC tags, art unread); the info=lyrics and info=lyrics_plain plugin paths, with
+service/player.py); a library song's (lyrics.library, shared/tags.py: ID3v2, FLAC,
+Ogg and APEv2 tags, art unread); the info=lyrics and info=lyrics_plain plugin paths, with
 type=song&id= served or not, the lyrics_seek action, the LRCLIB row's
 toggle_setting and the Lyrics row's toggle_skin_bool.
 Infolabels and conditions are dicts; nothing reaches the network.
@@ -63,6 +63,9 @@ class File:
     def seek(self, offset, whence=0):
         self.pos = offset + self.pos * whence
         return self.pos
+
+    def size(self):
+        return len(self.data)
 
 
 sys.modules["xbmcvfs"].File = File
@@ -680,10 +683,10 @@ def id3(*frames, version=4, unsync=False, audio=b"\xff\xfb"):
     return b"ID3" + flags + syncsafe(len(body)) + body + audio
 
 
-def flac(*comments, picture=b""):
-    """fLaC, STREAMINFO, a PICTURE block, then the VORBIS_COMMENT block, last."""
+def vorbis(*comments):
+    """A Vorbis comment: vendor, count, then each field with its length."""
     fields = [comment.encode() for comment in comments]
-    vorbis = b"".join(
+    return b"".join(
         (
             (4).to_bytes(4, "little"),
             b"test",
@@ -691,10 +694,39 @@ def flac(*comments, picture=b""):
             *(len(field).to_bytes(4, "little") + field for field in fields),
         )
     )
-    blocks = ((0, b"\0" * 34), (6, picture), (0x80 | 4, vorbis))
+
+
+def flac(*comments, picture=b""):
+    """fLaC, STREAMINFO, a PICTURE block, then the VORBIS_COMMENT block, last."""
+    blocks = ((0, b"\0" * 34), (6, picture), (0x80 | 4, vorbis(*comments)))
     return b"fLaC" + b"".join(
         bytes([kind]) + len(data).to_bytes(3, "big") + data for kind, data in blocks
     )
+
+
+def ogg(*packets, per_page=8):
+    """Ogg pages of packets, per_page segments a page, so a long packet spans pages."""
+    segments = [
+        packet[at : at + 255]
+        for packet in packets
+        for at in range(0, len(packet) + 1, 255)  # a full last segment gets a 0 one
+    ]
+    pages = (segments[at : at + per_page] for at in range(0, len(segments), per_page))
+    return b"".join(
+        b"OggS" + bytes(22) + bytes([len(page), *map(len, page)]) + b"".join(page)
+        for page in pages
+    )
+
+
+def ape(*items, audio=b"MAC \x96\x0f", id3v1=False):
+    """Audio, then an APEv2 tag of (key, value, flags) items, its footer, an ID3v1."""
+    body = b"".join(
+        len(value).to_bytes(4, "little") + bytes([flags, 0, 0, 0]) + key + b"\0" + value
+        for key, value, flags in items
+    )
+    sizes = (2000, len(body) + 32, len(items))  # version, items and footer, count
+    footer = b"APETAGEX" + b"".join(n.to_bytes(4, "little") for n in sizes)
+    return audio + body + footer + bytes(12) + (b"TAG" + bytes(125) if id3v1 else b"")
 
 
 # Invented lines: no real song's lyrics in fixtures
@@ -768,7 +800,40 @@ class LibrarySongTest(Kodi):
         self.assertEqual(lyrics.tags.lyrics(path), VERSES)
         self.assertLess(File.read, 1000)
         self.assertEqual(lyrics.tags.lyrics(self.song(flac("TITLE=x"))["file"]), "")
-        self.assertEqual(lyrics.tags.lyrics(self.song(b"OggS\0\0")["file"]), "")
+        self.assertEqual(lyrics.tags.lyrics(self.song(b"RIFF\0\0")["file"]), "")
+
+    def test_ogg_vorbis_opus_and_ogg_flac_comments_across_pages(self):
+        # art ahead of the lyrics: the comment packet spans several pages
+        comment = vorbis("METADATA_BLOCK_PICTURE=" + "A" * 5000, f"Lyrics={VERSES}")
+        streams = (
+            (b"\x01vorbis" + bytes(23), b"\x03vorbis" + comment + b"\x01"),
+            (b"OpusHead" + bytes(11), b"OpusTags" + comment),
+            (
+                b"\x7fFLAC" + bytes(46),
+                b"\x84" + len(comment).to_bytes(3, "big") + comment,
+            ),
+        )
+        for head, packet in streams:
+            path = self.song(ogg(head, packet), "Paper Lanterns.ogg")["file"]
+            self.assertEqual(lyrics.tags.lyrics(path), VERSES)
+        empty = ogg(b"OpusHead" + bytes(11), b"OpusTags" + vorbis("TITLE=x"))
+        self.assertEqual(lyrics.tags.lyrics(self.song(empty)["file"]), "")
+        self.assertEqual(lyrics.tags.lyrics(self.song(ogg(b"x", b"y"))["file"]), "")
+
+    def test_ape_text_lyrics_item_ahead_of_an_id3v1_tag(self):
+        items = (
+            (b"Title", b"Paper Lanterns", 0),
+            (b"Lyrics", b"\x89PNG", 2),  # binary: not text, passed over
+            (b"LYRICS", VERSES.encode() + b"\0Salt on the window", 0),  # the first
+        )
+        for audio in (b"MAC \x96\x0f", b"wvpk", b"MPCK", b"MP+\x07"):
+            for id3v1 in (False, True):
+                path = self.song(ape(*items, audio=audio, id3v1=id3v1))["file"]
+                self.assertEqual(lyrics.tags.lyrics(path), VERSES)
+        self.assertEqual(lyrics.tags.lyrics(self.song(ape(items[0]))["file"]), "")
+        self.assertEqual(
+            lyrics.tags.lyrics(self.song(b"wvpk" + bytes(200))["file"]), ""
+        )
 
     def test_embedded_first_synced_lines_lose_their_times(self):
         song = self.song(id3(id3_frame(b"USLT", b"\3eng\0" + TIMED.encode())))
