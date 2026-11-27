@@ -1,8 +1,8 @@
 # author: realcopacetic
 
-from typing import Container, Iterable, Iterator
 import re
 import urllib.parse as urllib
+from typing import Container, Iterable, Iterator
 
 _PLUGIN_KV = re.compile(
     r"([A-Za-z0-9_.%-]+)=(.*?)(?=&+[A-Za-z0-9_.%-]+=|&*$)", re.DOTALL

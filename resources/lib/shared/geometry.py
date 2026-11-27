@@ -1,6 +1,5 @@
 # author: realcopacetic
 
-
 from __future__ import annotations
 
 from typing import Mapping, NamedTuple, Optional
@@ -84,14 +83,12 @@ def resolve_rect(
     if anchor_id:
         try:
             a = window.getControl(int(anchor_id))
-            # return (a.getX(), a.getY(), a.getWidth(), a.getHeight())
             rect = (a.getX(), a.getY(), a.getWidth(), a.getHeight())
             log.debug(f"{name} → {anchor_id=}, raw={rect}")
             return rect
-
         except Exception:
             log.exception(f"{name} → failed to read anchor {anchor_id}", log.WARNING)
-            return
+            return None
 
     log.warning(f"{name} → anchor_id or coords required")
     return None
@@ -198,7 +195,8 @@ def compute_rect(
 ) -> tuple[int, int, int, int] | None:
     """
     Inside placement (default): align target within the inset rect, clamped to bounds.
-    Outside placement (below|above|left|right): position adjacent to the raw anchor (no inset).
+    Outside placement (below|above|left|right): position adjacent to the raw anchor,
+    with no inset.
 
     :param window: Kodi window object.
     :param caller_name: For logs.
@@ -268,23 +266,23 @@ def compute_rect(
             return out_x, out_y, target_w, target_h
 
     # Inside placement (default)
-    if target_w > width:
-        log.debug(
-            f"{caller_name} → track_w ({target_w}) exceeds rect width ({width}); clamped"
-        )
-
     if target_w <= width:
         posx = align_x(posx, width, target_w, align=opts.halign, pad=opts.hpad)
         width = target_w
-
-    if target_h > height:
+    else:
         log.debug(
-            f"{caller_name} → track_h ({target_h}) exceeds rect height ({height}); clamped"
+            f"{caller_name} → track_w ({target_w}) exceeds rect width ({width}); "
+            "clamped"
         )
 
     if target_h <= height:
         posy = align_y(posy, height, target_h, align=opts.valign, pad=opts.vpad)
         height = target_h
+    else:
+        log.debug(
+            f"{caller_name} → track_h ({target_h}) exceeds rect height ({height}); "
+            "clamped"
+        )
 
     log.debug(f"{caller_name} → final=({posx},{posy},{width},{height})")
     return posx, posy, width, height

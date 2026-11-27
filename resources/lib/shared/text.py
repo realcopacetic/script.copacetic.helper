@@ -286,26 +286,20 @@ def sentence_cap(text: str, abbrev: set[str] | None = None) -> str | None:
     :return: Sentence-capped prefix, or None if no safe boundary exists.
     """
     abbrev = abbrev or DEFAULT_ABBREV
-    boundaries = []
-    i = 0
-    while i < len(text):
-        ch = text[i]
-        if ch in ".!?":
-            j = i + 1
-            while j < len(text) and text[j] in " \t\n\r\"'»”’)]}":
-                j += 1
-            token = text[:i].rstrip()
-            prev = token.rsplit(" ", 1)[-1].strip(" \"')]}»”’").lower().rstrip(".")
-            if len(prev) == 1 and prev.isalpha():
-                i += 1
-                continue
-            next_ok = (j >= len(text)) or text[j].isupper()
-            if prev not in abbrev and next_ok:
-                boundaries.append(i)
-        i += 1
-    if not boundaries:
-        return None
-    return text[: boundaries[-1] + 1].rstrip()
+    end = None
+    for i, ch in enumerate(text):
+        if ch not in ".!?":
+            continue
+        j = i + 1
+        while j < len(text) and text[j] in " \t\n\r\"'»”’)]}":
+            j += 1
+        prev = text[:i].rstrip().rsplit(" ", 1)[-1].strip(" \"')]}»”’").lower()
+        prev = prev.rstrip(".")
+        if len(prev) == 1 and prev.isalpha():  # an initial
+            continue
+        if prev not in abbrev and (j >= len(text) or text[j].isupper()):
+            end = i
+    return None if end is None else text[: end + 1].rstrip()
 
 
 def text_width(font, text: str, tracking: float = 0.0) -> float:
