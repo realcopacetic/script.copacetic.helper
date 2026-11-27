@@ -74,7 +74,7 @@ DROPS = (
 )
 
 
-class _Unanswered(Exception):
+class Unanswered(Exception):
     """A request not answered (busy, refused, failed) or a look-up no longer live."""
 
 
@@ -383,17 +383,17 @@ def kept(key: tuple[str, ...]) -> tuple[dict[str, Any] | None, bool]:
     return ApiCacheHandler().get(_key(key)) or (None, False)
 
 
-def _answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
+def answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
     """
     A request's answer, while the look-up is live, waiting out a busy queue (which
     cached skips: the look-up runs aside), and asked once more after a 429's short
-    hold (which cached waits out); raises _Unanswered otherwise.
+    hold (which cached waits out); raises Unanswered otherwise.
     """
     tries = 2
     while tries and live():
         last = hold(wikidata.NEXT_CALL)
-        if (answer := call(*args)) is not None:
-            return answer
+        if (found := call(*args)) is not None:
+            return found
         if busy(wikidata.NEXT_CALL):
             if Monitor().waitForAbort(1):
                 break
@@ -401,7 +401,7 @@ def _answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
             tries -= 1
         else:  # refused, failed or timed out: not asked again
             break
-    raise _Unanswered
+    raise Unanswered
 
 
 def details(key: tuple[str, ...], live: Callable[[], bool]) -> dict[str, Any] | None:
@@ -418,8 +418,8 @@ def details(key: tuple[str, ...], live: Callable[[], bool]) -> dict[str, Any] | 
         return found
     try:
         with while_live(live):  # tested again after each queue wait
-            found = LOOK_UPS[key[0]](partial(_answer, live), *key[1:])
-    except _Unanswered:
+            found = LOOK_UPS[key[0]](partial(answer, live), *key[1:])
+    except Unanswered:
         return None
     if not live():  # stopped: a stale answer keeps no details
         return None
