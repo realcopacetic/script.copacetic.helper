@@ -64,9 +64,8 @@ class ConfigsResolver(_TemplateResolver):
         try:
             formatted = render(tpl_name, sub, mode="name", registry=self._mappings)
         except TokenError:
-            formatted = None
-
-        if formatted is not None:
+            pass
+        else:
             if data := self._templates.get((mapping_name, formatted)):
                 return self._resolve_one(data, sub, mapping_name, formatted)
 
@@ -180,8 +179,7 @@ class ConfigsResolver(_TemplateResolver):
         if separator := data.get("separator"):
             out["separator"] = separator
 
-        defaults_map = data.get("defaults") or {}
-        if defaults_map:
+        if defaults_map := data.get("defaults"):
             mapping = self._mappings.get(mapping_name, {})
             default_key = data.get("default_key") or mapping.get(
                 "placeholders", {}
