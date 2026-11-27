@@ -20,8 +20,8 @@ _DETAILS_LOOKUP_BY_KIND = {
 }
 
 
-# A library movie's or show's TMDb id once found, kept for the process until its next
-# library update: a season's bar and its metadata serve look its show up once
+# A library movie's or show's TMDb id once found, kept for the process until this
+# Kodi's next library update of it: a season's bar and metadata serve look it up once
 _TMDB_IDS = {}
 
 
