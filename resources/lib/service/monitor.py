@@ -308,7 +308,8 @@ class Monitor(xbmc.Monitor):
         """
         Kodi event hook, on the service's thread: the clashes writes scripts hand over,
         a video update's kept TMDb id; while active, playlist_revision on music queue
-        edits (a shuffle too), the bar after Stop rewatch, library updates, a scan or clean.
+        edits (a shuffle too), the bar after Stop rewatch, library updates, a scan's or
+        clean's end.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".

@@ -89,8 +89,8 @@ python tests/multiart_offline.py
 # editor close and delete_orphans reload only when the build wrote a file (or for a
 # host open once the session has closed), else clear it; a skin switch, update or
 # reload drops the loaded fonts; a library video update (not a scan's, nor a file's)
-# serves the bar and details again, metadata first, as does a scan's or clean's end, and drops
-# the item's kept TMDb id; a closed song's play count bumps played_version
+# serves the bar and details again, metadata first, as does a scan's or clean's end,
+# and drops the item's kept TMDb id; a closed song's play count bumps played_version
 python tests/service_offline.py
 
 # Served focus calls (service/serve.py): a ring's kind, region, known lists and mark;
