@@ -228,10 +228,10 @@ Looks one picture up on Wikidata again: its kept verdict is dropped and the answ
 came from (the artist's works, the painting, its summary) are asked afresh; its
 [artist page](../plugins/art_details.md#the-artist-page) is marked stale, for its next
 serve to ask again. Then, if you pass one, your served ring, so the focused item is
-served again. While the Wikidata queue is busy (a `429`'s hold, or other look-ups over
-3 seconds ahead) the action doesn't wait: it drops the verdict and gives up, and the
-ring's serve, else the next visit, looks the picture up on the service's thread, which
-waits the queue out. Nothing is sent
+served again. A press while the Wikidata queue is busy (a `429`'s hold over 3 seconds,
+or other look-ups that far ahead) does nothing: the verdict stays and no ring is sent,
+so try again later. Should the queue turn busy part-way, the action gives up rather
+than wait, and the ring's serve looks the picture up again. Nothing is sent
 while the `wikidata` setting is off or the picture's folder isn't marked, nor for a
 file Kodi doesn't show as a picture.
 
