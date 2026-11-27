@@ -488,6 +488,10 @@ class DetailsTest(WikidataCase):
             wd.properties("artist", singer),
             {"wikidata_instruments": "Guitar, Voice +1"},
         )
+        self.assertEqual(  # no count asked
+            wd.properties("artist", singer, counts=False),
+            {"wikidata_instruments": "Guitar, Voice"},
+        )
         del singer["instruments"]  # details kept before instruments were looked up
         self.assertEqual(wd.properties("artist", singer), {})
 
@@ -727,6 +731,11 @@ class ServeTest(WikidataCase):
             "Soma Quality Recordings, Virgin Records +2",
         )
         self.assertEqual(self.served("album", None), {"wikidata_producer": "Toto"})
+        # name_counts=false: the labels named, no count
+        served = self.served("artist", None, name_counts="false")
+        self.assertEqual(
+            served["wikidata_labels"], "Soma Quality Recordings, Virgin Records"
+        )
 
     def test_the_place_fits_beside_the_date(self):
         wd.details(("artist", DAFT_PUNK), ALIVE)
@@ -1405,6 +1414,11 @@ class CompilationTest(unittest.TestCase):
         self.assertIsNone(self.fetch())  # opt-in
         self.assertEqual(
             self.fetch(compilation_artists=True), "Glorilla, Travis Scott +18"
+        )
+        # name_counts=false: the names alone
+        self.assertEqual(
+            self.fetch(compilation_artists=True, name_counts=False),
+            "Glorilla, Travis Scott",
         )
 
     def test_kodis_flag_and_not_one(self):
