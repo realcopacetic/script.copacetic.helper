@@ -452,7 +452,8 @@ class DataHandler:
         if not (names := [name for name, _ in tracks.most_common()]):
             return {}
         shown = names[:COMPILATION_NAMES]
-        return {"compilation_artists": named(shown, counts and len(names) - len(shown))}
+        more = len(names) - len(shown) if counts else 0
+        return {"compilation_artists": named(shown, more)}
 
     def _studio(self) -> str:
         """

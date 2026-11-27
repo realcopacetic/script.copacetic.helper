@@ -795,7 +795,7 @@ class ArtDetailsTest(unittest.TestCase):
                 )
         # kept before the band was looked up: none of it
         found = art.page("painter", TURNER)[0]
-        for kind in art.BIO.values():
+        for kind in art.BIO_KINDS:
             found.pop(kind, None)
         self.assertEqual(
             art.artist_bio(found),
@@ -803,16 +803,17 @@ class ArtDetailsTest(unittest.TestCase):
         )
 
     def test_the_biography_band_masks_its_landing(self):
-        # a stale page served with story_bio is marked pending: the skin dips the
-        # page when the fresh one lands
+        # a stale page is marked pending, band or not: the skin dips the page when
+        # the fresh one lands; a fresh page and a plugin call aren't
         started, asker = self.asides(), mock.Mock(current=lambda: True)
         with mock.patch.object(art, "getLocalizedString", MONTHS.get):
             art._ask(("painter", TURNER), ALIVE)
+            self.assertNotIn("wikidata_pending", self.artist(again=asker)["properties"])
             ApiCacheHandler().expire(f"wikidata:painter:{TURNER}")
-            props = self.artist("&story_bio=true", again=asker)["properties"]
-            self.assertEqual(props["wikidata_pending"], "true")
-            props = self.artist(again=asker)["properties"]  # another skin's
-            self.assertNotIn("wikidata_pending", props)
+            for params in ("&story_bio=true", ""):
+                props = self.artist(params, again=asker)["properties"]
+                self.assertEqual(props["wikidata_pending"], "true")
+            self.assertNotIn("wikidata_pending", self.artist()["properties"])
         self.assertTrue(started)
 
     def test_first_country_and_a_death_alone(self):

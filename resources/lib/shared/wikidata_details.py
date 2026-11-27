@@ -124,12 +124,12 @@ def properties(
         return {}
     if kind == "artist":
         values = {
-            "labels": named(found["labels"], counts and found["more"]),
+            "labels": named(found["labels"], found["more"] if counts else 0),
             "place": found["place"],
             # details kept before instruments were looked up have none
             "instruments": named(
                 found.get("instruments", []),
-                counts and found.get("instruments_more", 0),
+                found.get("instruments_more", 0) if counts else 0,
             ),
         }
     elif kind == "album":
@@ -265,13 +265,17 @@ def bio_band(
     return fit_band(columns, chip, width, gaps, captions, drops, dict)
 
 
-def joined(names: list[str]) -> str:
+def joined(names: list[str], cut: bool = False) -> str:
     """
-    Names as one line of text: "Royal Academy of Arts", "A and B", "A, B and C".
+    Names as one line of text: "Royal Academy of Arts", "A and B", "A, B and C";
+    a list cut short by commas alone, "A, B, C", so it never reads as whole.
 
     :param names: The names, in order.
+    :param cut: Whether there are more than these.
     :return: The text; "" for none.
     """
+    if cut:
+        return ", ".join(names)
     return " and ".join(filter(None, (", ".join(names[:-1]), *names[-1:])))
 
 
@@ -416,6 +420,11 @@ def _artist(ask: Callable, mbid: str) -> dict[str, Any]:
         "instruments": instruments,
         "instruments_more": len(played) - len(instruments),
         **{key: _labelled(names, qids) for key, qids in bio.items()},
+        # more than were asked: a line of them reads as cut short (joined)
+        **{
+            f"{key}_cut": len(claims.get(prop, [])) > asked
+            for key, (prop, asked) in ARTIST_BIO.items()
+        },
     }
 
 

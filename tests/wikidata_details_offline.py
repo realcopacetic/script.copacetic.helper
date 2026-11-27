@@ -693,7 +693,8 @@ class ServeTest(WikidataCase):
     def served(self, dbtype, again, writers=(), title="Dune", **params):
         params |= {"info": "metadata", "target": "item", "type": dbtype, "id": "4"}
         plugin = handlers.PluginHandlers(params | {"wikidata": "true"}, again=again)
-        return plugin._wikidata(title, [*writers])
+        counts = params.get("name_counts") != "false"  # as metadata reads it
+        return plugin._wikidata(title, [*writers], counts)
 
     def test_kept_only_then_aside(self):
         self.labels["ListItem.UniqueID(tmdb)"] = "438631"
@@ -1003,6 +1004,18 @@ class ServeTest(WikidataCase):
                     },
                 )
                 self.assertEqual(self.bio("Group").keys(), {"wikidata_members"})
+        # more than LISTED: the six labelled, by commas alone, so never read as whole
+        clubs = [f"Q93{n}" for n in range(wd.LISTED + 1)]
+        self.entities |= {
+            "Q925": item("Q925", "Joiner", P434=["m-925"], P463=clubs),
+            **{qid: item(qid, f"Club {qid[-1]}") for qid in clubs},
+        }
+        wd.details(("artist", "m-925"), ALIVE)
+        with mock.patch.object(handlers, "artist_identity", lambda *a: ("", "m-925")):
+            self.assertEqual(
+                self.bio("Person")["wikidata_member_of"],
+                "Club 0, Club 1, Club 2, Club 3, Club 4, Club 5",
+            )
 
     def test_the_biography_band_is_opt_in(self):
         # wikidata=true and the story band's params without story_bio: nothing new
@@ -1260,6 +1273,7 @@ class BandTest(unittest.TestCase):
         self.assertEqual(wd.joined(["Royal Academy of Arts"]), "Royal Academy of Arts")
         self.assertEqual(wd.joined(["A", "B"]), "A and B")
         self.assertEqual(wd.joined(["A", "B", "C"]), "A, B and C")
+        self.assertEqual(wd.joined(["A", "B", "C"], cut=True), "A, B, C")  # not whole
 
 
 class HeadingTest(unittest.TestCase):
