@@ -1606,6 +1606,18 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 "picture_resolution": pb.picture["PictureResolution"],
                 "picture_size": pb.picture["Size"],
             }
+            # picture_name_chars=N: its edges apart, for a skin's own sign between
+            # them, and its file's name cut with "…" to the characters of N the
+            # edges and size leave (a monospace line's)
+            if room := to_int(self.params.get("picture_name_chars")):
+                edges = re.findall(r"\d+", pb.picture["PictureResolution"])
+                width, height = edges or ("", "")  # Kodi's "1920 x 1520", or none
+                room -= len(width) + len(height) + len(pb.picture["Size"])
+                item["properties"] |= {
+                    "picture_width": width,
+                    "picture_height": height,
+                    "picture_name": clipped(pb.picture["FileName"], room),
+                }
 
         if not guard.alive():
             return set_items([item], tag_applier=apply_videoinfotag)
