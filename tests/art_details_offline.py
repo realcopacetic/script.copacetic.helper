@@ -865,8 +865,9 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(files(query="Rh\\u00f4ne"), [rhone])
         self.assertEqual(len(files(query="starry")), 2)
         self.assertEqual(files(query="starry", limit="1"), [rhone])  # the rail's limit
-        self.gone.add(rhone)  # moved or deleted: dropped, the next one in its place
-        self.assertEqual(files(query="starry", limit="1"), [starry])
+        self.gone.add(rhone)  # moved or deleted: dropped, the page not refilled
+        self.assertEqual(files(query="starry", limit="1"), [])
+        self.assertEqual(files(query="starry"), [starry])
         # Past U+FFFF: a surrogate pair of escapes, as _publish_query writes it
         rare = f"{FOLDER}Rare.jpg"
         kept = ApiCacheHandler().get(f"wikidata:file:{starry}")[0]
