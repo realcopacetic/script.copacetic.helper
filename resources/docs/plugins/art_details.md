@@ -147,7 +147,7 @@ it up.
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|
 | `limit` | a number | `30` | The most pictures listed, the best first |
-| `query` | search text, last | none | The words to find; none lists every match |
+| `query` | search text, last | none | The words to find; none lists every match, and text with no word in it (emoji alone) nothing |
 
 Kodi passes a plugin URL's options as written, still percent-encoded, so `query` is
 decoded once, then its JSON escapes are read (`ô`), as
