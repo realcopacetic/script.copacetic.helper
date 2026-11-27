@@ -295,9 +295,10 @@ def look_up(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
     with while_live(live):  # tested again after each queue wait
         found = _found(path, live)
-    if found is not None:
-        kept = {"mtime": _mtime(path), "fields": found}
-        ApiCacheHandler().put(_key(path), kept, TTL_FILE)
+    if found is None or not live():  # stopped: a stale answer keeps no verdict
+        return None
+    kept = {"mtime": _mtime(path), "fields": found}
+    ApiCacheHandler().put(_key(path), kept, TTL_FILE)
     return found
 
 
@@ -320,7 +321,7 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
         return None
     article = next(iter(work.get("enwiki", [])), "")
     text = (wikidata.summary(article) if live() else None) if article else ""
-    if text is None or not live():  # stopped: a stale answer keeps no verdict
+    if text is None:
         return None
     log.debug(f"art_details → {qid} at {score} for {path}")
     return fields(name, artist, qid, work, text)
