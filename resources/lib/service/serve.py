@@ -792,7 +792,7 @@ class Server:
         :param url: The slide.
         :return: The item and the params it was made with; None for none.
         """
-        from resources.lib.art.multiart import slide_art
+        from resources.lib.art.multiart import slide_art, slide_opens
         from resources.lib.plugin.opts import ART_URLS, read_art_urls
         from resources.lib.plugin.setter import set_items
 
@@ -804,7 +804,12 @@ class Server:
         art = slide_art(params | read_art_urls(params, infolabel, True), url)
         if topmost_window_id() != turn.window_id:
             return None  # a dialog that opened during the reads answered them
-        if "background" not in art:
+        # A skin drawing no blur asks slide_check=open: the slide opens, unprocessed
+        if params.get("slide_check") == "open":
+            opened = slide_opens(url)
+        else:
+            opened = "background" in art
+        if not opened:
             return None  # it wouldn't open: the slide on screen holds
         item = {
             "file": plugin_path("artwork"),
