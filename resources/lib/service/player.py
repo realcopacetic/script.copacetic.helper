@@ -619,7 +619,11 @@ class PlayerMonitor(Player):
             and condition(ENDLESS_QUEUE)
             and self._extend_queue(item | {"songid": songid})
         ):
-            if not self.isPlayingAudio() or self.getMusicInfoTag().getDbId() != songid:
+            try:
+                playing = self.isPlayingAudio() and self.getMusicInfoTag().getDbId()
+            except RuntimeError:  # stopped since isPlayingAudio
+                return
+            if playing != songid:
                 return  # the next song published its own while the queue grew
             # The lookup asked for the next song then: ask again only for a new one
             if queued and lyrics.song("MusicPlayer.offset(1).") != queued:

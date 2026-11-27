@@ -352,13 +352,13 @@ class DataHandler:
         :return: Genre names, in the library's order.
         """
         if self.dbtype == "episode" and not genres:
-            details = json_call(
-                "VideoLibrary.GetTVShowDetails",
-                properties=["genre"],
-                params={"tvshowid": to_int(infolabel(f"{self.target}.TVShowDBID"))},
-                parent=self.__class__.__name__,
+            show = library_details(
+                "tvshow",
+                to_int(infolabel(f"{self.target}.TVShowDBID")),
+                ["genre"],
+                self.__class__.__name__,
             )
-            return details.get("result", {}).get("tvshowdetails", {}).get("genre", [])
+            return (show or {}).get("genre", [])
         return genres.split(" / ") if genres else []
 
     def _album_format(self) -> dict[str, str]:
@@ -421,13 +421,15 @@ class DataHandler:
 
         :return: compilation_artists; {} for an album that isn't one.
         """
-        album = json_call(
-            "AudioLibrary.GetAlbumDetails",
-            properties=["compilation", "musicbrainzalbumartistid"],
-            params={"albumid": to_int(self.dbid)},
-            parent=self.__class__.__name__,
+        found = (
+            library_details(
+                "album",
+                to_int(self.dbid),
+                ["compilation", "musicbrainzalbumartistid"],
+                self.__class__.__name__,
+            )
+            or {}
         )
-        found = album.get("result", {}).get("albumdetails", {})
         if not (
             found.get("compilation")
             or VARIOUS_ARTISTS in found.get("musicbrainzalbumartistid", [])

@@ -384,7 +384,8 @@ class Server:
             except Exception:
                 log.exception(f"{self.__class__.__name__} → serve {request}")
             self.ahead = None  # one stopped short serves nothing it was asked
-            if net and self.binds == binds:  # nothing it can bind: till a probe moves
+            # Nothing it can bind: till a probe moves, if none moved during the serve
+            if net and self.binds == binds and self._texts(request) == texts:
                 with self.lock:
                     if self.request is request:  # a ring since has the window
                         log.debug(f"{self.__class__.__name__} → net let be: {texts}")

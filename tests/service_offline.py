@@ -657,12 +657,12 @@ class PlayedVersion(unittest.TestCase):
     def bumped(self, closed: dict, counts: dict) -> list:
         service = object.__new__(monitor.Monitor)
         service.closed, service.server = closed, None
-        details = lambda method, params, parent: {  # noqa: E731
-            "result": {"songdetails": {"playcount": counts[params["songid"]]}}
+        details = lambda type, dbid, properties, parent: {  # noqa: E731
+            "playcount": counts[dbid]
         }
         with (
             patch.object(monitor, "condition", lambda expression: False),
-            patch.object(monitor, "json_call", details),
+            patch.object(monitor, "library_details", details),
             patch.object(monitor, "window_property") as prop,
         ):
             service._album_bump()
@@ -783,14 +783,14 @@ class PlayedVersion(unittest.TestCase):
                     service._album_bump()
                 return super().popitem()
 
-        def details(method, params, parent):
-            seen.append(params["songid"])
-            return {"result": {"songdetails": {"playcount": 4}}}
+        def details(type, dbid, properties, parent):
+            seen.append(dbid)
+            return {"playcount": 4}
 
         service.closed, service.server = Racing({7: 3}), None
         with (
             patch.object(monitor, "condition", lambda expression: False),
-            patch.object(monitor, "json_call", details),
+            patch.object(monitor, "library_details", details),
             patch.object(monitor, "window_property") as prop,
         ):
             service._album_bump()

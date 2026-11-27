@@ -253,8 +253,8 @@ class ArtworkCacheManager:
             if stale_path and stale_path != new_path:
                 try:
                     # False when Kodi failed, or the file was already gone
-                    done = xbmcvfs.delete(stale_path)
-                    outcome = "evicted" if done else "could not delete"
+                    kept = not xbmcvfs.delete(stale_path) and xbmcvfs.exists(stale_path)
+                    outcome = "could not delete" if kept else "evicted"
                     log.debug(
                         f"{self.__class__.__name__} → write_lookup {outcome} stale "
                         f"file → {stale_path}"
@@ -265,6 +265,9 @@ class ArtworkCacheManager:
                         f"delete {stale_path}",
                         log.DEBUG,
                     )
+                    kept = True
+                if kept:
+                    continue  # its row keeps the file known: the next write retries
             self.sqlite.delete_entry(stale_key)
 
         self.sqlite.add_entry(meta)
