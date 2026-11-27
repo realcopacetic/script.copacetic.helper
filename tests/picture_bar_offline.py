@@ -2,7 +2,8 @@
 Offline checks for a picture's bar on info=progressbar (shared/helpers.py
 ProgressBarManager.calculate with resolution_span): the long edge against the span,
 capped at 100; no resolution, no bar; without the param, the usual rules; the served
-item carries the picture's resolution and size. Run from the helper root:
+item carries the picture's resolution and size, and with picture_name_chars its edges
+apart and its file's name cut to the line's characters. Run from the helper root:
 python tests/picture_bar_offline.py
 """
 
@@ -121,6 +122,44 @@ class PictureBarTest(unittest.TestCase):
     def test_no_picture_labels_without_the_param(self):
         self.labels["Size"] = "357 KB"
         self.assertNotIn("picture_size", self.serve()["properties"])
+
+    def test_the_file_line(self):
+        # picture_name_chars: the edges apart and the name cut to what they leave
+        self.labels |= {
+            "PictureResolution": "1920 x 1520",
+            "Size": "1.4 MB",
+            "FileName": "Van Gogh - The Starry Night.jpg",  # 31
+        }
+        line = lambda chars: {
+            k: v
+            for k, v in self.serve(resolution_span="3840", picture_name_chars=chars)[
+                "properties"
+            ].items()
+            if k in ("picture_width", "picture_height", "picture_name")
+        }
+        # 4 + 4 + 6 leave 31 of 45: the name whole; one less, cut with "…"
+        self.assertEqual(
+            line("45"),
+            {
+                "picture_width": "1920",
+                "picture_height": "1520",
+                "picture_name": "Van Gogh - The Starry Night.jpg",
+            },
+        )
+        self.assertEqual(line("44")["picture_name"], "Van Gogh - The Starry Night.j…")
+        self.assertEqual(line("15")["picture_name"], "")  # room for no character
+        # a file Kodi can't read: no edges, the name in what the size leaves
+        self.labels["PictureResolution"] = ""
+        self.assertEqual(
+            line("20"),
+            {
+                "picture_width": "",
+                "picture_height": "",
+                "picture_name": "Van Gogh - Th…",  # 14: 20 less the size's 6
+            },
+        )
+        # without the param: none of them (resolution_span alone, as before)
+        self.assertEqual(line(""), {})
 
 
 class CentreTest(unittest.TestCase):

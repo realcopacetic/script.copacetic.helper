@@ -882,11 +882,11 @@ class ProgressBarManager:
     @cached_property
     def picture(self) -> dict[str, str]:
         """
-        The focused picture's PictureResolution and Size, read once.
+        The focused picture's PictureResolution, Size and FileName, read once.
 
         :return: Kodi's labels, e.g. "1920 x 1520" and "1.4 MB"; empty when unread.
         """
-        return get_infolabels(self.target, ["PictureResolution", "Size"])
+        return get_infolabels(self.target, ["PictureResolution", "Size", "FileName"])
 
     def update(
         self,
