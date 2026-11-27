@@ -75,10 +75,7 @@ SLOW_HORSES = ("tvshow", "95480", "tt5875444")
 
 
 def item(qid, label, **claims):
-    """
-    An item as wbgetentities gives it: an English label, statements by property; a
-    value starting + is a time, Q an item, else a string.
-    """
+    """An item as wbgetentities gives it: an English label, statements by property."""
     statements = {
         prop: [
             {
@@ -88,11 +85,7 @@ def item(qid, label, **claims):
                     "datavalue": (
                         {"value": {"id": value}, "type": "wikibase-entityid"}
                         if value[:1] == "Q"
-                        else (
-                            {"value": {"time": value, "precision": 9}, "type": "time"}
-                            if value[:1] == "+"
-                            else {"value": value, "type": "string"}
-                        )
+                        else {"value": value, "type": "string"}
                     ),
                 },
                 "rank": "normal",
@@ -131,36 +124,24 @@ OPPENHEIMER = {
     ),
     "Q6347357": item("Q6347357", "Kai Bird"),
     "Q45811": item("Q45811", "Martin J. Sherwin"),
-    "Q35794": item("Q35794", "University of Cambridge", P31=["Q3354859"], P17=["Q145"]),
-    "Q27832090": item("Q27832090", "Project Y", P31=["Q483242"], P17=["Q30"]),
-    "Q61": item("Q61", "Washington, D.C.", P31=["Q1093829"], P17=["Q30"]),
-    "Q6927": item(
-        "Q6927",
-        "20th century",
-        P31=["Q578"],
-        P580=["+1901-01-01T00:00:00Z"],
-        P582=["+2000-12-31T00:00:00Z"],
-    ),
-    "Q362": item(
-        "Q362",
-        "World War II",
-        P31=["Q103495", "Q11514315"],
-        P580=["+1939-09-01T00:00:00Z"],
-        P582=["+1945-09-02T00:00:00Z"],
-    ),
-    "Q36561": item(
-        "Q36561",
-        "1940s",
-        P31=["Q39911"],
-        P580=["+1940-00-00T00:00:00Z"],
-        P582=["+1949-00-00T00:00:00Z"],
-    ),
-    "Q132537": item("Q132537", "J. Robert Oppenheimer", P31=["Q5"]),
-    "Q207066": item("Q207066", "McCarthyism", P31=["Q622454"], P17=["Q30"]),
-    "Q8016240": item("Q8016240", "trial"),
-    "Q650051": item("Q650051", "nuclear bomb", P31=["Q124078422"]),
-    "Q127050": item("Q127050", "Manhattan Project", P31=["Q27665152"]),
-    "Q7098557": item("Q7098557", "Oppenheimer security hearing", P31=["Q545861"]),
+    # the story's values: by label alone
+    **{
+        qid: item(qid, label)
+        for qid, label in (
+            ("Q35794", "University of Cambridge"),
+            ("Q27832090", "Project Y"),
+            ("Q61", "Washington, D.C."),
+            ("Q6927", "20th century"),
+            ("Q362", "World War II"),
+            ("Q36561", "1940s"),
+            ("Q132537", "J. Robert Oppenheimer"),
+            ("Q207066", "McCarthyism"),
+            ("Q8016240", "trial"),
+            ("Q650051", "nuclear bomb"),
+            ("Q127050", "Manhattan Project"),
+            ("Q7098557", "Oppenheimer security hearing"),
+        )
+    },
 }
 # A Knight of the Seven Kingdoms: a universe (P1434) alone
 KNIGHT = {
@@ -272,8 +253,8 @@ class DetailsTest(WikidataCase):
                 "having P4983=95480",
                 "labels|claims Q104880809",
                 "having P9899=Q104880809",
-                "labels|claims Q108063656|Q84",
-                "labels Q24929761",
+                "labels|claims Q108063656",
+                "labels Q24929761|Q84",
             ],
         )
         self.asked.clear()
@@ -284,7 +265,7 @@ class DetailsTest(WikidataCase):
         self.entities |= CREATED
         found = wd.details(("tvshow", "920", ""), ALIVE)
         self.assertEqual(found["created_by"], ["Jane Doe", "John Roe"])
-        self.assertEqual(self.asked[-1], "labels Q921|Q922")
+        self.assertEqual(self.asked[-1], "labels Q921|Q922|Q84")  # with the place's
         self.assertEqual(
             wd.properties("tvshow", found),
             {"wikidata_created_by": "Jane Doe / John Roe"},
@@ -452,23 +433,23 @@ class DetailsTest(WikidataCase):
         self.assertEqual(wd.properties("artist", quartet), {})
 
     def test_the_story_look_up(self):
-        # places, periods and subjects asked with the source, in one request; the
-        # universe's label with the authors'
+        # no request of its own: the first two places, the periods, six subjects and
+        # the universe by their labels alone, in the authors' labels request
         self.entities |= OPPENHEIMER
         found = wd.details(("movie", "872585", ""), ALIVE)
-        story = "Q4744748|Q35794|Q27832090|Q61|Q6927|Q362|Q36561"
+        story = "Q35794|Q27832090|Q6927|Q362|Q36561"
         subjects = "Q132537|Q207066|Q8016240|Q650051|Q127050|Q7098557"
-        self.assertEqual(self.asked[-2], f"labels|claims {story}|{subjects}")
-        self.assertEqual(self.asked[-1], "labels Q6347357|Q45811")
+        self.assertEqual(self.asked[-2], "labels|claims Q4744748")  # the source alone
+        self.assertEqual(self.asked[-1], f"labels Q6347357|Q45811|{story}|{subjects}")
         self.assertEqual(found["places"], ["University of Cambridge", "Project Y"])
-        self.assertEqual(found["period"], ["World War II", 1939, 1945])
+        self.assertEqual(found["periods"], ["20th century", "World War II", "1940s"])
         self.assertEqual(len(found["about"]), 6)
         self.assertEqual(found["universe"], "")
         self.entities |= KNIGHT
         found = wd.details(("tvshow", "224372", ""), ALIVE)
         self.assertEqual(self.asked[-1], "labels Q2461698")
         self.assertEqual(found["universe"], "World of Ice and Fire")
-        self.assertEqual((found["places"], found["period"]), ([], []))
+        self.assertEqual((found["places"], found["periods"]), ([], []))
         # a franchise (P8345) only without a universe
         self.entities |= {
             "Q930": item("Q930", "Westworld", P4983=["930"], P8345=["Q931"]),
@@ -880,87 +861,53 @@ class ServeTest(WikidataCase):
         self.assertNotIn("wikidata_created_by", item["properties"])
 
 
-def kept(**items):
-    """Items as items() keeps them, by Q-id: each given as (label, claims)."""
-    return {
-        qid: wikidata._shape(item(qid, label, **claims))
-        for qid, (label, claims) in items.items()
-    }
-
-
 class BandTest(unittest.TestCase):
     """The story band's choices (the coverage fetch's cases) and its fitting."""
 
-    def test_places(self):
-        # Coco: Mexico is Santa Cecilia's country; Wikidata's order otherwise
-        coco = kept(
-            Q96=("Mexico", {"P31": ["Q6256"], "P17": ["Q96"]}),
-            Q101=("Land of the Dead", {"P31": ["Q101"]}),
-            Q102=("Santa Cecilia Acatitlan", {"P17": ["Q96"]}),
-        )
-        self.assertEqual(
-            wd._places([*coco], coco), ["Land of the Dead", "Santa Cecilia Acatitlan"]
-        )
-        # Room: a country alone is its own country, not another's
-        room = kept(Q16=("Canada", {"P17": ["Q16"]}))
-        self.assertEqual(wd._places([*room], room), ["Canada"])
-        # 2001: the moon, Jupiter and Africa beside a base and a crater
-        odyssey = kept(
-            Q5=("Clavius Base", {}),
-            Q319=("Jupiter", {"P31": ["Q121750", "Q30014"]}),
-            Q15=("Africa", {"P31": ["Q5107"]}),
-            Q631696=("Tycho", {"P31": ["Q55818"]}),
-        )
-        self.assertEqual(wd._places([*odyssey], odyssey), ["Clavius Base", "Tycho"])
-        # Elio: Earth alone stays; an unlabelled place is none
-        elio = kept(Q2=("Earth", {"P31": ["Q3504248"]}), Q9=("", {}))
-        self.assertEqual(wd._places([*elio], elio), ["Earth"])
-
-    def test_period(self):
-        found = {
-            q: wikidata._shape(OPPENHEIMER[q]) for q in ("Q6927", "Q362", "Q36561")
-        }
-        self.assertEqual(wd._period([*found], found), ["World War II", 1939, 1945])
-        del found["Q362"]  # a decade before a century
-        self.assertEqual(wd._period([*found], found), ["1940s", 1940, 1949])
-        # years, the first in Wikidata's order; with no end, a decade spans ten
-        years = kept(
-            Q2062=("1991", {"P31": ["Q3186692"], "P585": ["+1991-01-01T00:00:00Z"]}),
-            Q2437=("1981", {"P31": ["Q3186692"], "P585": ["+1981-01-01T00:00:00Z"]}),
-            Q39847=("1870s", {"P31": ["Q39911"], "P585": ["+1870-01-01T00:00:00Z"]}),
-        )
-        self.assertEqual(wd._period([*years], years), ["1991", 1991, 1991])
-        self.assertEqual(wd._period(["Q39847"], years), ["1870s", 1870, 1879])
-        # a century alone, and a named period with no dates
-        alone = kept(Q7015=("18th century", {"P31": ["Q578"]}), Q8=("Regency", {}))
-        self.assertEqual(wd._period(["Q7015"], alone), ["18th century", None, None])
-        self.assertEqual(wd._period([*alone], alone), ["Regency", None, None])
-        self.assertEqual(wd._period([], {}), [])
-
-    def test_subjects(self):
-        subjects = kept(
-            Q1=("bear", {"P31": ["Q55983715"]}),  # Brave's: organisms by a name
-            Q2=("1970s", {"P31": ["Q39911"]}),  # The Virgin Suicides'
-            Q3=("suicide", {}),
-            Q4=("", {}),
-        )
-        self.assertEqual(wd._subjects([*subjects], subjects), ["suicide"])
+    def test_times_by_label(self):
+        for label, rank, years in (
+            ("1940", 0, range(1940, 1941)),
+            ("1940s", 1, range(1940, 1950)),
+            ("20th century", 2, range(0)),
+            ("1st century", 2, range(0)),
+            ("20. century", 2, range(0)),
+            ("XX Century", 2, range(0)),
+            ("World War II", -1, range(0)),
+            ("1940s Britain", -1, range(0)),  # a label holding a time is named
+            ("194", -1, range(0)),
+        ):
+            self.assertEqual(wd._time(label), (rank, years), label)
 
     def chips(self, title="Film", year=0, collection="", **found):
         return wd.story_chips(found, title, year, collection)
 
+    def test_period(self):
+        # a named period first, then a year, a decade, a century; Wikidata's order
+        for periods, shown in (
+            (["20th century", "World War II", "1940s"], "World War II"),  # Oppenheimer
+            (["20th century", "1940s"], "1940s"),
+            (["1980s", "20th century"], "1980s"),  # The Thing
+            (["1991", "1981"], "1991"),  # Harry Potter
+            (["18th century"], "18th century"),  # a century alone
+            (["interwar period", "1930s"], "interwar period"),
+        ):
+            self.assertEqual(self.chips(periods=periods)["period"], [shown], periods)
+        self.assertEqual(self.chips()["period"], [])
+
     def test_the_period_near_its_release(self):
         # The Thing (1982) in the 1980s, Amélie (2001) in the 1990s: their own time
         for period, year, shown in (
-            (["1980s", 1980, 1989], 1982, []),
-            (["1990s", 1990, 1999], 2001, []),
-            (["1990s", 1990, 1999], 2005, ["1990s"]),
-            (["World War II", 1939, 1945], 2023, ["World War II"]),
-            (["World War II", 1939, 1945], 0, ["World War II"]),  # no year
-            (["Regency", None, None], 1995, ["Regency"]),  # no dates
+            ("1980s", 1982, False),
+            ("1990s", 2001, False),
+            ("1990s", 2005, True),
+            ("2005", 2005, False),  # It's Always Sunny
+            ("2003", 2023, True),
+            ("20th century", 1995, True),  # a century never hides
+            ("World War II", 1945, True),  # nor a named period
+            ("1980s", 0, True),  # no year
         ):
-            columns = self.chips(year=year, period=period)
-            self.assertEqual(columns["period"], shown, (period, year))
+            columns = self.chips(year=year, periods=[period])
+            self.assertEqual(columns["period"], [period] * shown, (period, year))
 
     def test_about(self):
         # what the title names goes (Peaky Blinders' gang), word by word; three
@@ -980,6 +927,9 @@ class BandTest(unittest.TestCase):
         self.assertEqual(columns["about"], ["McCarthyism", "trial"])
         # "Oppenheim" is no word of "Oppenheimer"
         self.assertEqual(self.chips("Oppenheim", about=about)["about"], about[:3])
+        # a time goes (The Virgin Suicides' 1970s); a taxon stays (Brave's bear)
+        about = ["suicide", "1970s", "20th century", "1975", "bear"]
+        self.assertEqual(self.chips(about=about)["about"], ["suicide", "bear"])
 
     def test_universe(self):
         for title, collection, universe, shown in (

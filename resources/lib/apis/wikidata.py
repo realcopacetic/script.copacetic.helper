@@ -163,8 +163,8 @@ BATCH = 50  # the most ids wbgetentities answers in one request
 # The statements an item is kept with: the details' (wikidata_details.py) and the
 # external ids that lead back to the library
 CLAIMS = frozenset(
-    "P17 P19 P31 P50 P86 P136 P144 P162 P170 P264 P345 P406 P434 P436 P580 P582 "
-    "P585 P740 P840 P921 P1303 P1434 P2408 P4947 P4983 P7937 P8345 P9899".split()
+    "P19 P31 P50 P86 P136 P144 P162 P170 P264 P345 P406 P434 P436 P740 P840 P921 "
+    "P1303 P1434 P2408 P4947 P4983 P7937 P8345 P9899".split()
 )
 YEARS = 35  # the most a similar painter's birth year is from the artist's
 PAINTINGS = 5  # the fewest paintings a similar painter has on Wikidata
@@ -546,8 +546,7 @@ def _batch(
 def _shape(item: dict) -> dict[str, Any]:
     """
     An entity as kept: its label (English, else multilingual, else any: Pharrell
-    Williams' item had no English one) and its CLAIMS' best-rank values, a time as
-    its ISO text ("+1940-00-00T00:00:00Z").
+    Williams' item had no English one) and its CLAIMS' best-rank values.
     """
     names = item.get("labels", {})
     label = names.get("en") or names.get("mul") or next(iter(names.values()), {})
@@ -560,7 +559,7 @@ def _shape(item: dict) -> dict[str, Any]:
         ]
         values = [
             (
-                value.get("id") or value["time"]
+                value["id"]
                 if isinstance(value := snak["datavalue"]["value"], dict)
                 else value
             )
