@@ -561,7 +561,10 @@ class PlayerMonitor(Player):
         and their ids split into player_artist_1..3 and player_artistid_1..3; the
         title's name and version; the album's rail path; song id, genres.
         """
-        tag = self.getMusicInfoTag()
+        try:  # a stop since isPlayingAudio raises; its queued stop clears
+            tag = self.getMusicInfoTag()
+        except RuntimeError:
+            return
         # As the skin reads it, the tag's or else the label: the skin matches the two
         title = infolabel("MusicPlayer.Title")
         name, version = song_version(title)
