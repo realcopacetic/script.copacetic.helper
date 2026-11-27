@@ -365,6 +365,17 @@ class ListenBrainzTest(Base):
         self.tick(4)
         self.assertTrue(listenbrainz.top_recordings(GORILLAZ))
 
+    def test_429_never_moves_the_queue_back(self):
+        window, queue = sys.modules["xbmcgui"].Window(), listenbrainz.NEXT_CALL
+
+        def fetch():
+            window.setProperty(queue, f"{self.now + 3}")  # two calls queued meanwhile
+            raise http.HttpError(429, 1)
+
+        self.assertIsNone(cache.cached("listenbrainz:x:1", fetch, (DAY, DAY), queue))
+        self.assertEqual(float(window.getProperty(queue)), self.now + 3)
+        self.assertEqual(float(cache.hold(queue)), self.now + 1)  # the 429's own hold
+
     def test_token_test_action(self):
         shown = []
         notify = {
