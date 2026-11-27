@@ -2,7 +2,7 @@
 
 import time
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
@@ -108,11 +108,7 @@ class ArtworkCacheManager:
         :param expected: Mapping of match field names to values.
         :return: Stable token string (or empty string).
         """
-        return (
-            ""
-            if not expected
-            else "&".join(f"{k}={expected[k]}" for k in sorted(expected))
-        )
+        return "&".join(f"{k}={v}" for k, v in sorted((expected or {}).items()))
 
     def with_process_variant(
         self,
@@ -145,17 +141,7 @@ class ArtworkCacheManager:
             dest_thumb = f"{stem}__{vhash}{suffix}"
         else:
             dest_thumb = str(Path(base.cached_thumb).with_suffix(suffix))
-
-        return CacheContext(
-            source_url=base.source_url,
-            decoded_url=base.decoded_url,
-            suffix=base.suffix,
-            cached_thumb=base.cached_thumb,
-            cached_image_path=base.cached_image_path,
-            cached_file_hash=base.cached_file_hash,
-            cache_key=cache_key,
-            dest_thumb=dest_thumb,
-        )
+        return replace(base, cache_key=cache_key, dest_thumb=dest_thumb)
 
     def source_path(self, ctx: CacheContext) -> str | None:
         """
@@ -205,32 +191,22 @@ class ArtworkCacheManager:
         """
         if not (entry := self.sqlite.get_entry(ctx.cache_key)):
             return None
-
-        # Validate disk path if required.
-        if require and policy.ART_FIELD_PROCESSED in require:
-            if not validate_path(entry.get(policy.ART_FIELD_PROCESSED)):
-                return None
-
+        processed = entry.get(policy.ART_FIELD_PROCESSED)
+        if policy.ART_FIELD_PROCESSED in require and not validate_path(processed):
+            return None
         cleaned = {k: v for k, v in entry.items() if v is not None}
-
-        # Validate required fields (presence + non-None).
-        if require:
-            required = set(require) - {policy.ART_FIELD_PROCESSED}
-            missing = required - cleaned.keys()
-            if missing:
-                return None
-
+        if set(require) - cleaned.keys():  # present and not None
+            return None
         return cleaned  # the key holds the source's hash: a changed source misses
 
-    def write_lookup(self, metadata: dict[str, Any]) -> None:
+    def write_lookup(self, meta: dict[str, Any]) -> None:
         """
         Persist a cache row into SQLite.
         Evicts existing rows for the same source+process+variant — a different
         cache_key for the same variant means the source content has changed.
 
-        :param metadata: Processed attributes including keys and hashes.
+        :param meta: Processed attributes including keys and hashes.
         """
-        meta = metadata or {}
         cache_key = meta.get(policy.ART_FIELD_CACHE_KEY)
         source_url = meta.get(policy.ART_FIELD_SOURCE_URL)
         process = meta.get(policy.ART_FIELD_PROCESS)
