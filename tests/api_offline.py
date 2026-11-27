@@ -1060,6 +1060,18 @@ class TmdbTest(Base):
             (item,) = handler.metadata()
             marked = item["properties"].get("tmdb_pending") == "true"
             self.assertEqual(marked, asked and dbtype == "tvshow")
+        # A season's show entry marks it when asked for its creators, not its bar alone
+        handler.dbtype = "season"
+        for params, asked in (
+            ({"show_creators": "true"}, True),
+            ({"show_creators": "true"}, False),
+            ({"enrich_with_tmdb": "true"}, True),
+        ):
+            handler.params = params
+            handler._get_tmdb_item = lambda **kwargs: ({}, asked)
+            (item,) = handler.metadata()
+            marked = item["properties"].get("tmdb_pending") == "true"
+            self.assertEqual(marked, asked and "show_creators" in params)
 
     def test_season_takes_its_shows_creators(self):
         library = {"Plot": "The show's plot", "Studio": "HBO", "Season": "5"}
