@@ -570,11 +570,14 @@ class SkinMapping(Kodi):
                     self.assertEqual(extension, extension.lower().lstrip("."))
 
     def test_one_emulator_of_each_kind(self):
-        self.assertTrue(system(SNES9X, "/roms/Super Mario World.sfc"))
-        mega, master = (system(GENPLUS, f"/roms/Sonic.{e}") for e in ("md", "sms"))
-        self.assertTrue(mega and master and mega != master)
-        cd = {system(GENPLUS, f"/roms/Sonic.{e}") for e in ("cue", "iso", "chd")}
-        self.assertTrue(len(cd) == 1 and not cd & {"", mega, master})
+        self.assertEqual(system(SNES9X, "/roms/Super Mario World.sfc"), "SNES")
+        expected = {
+            "md": "Mega Drive",
+            "sms": "Master System",
+            **dict.fromkeys(("cue", "iso", "chd"), "Mega-CD"),
+        }
+        kinds = {e: system(GENPLUS, f"/roms/Sonic.{e}") for e in expected}
+        self.assertEqual(kinds, expected)
         for shared in ("zip", "bin"):
             self.assertEqual(system(GENPLUS, f"/roms/Sonic.{shared}"), "")
 

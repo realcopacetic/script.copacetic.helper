@@ -1151,16 +1151,18 @@ class Skin:
 
     def check_buried_nested(self) -> None:
         """
-        Report a ``<nested />`` below a definition's top elements' children: Omega's
-        ``InsertNested`` looks no deeper, so the caller's content is dropped there.
+        Report a ``<nested />`` Omega's ``InsertNested`` never fills: any but a top
+        element's first direct one, so the caller's content is dropped there.
         """
         for name in self.defs["include"]:
             for top in elements(self.body(name)):
-                for child in elements(top):
-                    for nested in child.iter("nested"):
-                        if nested is not child:
-                            message = f"{name}: Kodi fills no <nested /> this deep"
-                            self.report("buried-nested", nested.src, message)
+                filled = top.find("nested")  # FirstChildElement("nested")
+                for nested in top.iter("nested"):
+                    if nested is not top and nested is not filled:
+                        message = (
+                            f"{name}: Kodi fills only a top element's first <nested />"
+                        )
+                        self.report("buried-nested", nested.src, message)
 
     def lint(
         self,
@@ -1355,7 +1357,9 @@ def field_values(skin: Path) -> dict[str, set[str]]:
                 for field, key in fields.items():
                     for name, config in configs.items():
                         if fnmatchcase(name, FIELD.sub("*", key)):
-                            found[field].update(config["items"])
+                            found[field].update(
+                                FIELD.sub("*", item) for item in config["items"]
+                            )
     return found
 
 
