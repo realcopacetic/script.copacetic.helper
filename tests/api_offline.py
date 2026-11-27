@@ -376,6 +376,19 @@ class ListenBrainzTest(Base):
         self.assertEqual(float(window.getProperty(queue)), self.now + 3)
         self.assertEqual(float(cache.hold(queue)), self.now + 1)  # the 429's own hold
 
+    def test_a_shorter_429_never_shortens_a_hold(self):
+        queue, start = listenbrainz.NEXT_CALL, self.now
+
+        def longer():
+            raise http.HttpError(429, 30)
+
+        def shorter():  # a second call queues, waits its slot and is held 30 s first
+            cache.cached("listenbrainz:x:2", longer, (DAY, DAY), queue)
+            raise http.HttpError(429, 1)
+
+        self.assertIsNone(cache.cached("listenbrainz:x:1", shorter, (DAY, DAY), queue))
+        self.assertEqual(float(cache.hold(queue)), start + 31)  # slot 1 s on, held 30
+
     def test_token_test_action(self):
         shown = []
         notify = {
