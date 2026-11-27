@@ -22,7 +22,7 @@ hand-written: jobs and departments as TMDb's person page groups them), Deezer's 
 shape (hand-written), TheIntroDB's v4 /media shape (hand-written from its npm
 client's docs), recorded LRCLIB answers (tests/fixtures/lrclib_*.json, Feel Good
 Inc., fetched 16 Nov 2026, trimmed to the fields the helper reads and four lines
-of lyrics) or the failure under test. Run from the helper root:
+of lyrics, those replaced by invented ones) or the failure under test. Run from the helper root:
 python tests/api_offline.py
 """
 
@@ -3816,10 +3816,10 @@ class LrclibTest(Base):
             found,
             {
                 "synced": [
-                    [1470, "Feel good"],
-                    [7050, "Sha, sha-ba-da, sha-ba-da-ca, feel good"],
-                    [10060, "Sha, sha-ba-da, sha-ba-da-ca, feel good"],
-                    [13160, "Sha, sha-ba-da, sha-ba-da-ca, feel good"],
+                    [1470, "Rain on tin"],
+                    [7050, "La, la-di-da, la-di-da-di, rain on tin"],
+                    [10060, "La, la-di-da, la-di-da-di, rain on tin"],
+                    [13160, "La, la-di-da, la-di-da-di, rain on tin"],
                 ],
                 "plain": None,  # synced lines carry it
                 "instrumental": False,
@@ -3859,7 +3859,7 @@ class LrclibTest(Base):
             json.dumps(LRCLIB_SEARCH).encode(),
         ]
         found = self.lookup(218)  # Demon Days (219) and iTunes Session (217) tie
-        self.assertEqual(found["synced"][0], [2680, "Feel good"])  # the first of them
+        self.assertEqual(found["synced"][0], [2680, "Rain on tin"])  # the first of them
         self.assertEqual(
             self.net.requests[1].full_url,
             "https://lrclib.net/api/search?track_name=Feel+Good+Inc."
@@ -3871,7 +3871,7 @@ class LrclibTest(Base):
         hits = [dict(h) for h in LRCLIB_SEARCH]
         hits[2]["syncedLyrics"] = None  # Demon Days, 219: plain only
         self.net.answers = [http_error(404), json.dumps(hits).encode()]
-        self.assertEqual(self.lookup(218)["synced"][0], [6130, "Feel good"])
+        self.assertEqual(self.lookup(218)["synced"][0], [6130, "Rain on tin"])
 
     def test_no_near_hit_is_the_404(self):
         self.net.answers = [http_error(404), json.dumps(LRCLIB_SEARCH).encode()]
@@ -3896,7 +3896,7 @@ class LrclibTest(Base):
         self.assertIsNone(self.cache.get(self.key()))  # the start asks itself
         self.net.answers = [json.dumps(LRCLIB_GET).encode()]
         found = lrclib.prefetch(*SONG, self.aborted)
-        self.assertEqual(found["synced"][0], [1470, "Feel good"])
+        self.assertEqual(found["synced"][0], [1470, "Rain on tin"])
         self.assertEqual(self.row(self.key(), ""), (found, 180 * DAY))
         self.assertEqual(lrclib.saved(*SONG), (found, True))
         self.assertEqual(self.lookup(), found)  # the start: no request
@@ -3909,7 +3909,7 @@ class LrclibTest(Base):
     def test_a_failed_prefetch_hides_nothing(self):
         self.net.answers = [URLError("offline"), json.dumps(LRCLIB_GET).encode()]
         lrclib.prefetch(*SONG, self.aborted)
-        self.assertEqual(self.lookup()["synced"][0], [1470, "Feel good"])
+        self.assertEqual(self.lookup()["synced"][0], [1470, "Rain on tin"])
 
     def test_refresh_cached_expires_the_song(self):
         self.net.answers = [json.dumps(LRCLIB_GET).encode()]

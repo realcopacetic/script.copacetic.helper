@@ -76,14 +76,14 @@ from resources.lib.script import actions  # noqa: E402
 from resources.lib.service import lyrics, player  # noqa: E402
 from resources.lib.shared import lrc  # noqa: E402
 
-LRC = "[ar:Gorillaz]\n[00:01.47]Feel good\n[00:07.05]Sha, sha-ba-da\n[00:10.06]\n"
-LINES = [[1470, "Feel good"], [7050, "Sha, sha-ba-da"], [10060, ""]]
+LRC = "[ar:Lamplighters]\n[00:01.47]Rain on tin\n[00:07.05]La, la-di-da\n[00:10.06]\n"
+LINES = [[1470, "Rain on tin"], [7050, "La, la-di-da"], [10060, ""]]
 INTRO = [[0, ""], *LINES]  # as published: a gap for the intro before 00:01.47
-SONG = ("Gorillaz", "Feel Good Inc.", "Demon Days", 223)
+SONG = ("Lamplighters", "Tin Roof Rain", "Weathervane", 223)
 TAGS = {
-    "MusicPlayer.Artist": "Gorillaz",
-    "MusicPlayer.Title": "Feel Good Inc.",
-    "MusicPlayer.Album": "Demon Days",
+    "MusicPlayer.Artist": "Lamplighters",
+    "MusicPlayer.Title": "Tin Roof Rain",
+    "MusicPlayer.Album": "Weathervane",
     "MusicPlayer.Duration": "03:43",
 }
 
@@ -112,31 +112,31 @@ class ParseTest(unittest.TestCase):
 
     def test_offset_tags_gaps_and_word_stamps(self):
         text = (
-            "[ar:Gorillaz]\n[ti:Feel Good Inc]\n[length: 03:43]\n"
-            "[00:01.00]<00:01.00>Feel <00:01.40>good\n\n[00:05.00]\n"
-            "[00:06.00]  City's breaking down  \n[offset:+500]\n[re:LRC Maker]"
+            "[ar:Lamplighters]\n[ti:Tin Roof Rain]\n[length: 03:43]\n"
+            "[00:01.00]<00:01.00>Rain <00:01.40>on tin\n\n[00:05.00]\n"
+            "[00:06.00]  Streetlights humming low  \n[offset:+500]\n[re:LRC Maker]"
         )
         self.assertEqual(
             lrc.parse(text),
-            [[500, "Feel good"], [4500, ""], [5500, "City's breaking down"]],
+            [[500, "Rain on tin"], [4500, ""], [5500, "Streetlights humming low"]],
         )
         self.assertEqual(lrc.parse("[offset:-250]\n[00:00.10]a")[0], [350, "a"])
         self.assertEqual(lrc.parse("[offset:+500]\n[00:00.10]a")[0], [0, "a"])
 
     def test_plain_text_has_no_lines(self):
-        self.assertEqual(lrc.parse("Feel good\n\nCity's breaking down"), [])
+        self.assertEqual(lrc.parse("Rain on tin\n\nStreetlights humming low"), [])
         self.assertEqual(lrc.parse(""), [])
 
     def test_plain_drops_tags_keeps_verses(self):
         text = (
-            "[ar:Gorillaz]\r\n[length: 03:43]\r\n[Chorus]\r\n  Feel good  \r\n\r\n"
-            "[00:01,50]City's [00:02,00]breaking\r\n[Verse 1: 2-D]\r\n[re:]"
+            "[ar:Lamps]\r\n[length: 03:43]\r\n[Chorus]\r\n  Rain on tin  \r\n\r\n"
+            "[00:01,50]Streetlights [00:02,00]humming\r\n[Verse 1: Lead]\r\n[re:]"
         )
         self.assertEqual(
             lrc.plain(text),
-            "[Chorus]\nFeel good\n\nCity's breaking\n[Verse 1: 2-D]",
+            "[Chorus]\nRain on tin\n\nStreetlights humming\n[Verse 1: Lead]",
         )
-        self.assertEqual(lrc.plain("[ar:Gorillaz]\n[ti:Feel Good Inc]\n\n"), "")
+        self.assertEqual(lrc.plain("[ar:Lamplighters]\n[ti:Tin Roof Rain]\n\n"), "")
 
 
 class Kodi(unittest.TestCase):
@@ -193,10 +193,10 @@ class Kodi(unittest.TestCase):
 class SourcesTest(Kodi):
     def song_file(self, lrc_text=None, encoding="utf-8-sig"):
         folder = Path(tempfile.mkdtemp())
-        (folder / "Feel Good Inc.flac").touch()
+        (folder / "Tin Roof Rain.flac").touch()
         if lrc_text is not None:
-            (folder / "Feel Good Inc.lrc").write_bytes(lrc_text.encode(encoding))
-        return str(folder / "Feel Good Inc.flac")
+            (folder / "Tin Roof Rain.lrc").write_bytes(lrc_text.encode(encoding))
+        return str(folder / "Tin Roof Rain.flac")
 
     def test_sidecar_encodings(self):
         text = "[00:01.00]Café, señor\n[00:02.00]Ünder"
@@ -218,10 +218,10 @@ class SourcesTest(Kodi):
 
     def test_a_sidecar_of_only_tags_falls_through(self):
         self.labels["MusicPlayer.Lyrics"] = "[00:02.00]embedded"
-        path = self.song_file("[ar:Gorillaz]\n[ti:Feel Good Inc]\n[by:someone]\n")
+        path = self.song_file("[ar:Lamplighters]\n[ti:Tin Roof Rain]\n[by:someone]\n")
         self.assertEqual(lyrics.find(path)[:2], ("embedded", [[2000, "embedded"]]))
-        unsupported = self.song_file("[ar:Gorillaz]\n[00:01,50]Feel good\n")
-        self.assertEqual(lyrics.find(unsupported), ("file", None, "Feel good", False))
+        unsupported = self.song_file("[ar:Lamplighters]\n[00:01,50]Rain on tin\n")
+        self.assertEqual(lyrics.find(unsupported), ("file", None, "Rain on tin", False))
 
     def test_song_tags_and_length(self):
         self.assertEqual(lyrics.song(), SONG)
@@ -240,9 +240,12 @@ class SourcesTest(Kodi):
 
     def test_embedded_plain_else_none(self):
         path = self.song_file()
-        self.labels["MusicPlayer.Lyrics"] = "\r\nFeel good\r\n\r\nCity's breaking\r\n"
+        self.labels["MusicPlayer.Lyrics"] = (
+            "\r\nRain on tin\r\n\r\nStreetlights humming\r\n"
+        )
         self.assertEqual(
-            lyrics.find(path), ("embedded", None, "Feel good\n\nCity's breaking", False)
+            lyrics.find(path),
+            ("embedded", None, "Rain on tin\n\nStreetlights humming", False),
         )
         self.labels["MusicPlayer.Lyrics"] = " "
         self.assertIsNone(lyrics.find(path))
@@ -292,7 +295,7 @@ class LookupTest(Kodi):
 
     def test_plain_none_and_instrumental_clear_the_rest(self):
         self.props = dict.fromkeys(lyrics.PROPS, "old")
-        self.labels["MusicPlayer.Lyrics"] = "Feel good"
+        self.labels["MusicPlayer.Lyrics"] = "Rain on tin"
         found = lyrics.lookup(self.aborted)
         revision = self.props.pop("lyrics_revision")
         self.assertEqual(
@@ -300,7 +303,7 @@ class LookupTest(Kodi):
             {
                 "lyrics_state": "plain",
                 "lyrics_source": "embedded",
-                "lyrics_plain": "Feel good",
+                "lyrics_plain": "Rain on tin",
             },
         )
         self.assertEqual(found.tick(5.0), 1)  # nothing to follow
@@ -370,11 +373,11 @@ class LrclibTest(Kodi):
 
     def test_a_fresh_cached_answer_shows_at_once(self):
         self.cache[SONG] = (
-            {"synced": None, "plain": "Feel good", "instrumental": False},
+            {"synced": None, "plain": "Rain on tin", "instrumental": False},
             True,
         )
         lyrics.lookup(self.aborted)
-        self.assertEqual(self.props["lyrics_plain"], "Feel good")
+        self.assertEqual(self.props["lyrics_plain"], "Rain on tin")
         self.cache[SONG] = (None, True)  # a failure, still fresh: none, not asked
         lyrics.lookup(self.aborted)
         self.assertEqual(self.props["lyrics_state"], "none")
@@ -977,7 +980,7 @@ class PluginAndActionTest(unittest.TestCase):
             [
                 {
                     "file": "plugin://script.copacetic.helper/lyrics/0",
-                    "label": "Feel good",
+                    "label": "Rain on tin",
                     "properties": {
                         "index": 0,
                         "time": 1470,
@@ -994,7 +997,7 @@ class PluginAndActionTest(unittest.TestCase):
                 },
                 {
                     "file": "plugin://script.copacetic.helper/lyrics/1",
-                    "label": "Sha, sha-ba-da",
+                    "label": "La, la-di-da",
                     "properties": {
                         "index": 1,
                         "time": 7050,
@@ -1037,16 +1040,16 @@ class PluginAndActionTest(unittest.TestCase):
 
     def test_plain_lines_wrap_to_the_width_in_the_font(self):
         self.addCleanup(self.home.clearProperty, lrc.PLAIN)
-        self.home.setProperty(lrc.PLAIN, "Feel good\n\nWindmill, windmill for the land")
+        self.home.setProperty(lrc.PLAIN, "Rain on tin\n\nCopper, copper in the rain")
         path = (
             "plugin://script.copacetic.helper/lyrics/plain"  # one: a refetch opens on 0
         )
         self.assertEqual(
             self.plain(),
             [
-                (path, "Feel good"),
+                (path, "Rain on tin"),
                 (path, ""),
-                (path, "Windmill, windmill for the land"),
+                (path, "Copper, copper in the rain"),
             ],
         )
         metric = type("Metric", (), {"getlength": lambda self, text: 10 * len(text)})
@@ -1058,7 +1061,7 @@ class PluginAndActionTest(unittest.TestCase):
         # 20 characters a row at 10 px; the blank line between verses stays a row
         self.assertEqual(
             [label for _, label in wrapped],
-            ["Feel good", "", "Windmill, windmill", "for the land"],
+            ["Rain on tin", "", "Copper, copper in", "the rain"],
         )
         self.assertEqual(fonts, ["lyrics_embedded"])
         with patch.object(handlers, "skin_metric", lambda name: None):  # no such font
