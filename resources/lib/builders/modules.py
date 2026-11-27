@@ -91,6 +91,8 @@ class BaseBuilder:
         template_items = element_data.get("items")
         template_index_data = element_data.get("index")
         template_range_data = element_data.get("range")
+        index_list = expand_index(template_index_data)
+        index_start = int(index_list[0]) if index_list else 1
 
         if mode == "dynamic":
             runtime_rows = self.runtime_manager.live_rows(self.mapping_name)
@@ -100,16 +102,12 @@ class BaseBuilder:
                     f"'{self.mapping_name}' — dynamic template '{element_name}' "
                     f"expands with no per-entry substitutions."
                 )
-            index_list = expand_index(template_index_data)
-            index_start = int(index_list[0]) if index_list else 1
             substitutions = self.generate_runtimejson_substitutions(
                 runtime_rows, index_start
             )
         else:
             substitutions = enumerate_mapping_subs(self.mapping_values)
             if template_index_data:
-                index_list = expand_index(template_index_data)
-                index_start = int(index_list[0]) if index_list else 1
                 substitutions = [
                     {**sub, "index": str(index_start + i)}
                     for i, sub in enumerate(substitutions)
@@ -609,7 +607,8 @@ class ExpressionsBuilder(BaseBuilder):
 
             if not target_expr:
                 log.verbose(
-                    f"{self.__class__.__name__} → [Fallback skipped] No match for fallback_item '{fallback_item}' in group '{group_key}'",
+                    f"{self.__class__.__name__} → [Fallback skipped] No match for "
+                    f"fallback_item '{fallback_item}' in group '{group_key}'",
                 )
                 continue
 
@@ -627,7 +626,8 @@ class ExpressionsBuilder(BaseBuilder):
             ) or "true"
 
             log.verbose(
-                f"{self.__class__.__name__} → [Fallback applied] {target_expr} = {resolved[target_expr]} (group: {group_key}, others: {list(others.keys())})",
+                f"{self.__class__.__name__} → [Fallback applied] {target_expr} = "
+                f"{resolved[target_expr]} (group: {group_key}, others: {list(others)})",
             )
 
         return resolved
@@ -635,8 +635,8 @@ class ExpressionsBuilder(BaseBuilder):
 
 class IncludesBuilder(BaseBuilder):
     """
-    Expands Kodi XML 'include' templates by substituting placeholders and encoding XSP metadata.
-    Handles recursive multi-level expansions for dynamic XML generation.
+    Expands Kodi XML 'include' templates by substituting placeholders and encoding
+    XSP metadata. Handles recursive multi-level expansions for dynamic XML generation.
     """
 
     def group_and_expand(
@@ -706,7 +706,8 @@ class IncludesBuilder(BaseBuilder):
     def recursive_expand(self, data, substitutions):
         """
         Recursively expands placeholders within dictionaries and lists, explicitly
-        removing elements and attributes with empty "@value" or "#text" after substitution.
+        removing elements and attributes with empty "@value" or "#text" after
+        substitution.
 
         :param data: Data structure (dict, list, or string) with potential placeholders.
         :param substitutions: List of substitution dictionaries.
@@ -762,9 +763,9 @@ class IncludesBuilder(BaseBuilder):
 
 class VariablesBuilder(BaseBuilder):
     """
-    Builder that generates Kodi-style variable definitions with condition/value pairs.
-    Supports ordinary shape (``{values: [...]}`` — one variable per template) and cluster
-    shape (``{outputs, rows}`` — multiple variables sharing a single row cascade).
+    Builder that generates Kodi-style variable definitions with condition/value pairs:
+    ordinary shape (``{values: [...]}``, one variable per template) or cluster shape
+    (``{outputs, rows}``, multiple variables sharing a single row cascade).
     """
 
     def group_and_expand(
