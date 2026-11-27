@@ -744,6 +744,28 @@ class LibrarySongTest(Kodi):
         song = self.song(lrc_text="[00:01.00]Salt on the window\n[00:02.00]On the wire")
         self.assertEqual(lyrics.library(song, None), "Salt on the window\nOn the wire")
 
+    def test_one_cache_row_for_the_song_playing_or_in_its_dialog(self):
+        # Kodi's MusicPlayer labels for this library song: the tag it plays with is
+        # the library's (CMusicInfoTag::SetSong): display artist, title, album, and
+        # the length formatted m:ss (SecondsToTimeString), which song() reads back
+        playing = {
+            "MusicPlayer.Artist": "The Inventions",
+            "MusicPlayer.Title": "Paper Lanterns",
+            "MusicPlayer.Album": "Harbour Lights",
+            "MusicPlayer.Duration": "03:21",
+        }
+        self.labels |= playing
+        self.assertEqual(lyrics.song(), lyrics.library_song(self.song()))
+        self.assertEqual(
+            lyrics.lrclib.song_key(*lyrics.song()),
+            lyrics.lrclib.song_key(*KEY),
+        )
+        # what the visualisation kept the dialog reads, with no request, and back
+        self.cache[KEY] = ({"synced": None, "plain": VERSES, "instrumental": False}, 1)
+        self.assertEqual(lyrics.library(self.song(), "again"), VERSES)
+        lyrics.lookup(self.aborted)
+        self.assertEqual((self.props["lyrics_plain"], self.asked), (VERSES, []))
+
     def test_lrclib_synced_as_plain_lines(self):
         self.cache[KEY] = (
             {"synced": [[0, ""], [4000, "Paper lanterns"], [9000, "Ships"]]}
