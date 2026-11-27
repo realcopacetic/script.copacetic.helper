@@ -66,8 +66,7 @@ Song = tuple[str, str, str, int]  # (artist, title, album, seconds)
 # (source, synced, plain, instrumental)
 Found = tuple[str, list | None, str | None, bool]
 NONE = ("", None, None, False)
-# A library song's details for library(): its LRCLIB key matches the playing song's
-# (MusicPlayer.Artist is the display artist), so both share one cache row
+# A library song's details for library(); library_song() makes its LRCLIB key
 SONG_FIELDS = ["file", "displayartist", "title", "album", "duration"]
 _fetches = {}  # LRCLIB lookups in flight, by song
 
@@ -194,6 +193,18 @@ def _found(payload: dict[str, Any] | None) -> Found:
     return "lrclib", payload["synced"], payload["plain"], payload["instrumental"]
 
 
+def library_song(details: dict[str, Any]) -> Song:
+    """
+    A library song as song() reads it playing, so both share one LRCLIB cache row:
+    MusicPlayer.Artist is its display artist, MusicPlayer.Duration its length.
+
+    :param details: Its details, SONG_FIELDS.
+    :return: (artist, title, album, seconds).
+    """
+    fields = ("displayartist", "title", "album", "duration")
+    return tuple(details[field] for field in fields)
+
+
 def _ask(song: Song, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
     Ask LRCLIB for a library song, and cache its answer.
@@ -223,7 +234,7 @@ def library(song: dict[str, Any], again: Asker | None) -> str | None:
     :param again: A served list's re-serve; None for a plugin call.
     :return: The text; "" for none or an instrumental; None while LRCLIB is asked.
     """
-    key = song["displayartist"], song["title"], song["album"], song["duration"]
+    key = library_song(song)
     try:
         found = find(song["file"], tags.lyrics)
     except Exception:  # a file's bytes: a tag that breaks the reader reads as none
