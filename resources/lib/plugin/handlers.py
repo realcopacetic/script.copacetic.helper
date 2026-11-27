@@ -2070,7 +2070,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                     if key != "art_summary"
                 },
             }
-            for path, fields in art.search(query)[:limit]
+            for path, fields in art.search(query, limit)
         )
 
     def art_rail(self) -> list[DirectoryItem]:
