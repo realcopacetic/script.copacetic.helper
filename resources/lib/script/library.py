@@ -166,11 +166,10 @@ def api_patterns(type: str, dbid: int) -> list[str]:
         return [*([f"listenbrainz:%:{mbid}"] if mbid else []), *deezer.patterns(key)]
     if type == "song":
         from resources.lib.apis import lrclib
+        from resources.lib.service import lyrics
 
-        # the tags MusicPlayer.Artist/Title/Album/Duration read (song.strArtistDisp)
-        tags = ("displayartist", "title", "album", "duration")
-        song = _details(type, dbid, *tags)
-        return [lrclib.song_key(*(song[tag] for tag in tags))]
+        song = _details(type, dbid, *lyrics.KEY_FIELDS)
+        return [lrclib.song_key(*lyrics.library_song(song))]
     if type in ("season", "episode"):
         type, dbid = "tvshow", _details(type, dbid, "tvshowid")["tvshowid"]
     if type not in ("movie", "tvshow"):
