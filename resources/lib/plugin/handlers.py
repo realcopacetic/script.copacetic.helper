@@ -1276,10 +1276,11 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             data["properties"] |= self._wikidata(data["Title"], data["Writers"])
         # heading_font=: the lines (1 or 2) the tagline, else the title, takes as Kodi
         # wraps it, so a skin can size what sits under it
-        if (width := to_float(self.params.get("heading_width"))) and (
-            metric := skin_metric(self.params.get("heading_font", ""))
+        if (
+            (width := to_float(self.params.get("heading_width")))
+            and (metric := skin_metric(self.params.get("heading_font", "")))
+            and (heading := plain_text(data["TagLine"] or data["Title"]))
         ):
-            heading = plain_text(data["TagLine"] or data["Title"])
             lines = fit_lines(metric, heading, width, 2, sentences=False)
             data["properties"]["heading_lines"] = str(len(lines))
         # set_suffix=: a film's collection without that last word ("… Collection")
@@ -1355,7 +1356,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if self.dbtype == "artist":
             kind = infolabel(f"{self.target_item}.Property(artist_type)")
             person = kind.casefold() in PEOPLE
-            if not person:  # instruments are a person's or a character's
+            # instruments: a person's or character's, where Kodi has none of its own
+            own = infolabel(f"{self.target_item}.Property(artist_instrument)")
+            if own or not person:
                 properties.pop("wikidata_instruments", None)
             # place_chips=N: the characters an artist's date chip (a person's born,
             # else formed; another's formed, else born) and its place's chip share
@@ -1380,7 +1383,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     ) -> dict[str, str]:
         """
         A film's or show's story band (wikidata_details.story_chips) fitted to the
-        width: story_gap between columns, story_chip_gap between chips.
+        width: story_gap between columns, story_chip_gap between chips, a column at
+        least as wide as its story_caption_{column} in story_caption_font.
 
         :param found: The kept details; {} for none.
         :param title: The item's title.
@@ -1395,7 +1399,16 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         collection = infolabel(f"{self.target_item}.Set") if film else ""
         columns = wd.story_chips(found, title, year, collection)
         gaps = (to_float(self.params.get(f"story_{k}")) for k in ("gap", "chip_gap"))
-        return wd.fit_band(columns, chip, width, *gaps)
+        captions = {}
+        if (font := self.params.get("story_caption_font")) and (
+            metric := skin_metric(font)
+        ):
+            captions = {
+                key: metric.getlength(text)
+                for key in wd.COLUMNS
+                if (text := self.params.get(f"story_caption_{key}"))
+            }
+        return wd.fit_band(columns, chip, width, tuple(gaps), captions)
 
     def _chip_width(self, prefix: str) -> Callable[[str], float] | None:
         """
