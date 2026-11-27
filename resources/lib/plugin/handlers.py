@@ -3472,7 +3472,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     def _song_lyrics(self) -> list[DirectoryItem]:
         """
         Library song id's lyrics (lyrics.library); the skin asks only while it offers
-        them. A served call asks LRCLIB aside: one blank row marked lyrics_pending.
+        them. A served call asks LRCLIB aside: a stale answer's lines meanwhile (the
+        new one shows at the next open), else one blank row marked lyrics_pending.
 
         :return: List of directory items for Kodi; none for no lyrics.
         """

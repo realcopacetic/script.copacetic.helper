@@ -8,7 +8,7 @@ import time
 from bisect import bisect_right
 from collections.abc import Callable, Sequence
 from threading import Thread
-from typing import Any
+from typing import Any, NamedTuple
 
 import xbmcvfs
 
@@ -225,15 +225,44 @@ def _ask(song: Song, live: Callable[[], bool]) -> dict[str, Any] | None:
 ASIDES = Asides(_ask)
 
 
+class Quiet(NamedTuple):
+    """
+    A served list's asker that keeps its lookup wanted but serves nothing again: a
+    stale answer's refresh, which shows at the list's next open, not as a swap.
+    """
+
+    again: Asker
+
+    def __call__(self) -> None:
+        """Nothing: the list keeps the lines it shows."""
+
+    def current(self) -> bool:
+        """Whether the list's arrival is still current, so worth asking for."""
+        return self.again.current()
+
+
+def _plain(found: Found) -> str:
+    """
+    Found lyrics as plain text, synced lines without their times.
+
+    :param found: (source, synced lines, plain text, instrumental).
+    :return: The text; "" for none or an instrumental.
+    """
+    _, synced, text, instrumental = found
+    if instrumental:
+        return ""
+    return "\n".join(line for _, line in synced).strip() if synced else text or ""
+
+
 def library(song: dict[str, Any], again: Asker | None) -> str | None:
     """
-    A library song's lyrics as plain text, synced lines without their times: a .lrc
-    beside its file, its tags, else LRCLIB's kept answer. One stale or never kept is
-    asked: in the call for a plugin, aside for a served call (again), which serves it.
+    A library song's lyrics as plain text: a .lrc beside its file, its tags, else
+    LRCLIB's kept answer. One stale or never kept is asked: in the call for a plugin;
+    aside for a served call (again), serving stale lines meanwhile, else pending.
 
     :param song: Its details, SONG_FIELDS.
     :param again: A served list's re-serve; None for a plugin call.
-    :return: The text; "" for none or an instrumental; None while asked with none kept.
+    :return: The text; "" for none or an instrumental; None while LRCLIB is asked.
     """
     key = library_song(song)
     try:
@@ -243,17 +272,16 @@ def library(song: dict[str, Any], again: Asker | None) -> str | None:
         found = None
     if not found and _wanted(key):
         payload, fresh = _saved(key)
-        if not fresh and again:  # the stale answer serves meanwhile, if any
-            ASIDES.ask(key, again, payload)
-            if payload is None:
-                return None
-        elif not fresh:  # a failed refresh keeps the stale answer (cache.cached)
+        if not fresh and again:
+            if stale := _plain(_found(payload)):  # kept until the next open: no swap
+                ASIDES.ask(key, Quiet(again))
+                return stale
+            ASIDES.ask(key, again)  # the pending row's landing dip masks the answer
+            return None
+        if not fresh:  # a failed refresh keeps the stale answer (cache.cached)
             payload = _ask(key, lambda: True)
         found = _found(payload)
-    _, synced, text, instrumental = found or NONE
-    if instrumental:
-        return ""
-    return "\n".join(line for _, line in synced).strip() if synced else text or ""
+    return _plain(found or NONE)
 
 
 class Fetch(Thread):

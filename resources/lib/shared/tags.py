@@ -18,6 +18,7 @@ APE_MARKS = (b"MAC ", b"wvpk", b"MPCK", b"MP+")  # Monkey's, WavPack, Musepack 8
 # ID3v2's text encodings by their byte: Latin-1, UTF-16 with a byte order mark,
 # UTF-16 big-endian, UTF-8
 ENCODINGS = ("latin-1", "utf-16", "utf-16-be", "utf-8")
+MAX_TAG = 1 << 20  # bytes of an Ogg comment or APE tag read at most: lyrics are small
 OGG = 27  # bytes: an Ogg page's header, ahead of its segment table
 # The comment packet's mark: Vorbis, Opus, Ogg FLAC (a VORBIS_COMMENT block's header)
 XIPH_MARKS = {b"\x03vorbis": 7, b"OpusTags": 8, b"\x04": 4, b"\x84": 4}
@@ -27,7 +28,8 @@ Read = Callable[[int, int], bytes]  # (position, size) -> the bytes there
 
 def lyrics(path: str) -> str:
     """
-    A song file's embedded lyrics; art and other frames are skipped, not read.
+    A song file's embedded lyrics. An MP3's and a FLAC's art is skipped unread; an
+    Ogg comment or APE tag is read up to MAX_TAG, so lyrics behind more art are missed.
 
     :param path: The file, as Kodi's library holds it (smb:// and nfs:// too).
     :return: The text; "" for none, or a format Kodi reads no lyrics from.
@@ -156,7 +158,7 @@ def _ogg(read: Read) -> str:
     :return: The text; "" for none.
     """
     pos, ended, packet = 0, False, bytearray()
-    while (page := read(pos, OGG + 255))[:4] == b"OggS":
+    while len(page := read(pos, OGG + 255)) > OGG and page[:4] == b"OggS":
         lacing = page[OGG : OGG + page[26]]
         body = read(pos + OGG + len(lacing), sum(lacing))
         pos += OGG + len(lacing) + len(body)
@@ -164,45 +166,50 @@ def _ogg(read: Read) -> str:
         for size in lacing:
             packet += body[at : at + size]
             at += size
-            if size < 255:  # the packet's last segment
-                if ended:
-                    return next(
-                        (
-                            _comment(packet[skip:])
-                            for mark, skip in XIPH_MARKS.items()
-                            if packet.startswith(mark)
-                        ),
-                        "",
-                    )
-                ended, packet = True, bytearray()
+            if size == 255 and len(packet) < MAX_TAG:
+                continue  # the packet goes on
+            if ended:  # the comment, cut at MAX_TAG
+                return next(
+                    (
+                        _comment(packet[skip:])
+                        for mark, skip in XIPH_MARKS.items()
+                        if packet.startswith(mark)
+                    ),
+                    "",
+                )
+            ended, packet = True, bytearray()
     return ""
 
 
 def _ape(read: Read, end: int) -> str:
     """
-    An APEv2 tag's LYRICS text item, its first value and key in any case, as TagLib
-    finds the tag: at the file's end, ahead of an ID3v1 tag.
+    An APEv2 tag's last LYRICS item (its key in any case) as text, its first value,
+    as TagLib finds the tag: at the file's end, ahead of an ID3v1 tag.
 
     :param read: Reads the file.
     :param end: The file's size.
-    :return: The text; "" for none.
+    :return: The text; "" for none, or a binary item.
     """
-    if read(end - ID3V1, 3) == b"TAG":
+    if end > ID3V1 and read(end - ID3V1, 3) == b"TAG":
         end -= ID3V1
-    footer = read(end - APE, APE)
+    footer = read(max(end - APE, 0), APE)
     if footer[:8] != b"APETAGEX":
         return ""
     # the tag's size counts its items and footer, not a header ahead of them
     size, count = (int.from_bytes(footer[at : at + 4], "little") for at in (12, 16))
-    items, pos = read(end - size, size - APE), 0
+    if not APE < size <= end:
+        return ""
+    items, pos, found = read(end - size, min(size - APE, MAX_TAG)), 0, ""
     for _ in range(count):
+        if (cut := items.find(b"\0", pos + 8)) < 0:
+            break  # past the items read: a count too high, or the cut at MAX_TAG
         length = int.from_bytes(items[pos : pos + 4], "little")
         kind = items[pos + 4] & 0x06  # 0 text, 2 binary, 4 a link
-        cut = items.index(b"\0", pos + 8)
-        key, pos = items[pos + 8 : cut], cut + 1 + length
-        if key.upper() == b"LYRICS" and not kind:
-            return items[cut + 1 : pos].partition(b"\0")[0].decode("utf-8", "replace")
-    return ""
+        key, value = items[pos + 8 : cut], items[cut + 1 : cut + 1 + length]
+        pos = cut + 1 + length
+        if key.upper() == b"LYRICS":  # TagLib keeps the last of a key
+            found = "" if kind else value.partition(b"\0")[0].decode("utf-8", "replace")
+    return found
 
 
 def _comment(block: bytes) -> str:
@@ -215,7 +222,7 @@ def _comment(block: bytes) -> str:
     pos = 4 + int.from_bytes(block[:4], "little")
     count = int.from_bytes(block[pos : pos + 4], "little")
     pos += 4
-    for _ in range(count):
+    for _ in range(min(count, (len(block) - pos) // 4)):  # a field takes 4 at least
         size = int.from_bytes(block[pos : pos + 4], "little")
         field = block[pos + 4 : pos + 4 + size]
         pos += 4 + size
