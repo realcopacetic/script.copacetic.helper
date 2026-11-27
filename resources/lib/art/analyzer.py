@@ -2,11 +2,10 @@
 
 from PIL import Image, ImageStat
 
-from resources.lib.art.color import luminance, rgb_to_hls, to_hex
+from resources.lib.art.color import RGB, luminance, rgb_to_hls, to_hex
 from resources.lib.art.policy import ColorConfig
 from resources.lib.shared import logger as log
 
-RGB = tuple[int, int, int]
 Palette = tuple[list[RGB], list[tuple[int, int]]]
 
 
@@ -71,29 +70,20 @@ class ColorAnalyzer:
         if palette is None:
             return (0, 0, 0)
         swatches, counts = palette
+        cfg = self.cfg
         total = sum(c for c, _ in counts) or 1
-        filtered = []
-        for c, idx in counts:
-            r, g, b = swatches[idx]
-            near_white = (
-                r > self.cfg.near_white
-                and g > self.cfg.near_white
-                and b > self.cfg.near_white
+
+        def skipped(rgb: RGB) -> bool:
+            """Near white or near black in every channel, as cfg skips them."""
+            return (cfg.skip_whites and min(rgb) > cfg.near_white) or (
+                cfg.skip_blacks and max(rgb) < cfg.near_black
             )
-            near_black = (
-                r < self.cfg.near_black
-                and g < self.cfg.near_black
-                and b < self.cfg.near_black
-            )
-            if (self.cfg.skip_whites and near_white) or (
-                self.cfg.skip_blacks and near_black
-            ):
-                if (
-                    c / total >= self.cfg.dominance_allow_threshold
-                ):  # allow if truly dominant
-                    filtered.append((c, idx))
-                continue
-            filtered.append((c, idx))
+
+        filtered = [
+            (c, idx)
+            for c, idx in counts
+            if not skipped(swatches[idx]) or c / total >= cfg.dominance_allow_threshold
+        ]
         _, idx = max(filtered or counts, key=lambda t: t[0])
         return swatches[idx]
 

@@ -143,9 +143,8 @@ def flatten_art_attributes(
     """
     return {
         (prefix if key == ART_FIELD_PROCESSED else f"{prefix}_{key}"): value
-        for prefix, record in (records or ())
+        for prefix, record in records
         for key, value in filter_listitem_payload(record).items()
-        if value is not None
     }
 
 

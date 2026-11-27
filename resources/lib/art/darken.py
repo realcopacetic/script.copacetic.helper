@@ -47,9 +47,8 @@ def ramp(size: tuple[int, int], box: Box, margin: int, inset: int = 0) -> Image.
     w, h = size
     x0, y0, x1, y1 = box
     end, tall, half = x1 + margin - x0, y1 - y0 + margin, margin / 2
-    right = max(
-        x0 + 1, x1 - inset
-    )  # where the right-hand fade starts; it ends as before
+    # Where the right-hand fade starts; it ends as before
+    right = max(x0 + 1, x1 - inset)
     cols, rows = (ceil(v / RAMP_STEP) for v in size)  # sampled: the fade is smooth
 
     def centres(v: int, k: int) -> list[float]:  # where each sample lands at full size
@@ -439,28 +438,23 @@ class ColorDarken:
         return x, y, min(w, ceil(max(map(metric.getlength, lines)))), h
 
     @staticmethod
-    def frame_image(
-        image: Image.Image, frame_w: int, frame_h: int
-    ) -> tuple[Image.Image, tuple[int, int]]:
+    def frame_image(image: Image.Image, frame_w: int, frame_h: int) -> Image.Image:
         """
         Normalize image into a frame size using cover-scaling and centering.
 
         :param image: Source image.
         :param frame_w: Frame width in pixels.
         :param frame_h: Frame height in pixels.
-        :return: Tuple (framed_image, (frame_w, frame_h)).
+        :return: The framed image; the image itself at that size or for no frame.
         """
-        if frame_w <= 0 or frame_h <= 0:
-            return image, image.size
-
-        if image.size == (frame_w, frame_h):
-            return image, (frame_w, frame_h)
+        if frame_w <= 0 or frame_h <= 0 or image.size == (frame_w, frame_h):
+            return image
 
         src_w, src_h = image.size
         if src_w <= 0 or src_h <= 0:
-            return image, image.size
+            return image
 
-        scale = max(frame_w / float(src_w), frame_h / float(src_h))
+        scale = max(frame_w / src_w, frame_h / src_h)
         new_w = max(1, int(round(src_w * scale)))
         new_h = max(1, int(round(src_h * scale)))
         resized = image.resize((new_w, new_h), Image.BOX)
@@ -468,4 +462,4 @@ class ColorDarken:
         top = max(0, (new_h - frame_h) // 2)
         right = min(new_w, left + frame_w)
         bottom = min(new_h, top + frame_h)
-        return resized.crop((left, top, right, bottom)), (frame_w, frame_h)
+        return resized.crop((left, top, right, bottom))
