@@ -823,20 +823,72 @@ class LibrarySongTest(Kodi):
         self.assertEqual(lyrics.tags.lyrics(self.song(empty)["file"]), "")
         self.assertEqual(lyrics.tags.lyrics(self.song(ogg(b"x", b"y"))["file"]), "")
 
-    def test_ape_text_lyrics_item_ahead_of_an_id3v1_tag(self):
+    def test_ogg_comment_read_up_to_max_tag(self):
+        art = "METADATA_BLOCK_PICTURE=" + "A" * 2 * lyrics.tags.MAX_TAG
+        packet = b"OpusTags" + vorbis(art, f"LYRICS={VERSES}")
+        path = self.song(ogg(b"OpusHead" + bytes(11), packet, per_page=255))["file"]
+        File.read = 0
+        self.assertEqual(lyrics.tags.lyrics(path), "")  # behind the cut: missed
+        self.assertLess(File.read, lyrics.tags.MAX_TAG + 2 * 65536)  # and a page
+
+    def test_malformed_ogg_reads_as_none(self):
+        opus = b"OpusHead" + bytes(11)
+        # a field count of 2**32 - 1 over one field: bounded by the block's bytes
+        huge = (4).to_bytes(4, "little") + b"test" + b"\xff" * 4 + vorbis("A=b")[12:]
+        for data in (
+            b"OggS\0\0",  # a page shorter than its header
+            ogg(opus, b"OpusTags" + vorbis(f"LYRICS={VERSES}"))[:40],  # cut short
+            ogg(opus, b"OpusTags" + huge),
+            ogg(opus, b"OpusTags" + b"\xff" * 12),  # a vendor length past the end
+        ):
+            self.assertEqual(lyrics.tags.lyrics(self.song(data)["file"]), "")
+
+    def test_ape_last_text_lyrics_item_ahead_of_an_id3v1_tag(self):
         items = (
             (b"Title", b"Paper Lanterns", 0),
-            (b"Lyrics", b"\x89PNG", 2),  # binary: not text, passed over
-            (b"LYRICS", VERSES.encode() + b"\0Salt on the window", 0),  # the first
+            (b"Lyrics", b"Salt on the window", 0),
+            (b"Lyrics", b"\x89PNG", 2),  # binary
+            (b"LYRICS", VERSES.encode() + b"\0Salt on the window", 0),  # the last
         )
         for audio in (b"MAC \x96\x0f", b"wvpk", b"MPCK", b"MP+\x07"):
             for id3v1 in (False, True):
                 path = self.song(ape(*items, audio=audio, id3v1=id3v1))["file"]
                 self.assertEqual(lyrics.tags.lyrics(path), VERSES)
+        # TagLib keeps the last: a binary one reads as none
+        self.assertEqual(lyrics.tags.lyrics(self.song(ape(*items[:3]))["file"]), "")
         self.assertEqual(lyrics.tags.lyrics(self.song(ape(items[0]))["file"]), "")
         self.assertEqual(
             lyrics.tags.lyrics(self.song(b"wvpk" + bytes(200))["file"]), ""
         )
+
+    def test_malformed_ape_reads_as_none(self):
+        good = ape((b"Lyrics", VERSES.encode(), 0))
+        body, footer = good[6:-32], good[-32:]
+
+        def tag(size=None, count=1, items=body):
+            size = len(items) + 32 if size is None else size
+            fields = (
+                footer[:12] + size.to_bytes(4, "little") + count.to_bytes(4, "little")
+            )
+            return b"MAC \x96\x0f" + items + fields + footer[20:]
+
+        for data in (
+            tag(size=0),
+            tag(size=32),  # a footer and no items
+            tag(size=10**6),  # past the file's start
+            tag(count=2**32 - 1, items=bytes(9)),  # a count past the items
+            tag(items=b"\0" * 8 + b"Lyrics"),  # a key with no end
+            b"MP+",  # shorter than a footer
+        ):
+            self.assertEqual(lyrics.tags.lyrics(self.song(data)["file"]), "")
+        self.assertEqual(lyrics.tags.lyrics(self.song(tag())["file"]), VERSES)
+
+    def test_ape_tag_read_up_to_max_tag(self):
+        art = (b"Cover Art (Front)", b"x\0" + bytes(2 * lyrics.tags.MAX_TAG), 2)
+        path = self.song(ape(art, (b"Lyrics", VERSES.encode(), 0)))["file"]
+        File.read = 0
+        self.assertEqual(lyrics.tags.lyrics(path), "")
+        self.assertLess(File.read, lyrics.tags.MAX_TAG + 1000)
 
     def test_embedded_first_synced_lines_lose_their_times(self):
         song = self.song(id3(id3_frame(b"USLT", b"\3eng\0" + TIMED.encode())))
@@ -891,21 +943,36 @@ class LibrarySongTest(Kodi):
         asides = []
         with patch.object(lyrics.ASIDES, "ask", lambda *a: asides.append(a)):
             self.assertIsNone(lyrics.library(self.song(), "again"))
-        self.assertEqual(asides, [(KEY, "again", None)])
+        self.assertEqual(asides, [(KEY, "again")])
         with patch.object(lyrics.lrclib, "enabled", lambda: False):  # no consent
             self.assertEqual(lyrics.library(self.song(), "again"), "")
         self.assertEqual(len(self.asked), 1)
 
-    def test_a_stale_answer_serves_while_it_is_asked_again(self):
+    def test_stale_lines_serve_and_refresh_for_the_next_open(self):
         stale = {"synced": None, "plain": "Salt on the window", "instrumental": False}
         self.cache[KEY] = (stale, False)  # Refresh cached data marked it stale
         asides = []
         with patch.object(lyrics.ASIDES, "ask", lambda *a: asides.append(a)):
             self.assertEqual(lyrics.library(self.song(), "again"), "Salt on the window")
-        self.assertEqual((asides, self.asked), ([(KEY, "again", stale)], []))
+        # asked aside by an asker that serves nothing again: no swap of lines
+        self.assertEqual((asides, self.asked), ([(KEY, lyrics.Quiet("again"))], []))
+        served = []
+        again = SimpleNamespace(current=lambda: True)
+        again.__call__ = lambda: served.append(1)
+        quiet = lyrics.Quiet(again)
+        quiet()
+        self.assertEqual((quiet.current(), served), (True, []))
         self.lrclib[KEY] = {"synced": None, "plain": VERSES, "instrumental": False}
         self.assertEqual(lyrics.library(self.song(), None), VERSES)  # a plugin waits
         self.assertEqual(self.asked, [("lyrics", KEY)])
+
+    def test_a_stale_answer_with_no_lines_serves_the_pending_row(self):
+        asides = []
+        for stale in ({}, {"synced": None, "plain": None, "instrumental": True}):
+            self.cache[KEY] = (stale, False)
+            with patch.object(lyrics.ASIDES, "ask", lambda *a: asides.append(a)):
+                self.assertIsNone(lyrics.library(self.song(), "again"))
+        self.assertEqual(asides, [(KEY, "again")] * 2)  # its answer serves the list
 
     def test_an_aside_the_dialog_left_skips_its_search(self):
         self.lrclib[KEY] = {}

@@ -332,16 +332,18 @@ new song's lines Kodi selects the first. The text is also `lyrics_plain`, for a 
 kind of items, from the same sources in the same order: a `.lrc` beside the file, its
 tags (an MP3's ID3v2 lyrics frame, a FLAC, Ogg Vorbis or Opus file's `LYRICS`
 comment, a Monkey's Audio, WavPack or Musepack file's APEv2 `Lyrics` item: the ones
-Kodi reads), then LRCLIB's saved answer. Synced lyrics come without their time stamps, one
-item per line, an empty one between verses. An instrumental, or none found, lists
-nothing. Ask for it only while your skin shows lyrics, say behind its `lyrics`
-setting, the switch the [CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
+Kodi reads), then LRCLIB's saved answer. Synced lyrics come without their time
+stamps, one item per line, an empty one between verses. An instrumental, or none
+found, lists nothing. Ask for it only while your skin shows lyrics, say behind its
+`lyrics` setting, the switch the [CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
 A song LRCLIB has never been asked for, or whose saved answer is stale (after
 *Refresh cached data*), is asked then (with the helper's LRCLIB setting on): a plugin
-call waits for the answer; a [served](serve.md) call answers at once, with the stale
-answer's lines or else one empty item carrying `lyrics_pending` = `true`, and serves
-the list again when a new answer lands, so the skin can mask lines that arrive late. The playing
-song's lookup and properties are untouched, and the two share one saved answer.
+call waits for the answer; a [served](serve.md) call answers at once. With stale lines
+it serves them and refreshes aside without serving the list again, so the new answer
+shows at the song's next open, never as a swap. Otherwise it serves one empty item
+carrying `lyrics_pending` = `true`, and serves the list again when the answer lands,
+so the skin can mask lines that arrive late. The playing song's lookup and
+properties are untouched, and the two share one saved answer.
 
 **Following the song.** On each line's time, and every 0.2 seconds while the
 visualisation shows, the service puts one list on the current line when it isn't,
