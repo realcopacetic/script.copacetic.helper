@@ -1431,7 +1431,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         :param title: The item's title.
         :param chip: A chip's width.
         :param width: The band's width.
-        :return: The band's wikidata_{column}_{n} properties.
+        :return: The band's wikidata_{column}_{n} and {column}_caption_wide properties.
         """
         from resources.lib.shared import wikidata_details as wd
 
