@@ -72,6 +72,9 @@ _MOVES = {-1: 13332, 1: 13333}  # Move up, Move down
 _DIAL_ROWS = (("start_mix", 32821, {"playlist"}), ("shuffle", 32820, {"song"}))
 MIX_NAMES = 8  # artists a daily mix card names (Ash, 13 Nov)
 MIX_SLIDES = 25  # its multiart: every artist of the mix, up to 25 slides (Ash, 13 Nov)
+# MusicBrainz's artist types that are born and die; any other forms and disbands
+PEOPLE = frozenset({"person", "character"})
+_YEAR = re.compile(r"\d{4}")
 
 
 def library_item(details: dict, type: str) -> DirectoryItem:
@@ -215,6 +218,30 @@ def artist_identity(dbid: int, parent: str) -> tuple[str, str] | None:
     """
     details = library_details("artist", dbid, ["musicbrainzartistid"], parent)
     return details and (details["artist"], details["musicbrainzartistid"][0])
+
+
+def artist_years(artist: dict[str, str], present: str) -> str:
+    """
+    An artist's years active: Kodi's own, else its first year to its last or present,
+    a person's (PEOPLE) birth to death, another's formation to disbanding, each
+    falling back to the other's.
+
+    :param artist: Kodi's yearsactive, type, born, formed, died and disbanded.
+    :param present: The word for an artist still active.
+    :return: "1997–2019", "1971–present"; "" with no first year.
+    """
+    if artist["yearsactive"]:
+        return artist["yearsactive"]
+    starts, ends = ("born", "formed"), ("died", "disbanded")
+    if artist["type"].casefold() not in PEOPLE:
+        starts, ends = starts[::-1], ends[::-1]
+    first, last = (_year(artist, keys) for keys in (starts, ends))
+    return first and f"{first}–{last or present}"
+
+
+def _year(artist: dict[str, str], keys: tuple[str, ...]) -> str:
+    """The first of the fields with a year, its year alone: "1997-03-04" is 1997."""
+    return next((m[0] for key in keys if (m := _YEAR.search(artist[key]))), "")
 
 
 def fused(rankings: Iterable[tuple[float, Iterable]]) -> Counter:

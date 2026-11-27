@@ -60,6 +60,7 @@ from resources.lib.plugin.library import (
 from resources.lib.plugin.music import (
     ALBUM_RANK_PROPERTIES,
     ALBUM_SONG_PROPERTIES,
+    PEOPLE,
     POPULAR,
     SONG_RANK_PROPERTIES,
     WEIGHTS,
@@ -67,6 +68,7 @@ from resources.lib.plugin.music import (
     artist_identity,
     artist_names,
     artist_places,
+    artist_years,
     deezer_match,
     details_item,
     dial_item,
@@ -99,6 +101,7 @@ from resources.lib.shared.speed_dial import MUSIC_TYPES, SpeedDial
 from resources.lib.shared.text import (
     fit_lines,
     markdown_label,
+    plain_text,
     single_quotes,
     skin_metric,
     wrap_text,
@@ -1190,9 +1193,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def metadata(self) -> list[DirectoryItem] | None:
         """
-        Cleaned metadata on a helper list item; aborts if focus changes. random_pick:
-        one director and genre (=genre, =director: that alone); genre_chips=N,
-        album_format, most_played, compilation_artists, wikidata, place_chips; tmdb_art.
+        Cleaned metadata on a helper list item; aborts if focus changes. random_pick
+        (=genre, =director); genre_chips=N, album_format, most_played, wikidata,
+        compilation_artists, place_chips, story_*, heading_*, set_suffix, years_present.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -1280,6 +1283,26 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             data["properties"]["tagline"] = data["TagLine"]
         if parse_bool(self.params.get("wikidata")):
             data["properties"] |= self._wikidata(data["Title"], data["Writers"])
+        # heading_font=: the lines (1 or 2) the tagline, else the title, takes as Kodi
+        # wraps it, so a skin can size what sits under it
+        if (width := to_float(self.params.get("heading_width"))) and (
+            metric := skin_metric(self.params.get("heading_font", ""))
+        ):
+            heading = plain_text(data["TagLine"] or data["Title"])
+            lines = fit_lines(metric, heading, width, 2, sentences=False)
+            data["properties"]["heading_lines"] = str(len(lines))
+        # set_suffix=: a film's collection without that last word ("… Collection")
+        if (suffix := self.params.get("set_suffix")) and (
+            collection := infolabel(f"{target}.Set")
+        ):
+            trim = collection.casefold().endswith(f" {suffix}".casefold())
+            short = collection[: -len(suffix) - 1] if trim else collection
+            data["properties"]["set_name"] = short
+        # years_present=: an artist's years active, from its dates where Kodi has none
+        if self.dbtype == "artist" and (present := self.params.get("years_present")):
+            fields = ("yearsactive", "type", "born", "formed", "died", "disbanded")
+            artist = {f: infolabel(f"{target}.Property(artist_{f})") for f in fields}
+            data["properties"]["artist_years"] = artist_years(artist, present)
 
         if not guard.alive():
             return
@@ -1311,7 +1334,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         while the wikidata setting is on: kept ones only, a missing or stale answer
         asked aside for a served call (wikidata_pending), whose news serves it again.
 
-        :param title: The item's title, for the based-on wording.
+        :param title: The item's title, for the story band's wording.
         :param writers: The item's writers: a show's creators, TMDb's.
         :return: The properties; none for an item with no TMDb, IMDb or MusicBrainz id.
         """
@@ -1320,47 +1343,68 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (wd.wanted() and (key := self._wikidata_key())):
             return {}
         found, fresh = wd.kept(key)
-        properties = wd.properties(self.dbtype, found, title)
+        properties = wd.properties(self.dbtype, found)
         if writers:  # Wikidata's creators stand in only for a show TMDb names none for
             properties.pop("wikidata_created_by", None)
-        # story_font=: the story line in the skin's fonts, on two rows if it must be
-        if (based := properties.get("wikidata_based_on")) and self.params.get(
-            "story_font"
+        # based_on_font=: the work it is based on cut to one line, at a word
+        if (
+            (based := properties.get("wikidata_based_on"))
+            and (room := to_float(self.params.get("based_on_width")))
+            and (text := skin_metric(self.params.get("based_on_font", "")))
         ):
-            properties |= self._story(based, properties.get("wikidata_set_in", ""))
-        # place_chips=N: the characters an artist's date chip (born, else formed) and
-        # its place's chip share
-        if (place := properties.get("wikidata_place")) and (
-            chips := to_int(self.params.get("place_chips"))
+            cut = fit_lines(text, based, room, 1, sentences=False)
+            properties["wikidata_based_on"] = cut[0]
+        # story_width=: the story band's chips, fitted in the skin's chip font
+        if (
+            self.dbtype in ("movie", "tvshow")
+            and (width := to_float(self.params.get("story_width")))
+            and (chip := self._chip_width("story_chip_"))
         ):
-            labels = (
-                f"{self.target_item}.Property(artist_{d})" for d in ("born", "formed")
-            )
-            date = next(filter(None, map(infolabel, labels)), "")
-            properties["wikidata_place"] = clipped(place, chips - len(date))
+            properties |= self._story(found or {}, title, chip, width)
+        if self.dbtype == "artist":
+            kind = infolabel(f"{self.target_item}.Property(artist_type)")
+            person = kind.casefold() in PEOPLE
+            if not person:  # instruments are a person's or a character's
+                properties.pop("wikidata_instruments", None)
+            # place_chips=N: the characters an artist's date chip (a person's born,
+            # else formed; another's formed, else born) and its place's chip share
+            if (place := properties.get("wikidata_place")) and (
+                chips := to_int(self.params.get("place_chips"))
+            ):
+                dates = ("born", "formed") if person else ("formed", "born")
+                labels = (f"{self.target_item}.Property(artist_{d})" for d in dates)
+                date = next(filter(None, map(infolabel, labels)), "")
+                properties["wikidata_place"] = clipped(place, chips - len(date))
         if not fresh and self.again:
             wd.ASIDES.ask(key, self.again, found)
             properties["wikidata_pending"] = "true"  # the skin can mask the re-serve
         return properties
 
-    def _story(self, based: str, place: str) -> dict[str, str]:
+    def _story(
+        self,
+        found: dict[str, Any],
+        title: str,
+        chip: Callable[[str], float],
+        width: float,
+    ) -> dict[str, str]:
         """
-        The story line fitted (wikidata_details.fit_story) in the skin's story_font
-        and story_chip_font, with its story_* words, width, gap and chip geometry.
+        A film's or show's story band (wikidata_details.story_chips) fitted to the
+        width: story_gap between columns, story_chip_gap between chips.
 
-        :param based: wikidata_based_on.
-        :param place: wikidata_set_in; "" for none.
-        :return: The fitted properties; none for an unknown font or no width.
+        :param found: The kept details; {} for none.
+        :param title: The item's title.
+        :param chip: A chip's width.
+        :param width: The band's width.
+        :return: The band's wikidata_{column}_{n} properties.
         """
-        from resources.lib.shared.wikidata_details import fit_story
+        from resources.lib.shared import wikidata_details as wd
 
-        text = skin_metric(self.params.get("story_font", ""))
-        chip = self._chip_width("story_chip_")
-        if not (text and chip and (width := to_float(self.params.get("story_width")))):
-            return {}
-        words = tuple(self.params.get(f"story_{k}", "") for k in ("based_on", "set_in"))
-        gap = to_float(self.params.get("story_gap"))
-        return fit_story(based, place, text, chip, words, width, gap)
+        year = to_int(infolabel(f"{self.target_item}.Year"))
+        film = self.dbtype == "movie"  # a show has no collection
+        collection = infolabel(f"{self.target_item}.Set") if film else ""
+        columns = wd.story_chips(found, title, year, collection)
+        gaps = (to_float(self.params.get(f"story_{k}")) for k in ("gap", "chip_gap"))
+        return wd.fit_band(columns, chip, width, *gaps)
 
     def _chip_width(self, prefix: str) -> Callable[[str], float] | None:
         """
