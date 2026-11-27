@@ -342,7 +342,7 @@ def search(query: str, limit: int) -> list[tuple[str, dict]]:
     :return: (path, fields) pairs; fields {} for a picture no painting matched.
     """
     typed = query.split()
-    if not (words := [*filter(None, map(fold, typed))]) and typed:
+    if not (terms := [*filter(None, map(fold, typed))]) and typed:
         return []  # text with no word, such as emoji alone: nothing holds it
     folders, movements = marked(), {}
 
@@ -360,7 +360,7 @@ def search(query: str, limit: int) -> list[tuple[str, dict]]:
         tiers = (details[:1], details[1:2], details, [file_label(path)])
         for tier, texts in enumerate(tiers):
             texts = [*map(fold, texts)]
-            if all(any(word in text for text in texts) for word in words):
+            if all(any(term in text for text in texts) for term in terms):
                 return tier
         return None
 
@@ -372,7 +372,7 @@ def search(query: str, limit: int) -> list[tuple[str, dict]]:
             continue
         if (tier := rank(path, fields)) is None:
             continue
-        if fields or words:  # no words: the matches alone
+        if fields or terms:  # no words: the matches alone
             found.append((tier, path, fields))
     found.sort(
         key=lambda hit: (
@@ -395,8 +395,8 @@ def forget(path: str) -> None:
 
     :param path: The picture's path.
     """
-    cache, name = ApiCacheHandler(), parse(path)
-    row = cache.get(_key(path))
+    db, name = ApiCacheHandler(), parse(path)
+    row = db.get(_key(path))
     found = row and row[0] and row[0]["fields"] or {}
     artist = name.artist if name else ""
     wikidata.forget(
@@ -405,7 +405,7 @@ def forget(path: str) -> None:
         found.get("enwiki", ""),
         found.get("artist_qid", ""),
     )
-    cache.drop(_key(path))  # exactly: a path's % or _ would match other files
+    db.drop(_key(path))  # exactly: a path's % or _ would match other files
 
 
 """Marked folders"""
@@ -608,7 +608,7 @@ def artist_fields(found: dict[str, Any]) -> dict[str, str]:
 
     def named(kind: str, names: int) -> dict[str, str]:
         """Its first labels joined, and how many more, each once in Wikidata's order."""
-        labels = [*dict.fromkeys(label for _, label in found.get(kind, []))]
+        labels = _labels(found, kind)
         more = str(len(labels[names:]) or "")
         return {kind: ", ".join(labels[:names]), f"{kind}_more": more}
 
@@ -652,10 +652,12 @@ def artist_bio(found: dict[str, Any]) -> dict[str, list[str]]:
     :param found: page's answer for the painter.
     :return: member_of, known_for, genre and worked_in's labels.
     """
-    return {
-        kind: [*dict.fromkeys(label for _, label in found.get(kind, []))]
-        for kind in BIO_KINDS
-    }
+    return {kind: _labels(found, kind) for kind in BIO_KINDS}
+
+
+def _labels(found: dict[str, Any], kind: str) -> list[str]:
+    """A kind's labels from its (Q-id, label) pairs, each once in Wikidata's order."""
+    return [*dict.fromkeys(label for _, label in found.get(kind, []))]
 
 
 def fit_chips(
