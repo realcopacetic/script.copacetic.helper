@@ -156,7 +156,7 @@ passed, else from the focused item.
 |---|---|---|
 | `type` | `ListItem.DBType` | |
 | `id` | `ListItem.DBID` | |
-| `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id` (a season's or episode's show with `tvshowid`): one `GetMovieDetails` or `GetTVShowDetails` call, kept once found until Kodi restarts, so the progress bar and later focuses don't ask again. |
+| `tmdb_id` | `ListItem.UniqueID(tmdb)` | Used directly when set. Otherwise looked up from the library with `id` (a season's or episode's show with `tvshowid`): one `GetMovieDetails` or `GetTVShowDetails` call, kept once found until Kodi restarts or the item's next library update (a rescrape can change it), so the progress bar and later focuses don't ask again. |
 | `tvshowid` | `ListItem.TvShowDBID`, then `ListItem.Property(tvshowid)` | For seasons and episodes: the show to look up. |
 | `season` | `ListItem.Season` | For seasons. A season with no number (the "All seasons" item) is skipped, `show_creators` too. |
 | `language` | add-on setting **TMDB language**, else `en-US` | TMDB language, for example `de-DE`. |
