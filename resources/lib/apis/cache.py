@@ -101,8 +101,11 @@ def cached(
             log.warning(f"{source} → refused the token (401)")
         wait = failure_ttl(exc)
         if holding := exc.status == 429 and queue and exc.code != ONE_MEDIA:
-            home.setProperty(queue, f"{slot + wait}")
-            home.setProperty(f"{queue}.held", f"{slot + wait}")
+            # Slots other calls reserved past the hold stay theirs: the queue never
+            # moves back
+            end = slot + wait
+            home.setProperty(queue, f"{max(end, float(home.getProperty(queue)))}")
+            home.setProperty(f"{queue}.held", f"{end}")
         # A racing call's fresh answer stands; its failure row holds the same stale
         # read as this call's payload, so that one is simply stored again
         if (row := cache.get(key)) and row[1] and row[0] != payload:
