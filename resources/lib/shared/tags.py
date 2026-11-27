@@ -2,9 +2,9 @@
 
 """
 A song file's embedded lyrics, from tags Kodi's own loader reads them from
-(music/tags/TagLoaderTagLib.cpp): an ID3v2 USLT frame (MP3) and a FLAC file's LYRICS
-comment. Not read: Ogg Vorbis and Opus comments, APE tags (Monkey's Audio, WavPack,
-Musepack); their lyrics come from LRCLIB. Kodi fills a song's only at play.
+(music/tags/TagLoaderTagLib.cpp): an ID3v2 USLT frame (MP3), a LYRICS Vorbis comment
+(FLAC, Ogg Vorbis, Opus, Ogg FLAC) and an APEv2 Lyrics item (Monkey's Audio, WavPack,
+Musepack). Kodi fills a song's only at play.
 """
 
 from collections.abc import Callable
@@ -12,9 +12,15 @@ from collections.abc import Callable
 import xbmcvfs
 
 ID3 = 10  # bytes: an ID3v2 tag's header, and its footer
+ID3V1 = 128  # bytes: an ID3v1 tag, last in the file
+APE = 32  # bytes: an APEv2 tag's footer
+APE_MARKS = (b"MAC ", b"wvpk", b"MPCK", b"MP+")  # Monkey's, WavPack, Musepack 8, 7
 # ID3v2's text encodings by their byte: Latin-1, UTF-16 with a byte order mark,
 # UTF-16 big-endian, UTF-8
 ENCODINGS = ("latin-1", "utf-16", "utf-16-be", "utf-8")
+OGG = 27  # bytes: an Ogg page's header, ahead of its segment table
+# The comment packet's mark: Vorbis, Opus, Ogg FLAC (a VORBIS_COMMENT block's header)
+XIPH_MARKS = {b"\x03vorbis": 7, b"OpusTags": 8, b"\x04": 4, b"\x84": 4}
 VORBIS_COMMENT = 4  # a FLAC metadata block's type
 Read = Callable[[int, int], bytes]  # (position, size) -> the bytes there
 
@@ -37,6 +43,10 @@ def lyrics(path: str) -> str:
             start = ID3 + _syncsafe(head[6:10]) + (ID3 if head[5] & 0x10 else 0)
             if read(start, 4) != b"fLaC":
                 return _id3(read, head)
+        elif head[:4] == b"OggS":
+            return _ogg(read)
+        elif head.startswith(APE_MARKS):
+            return _ape(read, file.size())
         elif head[:4] != b"fLaC":
             return ""
         return _flac(read, start + 4)
@@ -134,6 +144,64 @@ def _flac(read: Read, pos: int) -> str:
         if kind == VORBIS_COMMENT:
             return _comment(read(pos + 4, size))
         pos += 4 + size
+    return ""
+
+
+def _ogg(read: Read) -> str:
+    """
+    The LYRICS comment of an Ogg file's second packet, gathered from its pages'
+    segments, as TagLib reads it: whatever stream each page belongs to.
+
+    :param read: Reads the file.
+    :return: The text; "" for none.
+    """
+    pos, ended, packet = 0, False, bytearray()
+    while (page := read(pos, OGG + 255))[:4] == b"OggS":
+        lacing = page[OGG : OGG + page[26]]
+        body = read(pos + OGG + len(lacing), sum(lacing))
+        pos += OGG + len(lacing) + len(body)
+        at = 0
+        for size in lacing:
+            packet += body[at : at + size]
+            at += size
+            if size < 255:  # the packet's last segment
+                if ended:
+                    return next(
+                        (
+                            _comment(packet[skip:])
+                            for mark, skip in XIPH_MARKS.items()
+                            if packet.startswith(mark)
+                        ),
+                        "",
+                    )
+                ended, packet = True, bytearray()
+    return ""
+
+
+def _ape(read: Read, end: int) -> str:
+    """
+    An APEv2 tag's LYRICS text item, its first value and key in any case, as TagLib
+    finds the tag: at the file's end, ahead of an ID3v1 tag.
+
+    :param read: Reads the file.
+    :param end: The file's size.
+    :return: The text; "" for none.
+    """
+    if read(end - ID3V1, 3) == b"TAG":
+        end -= ID3V1
+    footer = read(end - APE, APE)
+    if footer[:8] != b"APETAGEX":
+        return ""
+    # the tag's size counts its items and footer, not a header ahead of them
+    size, count = (int.from_bytes(footer[at : at + 4], "little") for at in (12, 16))
+    items, pos = read(end - size, size - APE), 0
+    for _ in range(count):
+        length = int.from_bytes(items[pos : pos + 4], "little")
+        kind = items[pos + 4] & 0x06  # 0 text, 2 binary, 4 a link
+        cut = items.index(b"\0", pos + 8)
+        key, pos = items[pos + 8 : cut], cut + 1 + length
+        if key.upper() == b"LYRICS" and not kind:
+            return items[cut + 1 : pos].partition(b"\0")[0].decode("utf-8", "replace")
     return ""
 
 

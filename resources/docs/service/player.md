@@ -330,8 +330,9 @@ new song's lines Kodi selects the first. The text is also `lyrics_plain`, for a 
 **A library song's lyrics**, playing or not (an info dialog's Lyrics page): add
 `type=song&id=<DBID>` to the plain path, with no `revision`. The lines are the same
 kind of items, from the same sources in the same order: a `.lrc` beside the file, its
-tags (an MP3's ID3v2 lyrics frame or a FLAC file's `LYRICS` comment, the ones Kodi
-reads), then LRCLIB's saved answer. Synced lyrics come without their time stamps, one
+tags (an MP3's ID3v2 lyrics frame, a FLAC, Ogg Vorbis or Opus file's `LYRICS`
+comment, a Monkey's Audio, WavPack or Musepack file's APEv2 `Lyrics` item: the ones
+Kodi reads), then LRCLIB's saved answer. Synced lyrics come without their time stamps, one
 item per line, an empty one between verses. An instrumental, or none found, lists
 nothing. Ask for it only while your skin shows lyrics, say behind its `lyrics`
 setting, the switch the [CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
