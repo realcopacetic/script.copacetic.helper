@@ -890,6 +890,22 @@ class LibrarySongTest(Kodi):
         self.assertEqual(lyrics.tags.lyrics(path), "")
         self.assertLess(File.read, lyrics.tags.MAX_TAG + 1000)
 
+    def test_lyrics_the_cap_cuts_read_as_none(self):
+        # Lyrics that start under MAX_TAG and end past it: a part would win over
+        # LRCLIB's whole answer, so they read as none
+        words = "Paper lanterns over the harbour\n" * 112  # 3584 characters
+        opus = b"OpusHead" + bytes(11)
+        art = "METADATA_BLOCK_PICTURE=" + "A" * (lyrics.tags.MAX_TAG - 1047)
+        comment = b"OpusTags" + vorbis(art, f"LYRICS={words}")
+        self.assertLess(comment.index(b"LYRICS="), lyrics.tags.MAX_TAG)
+        path = self.song(ogg(opus, comment, per_page=255))["file"]
+        self.assertEqual(lyrics.tags.lyrics(path), "")
+        art = (b"Cover Art (Front)", bytes(lyrics.tags.MAX_TAG - 1026), 2)
+        path = self.song(ape(art, (b"Lyrics", words.encode(), 0)))["file"]
+        self.assertEqual(lyrics.tags.lyrics(path), "")
+        whole = ape((b"Lyrics", words.encode(), 0))  # under the cap: read
+        self.assertEqual(lyrics.tags.lyrics(self.song(whole)["file"]), words)
+
     def test_embedded_first_synced_lines_lose_their_times(self):
         song = self.song(id3(id3_frame(b"USLT", b"\3eng\0" + TIMED.encode())))
         self.assertEqual(lyrics.library(song, None), "Paper lanterns over the harbour")
@@ -957,9 +973,17 @@ class LibrarySongTest(Kodi):
         # asked aside by an asker that serves nothing again: no swap of lines
         self.assertEqual((asides, self.asked), ([(KEY, lyrics.Quiet("again"))], []))
         served = []
-        again = SimpleNamespace(current=lambda: True)
-        again.__call__ = lambda: served.append(1)
-        quiet = lyrics.Quiet(again)
+
+        class Again:  # a re-serve: Python looks __call__ up on the class
+            def __call__(self):
+                served.append(1)
+
+            def current(self):
+                return True
+
+        Again()()  # it would serve
+        served.clear()
+        quiet = lyrics.Quiet(Again())
         quiet()
         self.assertEqual((quiet.current(), served), (True, []))
         self.lrclib[KEY] = {"synced": None, "plain": VERSES, "instrumental": False}

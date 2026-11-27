@@ -335,7 +335,8 @@ comment, a Monkey's Audio, WavPack or Musepack file's APEv2 `Lyrics` item: the o
 Kodi reads), then LRCLIB's saved answer. Synced lyrics come without their time
 stamps, one item per line, an empty one between verses. An instrumental, or none
 found, lists nothing. Ask for it only while your skin shows lyrics, say behind its
-`lyrics` setting, the switch the [CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
+`lyrics` setting, the switch the
+[CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
 A song LRCLIB has never been asked for, or whose saved answer is stale (after
 *Refresh cached data*), is asked then (with the helper's LRCLIB setting on): a plugin
 call waits for the answer; a [served](serve.md) call answers at once. With stale lines
