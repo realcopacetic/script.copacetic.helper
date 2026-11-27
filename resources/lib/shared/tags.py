@@ -206,6 +206,8 @@ def _ape(read: Read, end: int) -> str:
         length = int.from_bytes(items[pos : pos + 4], "little")
         kind = items[pos + 4] & 0x06  # 0 text, 2 binary, 4 a link
         key, value = items[pos + 8 : cut], items[cut + 1 : cut + 1 + length]
+        if len(value) < length:
+            break  # cut at MAX_TAG: a part of lyrics would win over LRCLIB's
         pos = cut + 1 + length
         if key.upper() == b"LYRICS":  # TagLib keeps the last of a key
             found = "" if kind else value.partition(b"\0")[0].decode("utf-8", "replace")
@@ -225,6 +227,8 @@ def _comment(block: bytes) -> str:
     for _ in range(min(count, (len(block) - pos) // 4)):  # a field takes 4 at least
         size = int.from_bytes(block[pos : pos + 4], "little")
         field = block[pos + 4 : pos + 4 + size]
+        if len(field) < size:
+            break  # cut at MAX_TAG: a part of lyrics would win over LRCLIB's
         pos += 4 + size
         key, _, value = field.partition(b"=")
         if key.upper() == b"LYRICS":
