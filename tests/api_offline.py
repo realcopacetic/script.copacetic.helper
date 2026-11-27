@@ -22,8 +22,8 @@ hand-written: jobs and departments as TMDb's person page groups them), Deezer's 
 shape (hand-written), TheIntroDB's v4 /media shape (hand-written from its npm
 client's docs), recorded LRCLIB answers (tests/fixtures/lrclib_*.json, Feel Good
 Inc., fetched 16 Nov 2026, trimmed to the fields the helper reads and four lines
-of lyrics, those replaced by invented ones) or the failure under test. Run from the helper root:
-python tests/api_offline.py
+of lyrics, those replaced by invented ones) or the failure under test. Run from the
+helper root: python tests/api_offline.py
 """
 
 import io

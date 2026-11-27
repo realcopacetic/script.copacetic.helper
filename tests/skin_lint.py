@@ -181,7 +181,7 @@ ACCEPTED = {  # (rule, file, message start): why it stands
             "unreferenced-definition",
             f"{GENERATED}expressions.xml",
             f"expression transition_{item}_include_{window}",
-        ): "read once a content type's layout is reel (vue_reel_poster, vue_reel_square)"
+        ): "read once a content type's layout is reel (vue_reel_poster and _square)"
         for item in ("reel", "zoom")
         for window in ("favourites", "games", "music", "playlist", "programs", "videos")
     },
