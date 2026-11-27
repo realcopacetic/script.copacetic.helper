@@ -421,6 +421,8 @@ def details(key: tuple[str, ...], live: Callable[[], bool]) -> dict[str, Any] | 
             found = LOOK_UPS[key[0]](partial(_answer, live), *key[1:])
     except _Unanswered:
         return None
+    if not live():  # stopped: a stale answer keeps no details
+        return None
     ttl = wikidata.TTL_HIT if found else wikidata.TTL_EMPTY
     ApiCacheHandler().put(_key(key), found, ttl)
     return found
