@@ -330,12 +330,14 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
 def search(query: str) -> list[tuple[str, dict]]:
     """
     Kept verdicts of pictures in marked folders whose details, or file name, hold
-    every word of a query, best first; with no words, every match. Asks nothing.
+    every word of a query, best first; with no query, every match. Asks nothing.
 
     :param query: The words to find.
     :return: (path, fields) pairs; fields {} for a picture no painting matched.
     """
-    words = [*filter(None, map(fold, query.split()))]
+    typed = query.split()
+    if not (words := [*filter(None, map(fold, typed))]) and typed:
+        return []  # text with no word, such as emoji alone: nothing holds it
     folders, movements = marked(), {}
 
     def movement(qid: str) -> str:

@@ -808,6 +808,7 @@ class ArtDetailsTest(unittest.TestCase):
         self.assertEqual(
             self.found(""), [tiger, starry]
         )  # no words: matches, by artist
+        self.assertEqual(self.found("🌻 ⭐"), [])  # emoji alone: no word, no match
         self.assertEqual(self.found("cypress tiger"), [])  # every word, in one tier
         self.assertEqual(self.asked, [])  # nothing asked
         kept = ApiCacheHandler().get(f"wikidata:file:{FOLDER}{tiger}")[0]
