@@ -8,6 +8,7 @@ universe; a show's creators; an artist's labels, place and instruments; an album
 producers; the soundtrack albums and films they link. Kept per item.
 """
 
+import re
 from functools import partial
 from typing import Any, Callable
 
@@ -49,18 +50,16 @@ WRITTEN = {
     "Q8274": "manga",
 }
 NAMES = 2  # an artist's labels and instruments named, the rest counted (+N)
-LOOKED = 6  # places and subjects looked up, Wikidata's first: a city's item is large
+LOOKED = 6  # subjects labelled, Wikidata's first: some go as the title's or a time
 PLACES, SUBJECTS = 2, 3  # chips at most
-# Places too broad beside a more specific one: Earth (Q2) itself, and instances (P31)
-# of continent, part of the world, planet (inner, outer, gas giant) and moon
-BROAD = frozenset(
-    "Q2 Q5107 Q2418896 Q634 Q3504248 Q30014 Q121750 Q2537 Q109645860".split()
+# Times by their label, finer first, each with the years it spans: a year (1940), a
+# decade (1940s), a century (20th century, 20. century, XX century)
+TIMES = (
+    (re.compile(r"(\d{4})"), 0),
+    (re.compile(r"(\d{3}0)s"), 9),
+    (re.compile(r"(?:\d+(?:st|nd|rd|th|\.)|[IVXLC]+) century", re.IGNORECASE), None),
 )
-# Times as a period's or subject's class (P31), finer first: the years one with no
-# end (P582) spans. Year, calendar year; decade; century, millennium
-TIMES = {"Q577": 0, "Q3186692": 0, "Q39911": 9, "Q578": 99, "Q36507": 999}
-TAXA = frozenset({"Q16521", "Q55983715"})  # taxon; organisms known by a common name
-NEAR = 5  # a period this close to the release year is its own time: not shown
+NEAR = 5  # a year or decade this close to the release year is its own time: not shown
 # Words a universe's name is matched without (Despicable Me universe, … Collection)
 GENERIC = frozenset({"universe", "collection", "franchise", "series"})
 # The story band's cuts, in turn, while it overflows: a column to so many chips
@@ -126,9 +125,9 @@ def story_chips(
     found: dict[str, Any], title: str, year: int, collection: str
 ) -> dict[str, list[str]]:
     """
-    A film's or show's story band by column, before fitting: places, period, about,
-    universe, and part_of (its collection) for a band of one chip at most. A subject
-    or universe that holds or is held by the title (a universe: or collection) goes.
+    A film's or show's story band by column, before fitting: places, period (a named
+    one, else the finest time), about, universe, and part_of (its collection) for a
+    band of one chip at most. Nothing repeats the title (or a universe, collection).
 
     :param found: The kept details; {} for none (kept before the band: none of it).
     :param title: The item's title.
@@ -136,16 +135,21 @@ def story_chips(
     :param collection: A film's set; "" for none.
     :return: Each column's chips.
     """
-    label, start, end = found.get("period") or ("", None, None)
-    near = year and start is not None and start - NEAR <= year <= end + NEAR
+    period = min(found.get("periods", []), key=lambda p: _time(p)[0], default="")
+    years = _time(period)[1]
+    near = year and years and years[0] - NEAR <= year <= years[-1] + NEAR
     universe = found.get("universe", "")
     named = _words(title, GENERIC), _words(collection, GENERIC)
     titled = (_words(title),)
-    about = [s for s in found.get("about", []) if not _overlaps(_words(s), titled)]
+    about = [
+        s
+        for s in found.get("about", [])
+        if _time(s)[0] < 0 and not _overlaps(_words(s), titled)
+    ]
     repeats = _overlaps(_words(universe, GENERIC), named)
     columns = {
         "places": found.get("places", []),
-        "period": [label] if label and not near else [],
+        "period": [period] if period and not near else [],
         "about": about[:SUBJECTS],
         "universe": [universe] if universe and not repeats else [],
     }
@@ -215,56 +219,17 @@ def _kind(claims: dict[str, list]) -> str:
     return next((WRITTEN[q] for q in forms if q in WRITTEN), "")
 
 
-def _classes(item: dict[str, Any]) -> list[str]:
-    """An item's classes: its instance of (P31) values."""
-    return item["claims"].get("P31", [])
-
-
-def _span(item: dict[str, Any]) -> int:
-    """The years a time spans past its first (TIMES); -1 for a named period."""
-    return min((TIMES[c] for c in _classes(item) if c in TIMES), default=-1)
-
-
-def _year(times: list[str]) -> int | None:
-    """The first time's year: "+1940-00-00T00:00:00Z" is 1940; None for none."""
-    return int(times[0][: times[0].index("-", 1)]) if times else None
-
-
-def _places(qids: list[str], linked: dict[str, dict]) -> list[str]:
+def _time(label: str) -> tuple[int, range]:
     """
-    Where a story is set, in Wikidata's order: not a country (P17) of another place,
-    nor a continent, planet or Earth beside somewhere more specific; PLACES at most.
+    A period's rank by its label (TIMES: 0 a year, 1 a decade, 2 a century; -1 a
+    named period, World War II) and the years it spans (none: named, a century).
     """
-    countries = {c for q in qids for c in linked[q]["claims"].get("P17", []) if c != q}
-    places = [q for q in qids if q not in countries and linked[q]["label"]]
-    specific = [
-        q for q in places if q not in BROAD and BROAD.isdisjoint(_classes(linked[q]))
-    ]
-    return [linked[q]["label"] for q in specific or places][:PLACES]
-
-
-def _period(qids: list[str], linked: dict[str, dict]) -> list:
-    """
-    When a story is set: a named period first (World War II), else the finest time,
-    a year, then a decade, then a century; [label, first year, last year] or [].
-    """
-    if not (named := [linked[q] for q in qids if linked[q]["label"]]):
-        return []
-    period = min(named, key=_span)
-    claims = period["claims"]
-    start = _year(claims.get("P580") or claims.get("P585", []))
-    end = _year(claims.get("P582", [])) or start and start + max(_span(period), 0)
-    return [period["label"], start, end]
-
-
-def _subjects(qids: list[str], linked: dict[str, dict]) -> list[str]:
-    """What a story is about, in Wikidata's order: no time (1970s) and no taxon."""
-    unwanted = TAXA | TIMES.keys()
-    return [
-        linked[q]["label"]
-        for q in qids
-        if linked[q]["label"] and unwanted.isdisjoint(_classes(linked[q]))
-    ]
+    for rank, (pattern, span) in enumerate(TIMES):
+        if match := pattern.fullmatch(label):
+            if span is None:  # a century: never its release's own time
+                return rank, range(0)
+            return rank, range(int(match[1]), int(match[1]) + span + 1)
+    return -1, range(0)
 
 
 def _item(ask: Callable, prop: str, value: str) -> tuple[str, dict] | None:
@@ -293,12 +258,11 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
         return {}
     qid, claims = found
     composers, sources, periods = (claims.get(p, []) for p in ("P86", "P144", "P2408"))
-    places, subjects = (claims.get(p, [])[:LOOKED] for p in ("P840", "P921"))
+    places, subjects = claims.get("P840", [])[:PLACES], claims.get("P921", [])[:LOOKED]
     universes = (claims.get("P1434") or claims.get("P8345", []))[:1]
     creators = claims.get("P170", []) if kind == "tvshow" else []  # only shows serve
     albums = _once(claims.get("P406", []), ask(wikidata.having, "P9899", qid))
-    story = [*places, *periods, *subjects]  # their classes, countries and times
-    linked = ask(wikidata.items, [*composers, *sources, *albums, *story])
+    linked = ask(wikidata.items, [*composers, *sources, *albums])
     source = next(
         (
             linked[q]
@@ -308,10 +272,12 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
         None,
     )
     authors = source["claims"].get("P50", []) if source else []
-    names = ask(wikidata.labels, [*authors, *creators, *universes])
+    story = [*universes, *places, *periods, *subjects]  # by label alone
+    names = ask(wikidata.labels, [*authors, *creators, *story])
+    labelled = lambda qids: [*filter(None, map(names.get, qids))]
     return {
         "music_by": [*filter(None, (linked[q]["label"] for q in composers))],
-        "created_by": [*filter(None, map(names.get, creators))],
+        "created_by": labelled(creators),
         "composers": [
             mbid for q in composers for mbid in linked[q]["claims"].get("P434", [])
         ],
@@ -319,12 +285,12 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
         and {
             "title": source["label"],
             "type": _kind(source["claims"]),
-            "authors": [*filter(None, map(names.get, authors))],
+            "authors": labelled(authors),
         },
-        "places": _places(places, linked),
-        "period": _period(periods, linked),
-        "about": _subjects(subjects, linked),
-        "universe": next(filter(None, map(names.get, universes)), ""),
+        "places": labelled(places),
+        "periods": labelled(periods),
+        "about": labelled(subjects),
+        "universe": next(iter(labelled(universes)), ""),
         "soundtracks": [
             group for q in albums for group in linked[q]["claims"].get("P436", [])
         ],
