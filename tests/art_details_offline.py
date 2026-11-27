@@ -68,6 +68,7 @@ from resources.lib.apis.http import HttpError  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.script import actions  # noqa: E402
 from resources.lib.shared import art_details as art  # noqa: E402
+from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
 FIXTURE = json.loads((HELPER / "tests/fixtures/wikidata_works.json").read_text("utf-8"))
@@ -893,6 +894,12 @@ class ArtDetailsTest(unittest.TestCase):
         ApiCacheHandler().put(f"wikidata:file:{rare}", kept, 600)
         actions._publish_query("\U00020000 night", 1)
         self.assertEqual(files(query=unquote(HOME.getProperty("search_query"))), [rare])
+        # A | and an &key= reach the handler percent-encoded, as _publish_query writes
+        actions._publish_query("Starry | &Night=", 1)
+        url = "?info=art_search&limit=30&query=" + HOME.getProperty("search_query")
+        params = parse_plugin_argv(["", "", url])
+        self.assertEqual(params["query"], "Starry | &Night=")  # no param of its own
+        self.assertEqual(files(**params), [starry])
 
     def test_refresh_pictures_only(self):
         art.mark(FOLDER, True)
