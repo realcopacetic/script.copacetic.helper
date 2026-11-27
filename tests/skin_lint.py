@@ -174,6 +174,17 @@ ACCEPTED = {  # (rule, file, message start): why it stands
             ("nowplaying_live_false_widgets_", "a widget is reel with zoom transition"),
         )
     },
+    # a widget rail keys its reel transition on its own id (skin M408), so no Home
+    # member reaches these media-window families: a reel view reads them
+    **{
+        (
+            "unreferenced-definition",
+            f"{GENERATED}expressions.xml",
+            f"expression transition_{item}_include_{window}",
+        ): "read once a content type's layout is reel (vue_reel_poster, vue_reel_square)"
+        for item in ("reel", "zoom")
+        for window in ("favourites", "games", "music", "playlist", "programs", "videos")
+    },
     # whole messages, every window that reads it named: a new one shows the finding
     (
         "media-window-info",
