@@ -1223,9 +1223,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def metadata(self) -> list[DirectoryItem] | None:
         """
-        Cleaned metadata on a helper list item; aborts if focus changes. random_pick
-        (=genre, =director); genre_chips=N, album_format, most_played, wikidata,
-        compilation_artists, place_chips, story_*, heading_*, set_suffix, years_present.
+        Cleaned metadata on a helper list item; aborts if focus changes. random_pick,
+        genre_chips, album_format, most_played, wikidata, compilation_artists,
+        name_counts, place_chips, story_*, heading_*, set_suffix, years_present.
 
         :return: List of directory items for Kodi, or None if aborted/failed.
         """
@@ -1254,6 +1254,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             album_format=parse_bool(self.params.get("album_format")),
             most_played=parse_bool(self.params.get("most_played")),
             compilation_artists=parse_bool(self.params.get("compilation_artists")),
+            name_counts=parse_bool(self.params.get("name_counts"), True),
         )
 
         if not guard.alive():
@@ -1370,7 +1371,9 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (wd.wanted() and (key := self._wikidata_key())):
             return {}
         found, fresh = wd.kept(key)
-        properties = wd.properties(self.dbtype, found)
+        # name_counts=false: Labels and Instruments without the rest's count (+N)
+        counts = parse_bool(self.params.get("name_counts"), True)
+        properties = wd.properties(self.dbtype, found, counts)
         if writers:  # Wikidata's creators stand in only for a show TMDb names none for
             properties.pop("wikidata_created_by", None)
         if based := properties.get("wikidata_based_on"):

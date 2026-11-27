@@ -109,23 +109,27 @@ def based_on(source: dict[str, Any]) -> str:
     return f"{text} by {' and '.join(authors)}" if authors else text
 
 
-def properties(kind: str, found: dict[str, Any] | None) -> dict[str, str]:
+def properties(
+    kind: str, found: dict[str, Any] | None, counts: bool = True
+) -> dict[str, str]:
     """
     The details as an item's wikidata_* properties, an empty one left out.
 
     :param kind: movie, tvshow, artist or album.
     :param found: The kept details; None or {} for none.
+    :param counts: Whether an artist's labels and instruments count the rest (+N).
     :return: The properties.
     """
     if not found:
         return {}
     if kind == "artist":
         values = {
-            "labels": named(found["labels"], found["more"]),
+            "labels": named(found["labels"], counts and found["more"]),
             "place": found["place"],
             # details kept before instruments were looked up have none
             "instruments": named(
-                found.get("instruments", []), found.get("instruments_more", 0)
+                found.get("instruments", []),
+                counts and found.get("instruments_more", 0),
             ),
         }
     elif kind == "album":
