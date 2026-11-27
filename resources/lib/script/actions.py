@@ -163,6 +163,7 @@ def art_details_refresh(
     """
     Look one picture up on Wikidata again, its kept verdict and the answers it came
     from asked afresh; then the skin's ring, if it passes one, serves it again.
+    Nothing while Wikidata's queue is busy.
 
     :param path: The picture's path, as the art_details serve was passed it.
     :param prop: A Home property holding the path, read as written (no decode).
@@ -174,9 +175,11 @@ def art_details_refresh(
     path = path or xbmcgui.Window(10000).getProperty(prop)
     if not (art.wanted(path) and art.is_picture(path)):  # off, unmarked, not a picture
         return
+    # A busy queue: nothing changes, as each press runs a script of its own that
+    # would only give up; the look-up gives up too if the queue turns busy meanwhile
+    if busy(NEXT_CALL):
+        return
     art.forget(path)
-    # Gives up on a busy queue, as each press runs a script of its own: the ring's
-    # serve, else the next visit, asks aside, which waits it out
     art.look_up(path, lambda: art.wanted(path) and not busy(NEXT_CALL))
     if ring:
         from resources.lib.service.serve import ring as send

@@ -77,7 +77,8 @@ Every request waits its turn, a second apart. The Wikidata query service limits 
 hard when it is busy: a `429` holds every Wikidata request for its `Retry-After`. A
 look-up waits a busy queue out, a second at a time while its list is still wanted, and
 asks once more after a short `429`; one stopped, or refused, keeps no verdict, so the
-next visit asks again. Requests carry
+next visit asks again. A [refresh](../script/actions.md#art_details_refresh) waits for
+nothing: pressed while the queue is busy, it leaves the verdict as it is. Requests carry
 the helper's contact User-Agent; no key is needed.
 
 ## Params

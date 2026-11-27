@@ -476,10 +476,13 @@ class ArtDetailsTest(unittest.TestCase):
         )
         self.assertEqual(art.verdict(path)["qid"], "Q2358487")
 
-    def test_refresh_gives_up_on_a_busy_queue(self):
-        # each press is a script of its own: none waits, the serve's aside does
+    def test_refresh_does_nothing_on_a_busy_queue(self):
+        # each press is a script of its own, which would only give up: the verdict
+        # stays, so its serve doesn't drop the details for one serve and rebuild them
         path, queue, ring = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg", "q.next", []
         art.mark(FOLDER, True)
+        art.look_up(path, ALIVE)
+        self.asked = []
         HOME.setProperty(queue, f"{time.time() + 60}")
         self.addCleanup(HOME.clearProperty, queue)
         with (
@@ -487,8 +490,9 @@ class ArtDetailsTest(unittest.TestCase):
             mock.patch("resources.lib.service.serve.ring", ring.append),
         ):
             actions.art_details_refresh(path, ring="serve?lists=9000")
-        self.assertEqual((self.asked, ring), ([], ["serve?lists=9000"]))
-        self.assertIsNone(art.verdict(path))  # none kept: the serve asks aside
+        self.assertEqual((self.asked, ring), ([], []))
+        self.assertEqual(art.verdict(path)["qid"], "Q2358487")  # kept, not stale
+        self.assertTrue(wikidata.kept("painting", "Q2358487")[1])
 
     def test_forget_drops_its_own_file_only(self):
         mine, other = f"{FOLDER}Tiger_%.jpg", f"{FOLDER}TigerX12.jpg"  # LIKE would
