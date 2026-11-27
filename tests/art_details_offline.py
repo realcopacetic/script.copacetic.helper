@@ -22,6 +22,7 @@ import re
 import sys
 from collections import deque
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -402,6 +403,22 @@ class ArtDetailsTest(unittest.TestCase):
             art.look_up(f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg", ALIVE)
         )
         self.assertEqual(self.asked, [])  # nothing sent while the wait holds
+
+    def test_stopped_during_the_queue_wait_asks_nothing(self):
+        on = [True]
+        queue = mock.patch.object(wikidata, "NEXT_CALL", "copacetic.wikidata_next")
+        queue.start()
+        self.addCleanup(queue.stop)
+        HOME.setProperty(wikidata.NEXT_CALL, f"{time.time() + 1}")  # a slot ahead
+
+        def off(monitor, seconds):
+            on[0] = False  # the setting turned off while the call waits its slot
+            return False
+
+        with mock.patch.object(Monitor, "waitForAbort", off):
+            path = f"{FOLDER}Franz Marc - 'Foxes' (1913).jpg"
+            self.assertIsNone(art.look_up(path, lambda: on[0]))
+        self.assertEqual(self.asked, [])
 
     def test_refresh(self):
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"

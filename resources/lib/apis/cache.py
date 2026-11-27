@@ -39,6 +39,25 @@ def cache_only() -> Iterator[None]:
         _offline.reset(token)
 
 
+# while_live holds a look-up's live test: per thread, as _offline is
+_live = ContextVar("while_live", default=lambda: True)
+
+
+@contextmanager
+def while_live(live: Callable[[], bool]) -> Iterator[None]:
+    """
+    While held, a call that waited its queue slot tests live again before asking:
+    none goes out once the look-up it serves has stopped.
+
+    :param live: The look-up's live test.
+    """
+    token = _live.set(live)
+    try:
+        yield
+    finally:
+        _live.reset(token)
+
+
 # A failed request, or an answer of another shape than the fetch expects
 FAILURES = (HttpError, LookupError, TypeError, AttributeError, ValueError)
 
@@ -86,8 +105,8 @@ def cached(
         home.setProperty(queue, f"{slot + 1}")
         if slot > now:
             log.debug(f"{source} → queued {slot - now:.1f}s {key}")
-            if Monitor().waitForAbort(slot - now) or held(queue):
-                return payload  # Kodi's exit, or a 429 held the queue while waiting
+            if Monitor().waitForAbort(slot - now) or held(queue) or not _live.get()():
+                return payload  # Kodi's exit, a 429's hold, or a look-up since stopped
             payload, fresh = cache.get(key) or (payload, False)
             if fresh:  # another plugin call fetched it while this one waited
                 return payload

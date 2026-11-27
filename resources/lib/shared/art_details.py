@@ -21,7 +21,7 @@ import xbmcvfs
 from xbmc import getLocalizedString, getSupportedMedia
 
 from resources.lib.apis import wikidata
-from resources.lib.apis.cache import DAY, Asides
+from resources.lib.apis.cache import DAY, Asides, while_live
 from resources.lib.shared import logger as log
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import (
@@ -293,7 +293,8 @@ def look_up(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     :param live: Tested before each request; False stops the look-up.
     :return: Its fields; {} for a miss; None when unanswered or stopped.
     """
-    found = _found(path, live)
+    with while_live(live):  # tested again after each queue wait
+        found = _found(path, live)
     if found is not None:
         kept = {"mtime": _mtime(path), "fields": found}
         ApiCacheHandler().put(_key(path), kept, TTL_FILE)
@@ -522,10 +523,11 @@ def _ask(key: tuple[str, str], live: Callable[[], bool]) -> Any:
 
     if not wanted():
         return None
-    if kind != "painter":
-        wikidata.rail(kind, qid)
-    elif (found := wikidata.artist(qid)) and found.get("enwiki") and wanted():
-        wikidata.summary(found["enwiki"][0])
+    with while_live(wanted):  # tested again after each queue wait
+        if kind != "painter":
+            wikidata.rail(kind, qid)
+        elif (found := wikidata.artist(qid)) and found.get("enwiki") and wanted():
+            wikidata.summary(found["enwiki"][0])
     return page(kind, qid)[0]
 
 
