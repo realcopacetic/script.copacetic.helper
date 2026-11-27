@@ -668,6 +668,18 @@ class TmdbTest(Base):
         no_art = transform.tmdb_to_canonical("tvshow", 1399, append_artwork=False)
         self.assertEqual(no_art, {"properties": {}})  # the art entry's airing is past
 
+    def test_a_fetch_that_dies_is_not_todays_ask(self):
+        day = str(date.today() - timedelta(1))
+        item = {"properties": {"tmdb_next_air_date": day}}
+        self.cache.put("tmdb:tvshow:1399:en-US", item, 7 * DAY)  # yesterday's airing
+        self.net.answers = [RuntimeError("killed"), TMDB_TV]
+        with self.assertRaises(RuntimeError):
+            transform.tmdb_to_canonical("tvshow", 1399)
+        self.assertIsNone(self.cache.get("tmdb:tvshow:1399:en-US|asked"))
+        renewed = transform.tmdb_to_canonical("tvshow", 1399)  # asked again today
+        self.assertEqual(renewed["Title"], "Game of Thrones")
+        self.assertEqual(len(self.net.requests), 2)
+
     def aside_queue(self):
         """Workers not started, the queue drained by hand (cache.Asides)."""
         started = []

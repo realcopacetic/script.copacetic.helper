@@ -139,8 +139,7 @@ def tmdb_lookup(
         )
         return full or payload or {}, joined
 
-    if cache_kind == "tvshow":  # a past airing waits for tomorrow's fetch (_cached)
-        cache.put(f"{key}|asked", date.today().isoformat(), DAY)
+    exc = None
     try:
         raw = fetch_tmdb_fields(
             client,
@@ -149,7 +148,13 @@ def tmdb_lookup(
             season_number=season_number,
             append_artwork=append_artwork,
         )
-    except HttpError as exc:
+    except HttpError as error:  # renamed: Python unbinds the except's name after it
+        exc = error
+    # Once it ends, answered or refused (one that dies is asked again): a past airing
+    # waits for tomorrow's fetch (_cached)
+    if cache_kind == "tvshow":
+        cache.put(f"{key}|asked", date.today().isoformat(), DAY)
+    if exc:
         if exc.status in (401, 403) and not Window(10000).getProperty(TOKEN_REFUSED):
             window_property(TOKEN_REFUSED, exc.status)  # the failure the user can fix
             log.warning(f"tmdb_to_canonical → TMDb refused the token ({exc.status})")
