@@ -67,6 +67,7 @@ class GuiScaleTest(unittest.TestCase):
         self.assertEqual(self.scale(""), 1)
 
 
+@unittest.skipUnless(os.path.exists(FONT), f"no skin font at {FONT}: give the skin")
 class RenderTest(unittest.TestCase):
     def render(self, scale: int) -> tuple[str, int]:
         return TextRenderer().render(

@@ -573,7 +573,9 @@ class SkinMapping(Kodi):
         self.assertTrue(system(SNES9X, "/roms/Super Mario World.sfc"))
         mega, master = (system(GENPLUS, f"/roms/Sonic.{e}") for e in ("md", "sms"))
         self.assertTrue(mega and master and mega != master)
-        for shared in ("zip", "bin", "iso", "chd"):
+        cd = {system(GENPLUS, f"/roms/Sonic.{e}") for e in ("cue", "iso", "chd")}
+        self.assertTrue(len(cd) == 1 and not cd & {"", mega, master})
+        for shared in ("zip", "bin"):
             self.assertEqual(system(GENPLUS, f"/roms/Sonic.{shared}"), "")
 
 
