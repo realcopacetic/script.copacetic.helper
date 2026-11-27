@@ -171,9 +171,10 @@ name), `label2` the artist, the picture as `thumb`, and the [item's](#the-item)
 `art_*` properties but `art_summary`. Only pictures are listed (as the look-ups), and
 nothing while the `wikidata` setting is off.
 
-The pictures listed are checked against the disk, those alone (up to `limit`): one
-moved or deleted is left out, though its verdict is kept until it ages out (a year). A
-visit to its new place looks it up there.
+The best `limit` matches are checked against the disk, and no others: one moved or
+deleted is left out, and the list isn't filled up past it, so it may hold fewer than
+`limit`. Its verdict is kept until it ages out (a year); a visit to its new place looks
+it up there.
 
 ## The artist page
 

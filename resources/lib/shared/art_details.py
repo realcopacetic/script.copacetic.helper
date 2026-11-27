@@ -13,7 +13,6 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 from functools import cache, partial
-from itertools import islice
 from operator import itemgetter
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
@@ -337,7 +336,7 @@ def search(query: str, limit: int) -> list[tuple[str, dict]]:
     every word of a query, best first; with no query, every match. Asks nothing.
 
     :param query: The words to find.
-    :param limit: The most hits; only these are checked to be on disk still.
+    :param limit: The most hits: the best so many, those gone from disk left out.
     :return: (path, fields) pairs; fields {} for a picture no painting matched.
     """
     typed = query.split()
@@ -382,9 +381,9 @@ def search(query: str, limit: int) -> list[tuple[str, dict]]:
             fold(hit[2].get("title") or file_label(hit[1])),
         )
     )
-    # A picture moved or deleted keeps its verdict: dropped, as it won't open
-    hits = ((path, fields) for _, path, fields in found if xbmcvfs.exists(path))
-    return [*islice(hits, limit)]
+    # A picture moved or deleted keeps its verdict: dropped, as it won't open. The
+    # page alone is checked, with no refill: a sleeping NAS stalls each check
+    return [(path, fields) for _, path, fields in found[:limit] if xbmcvfs.exists(path)]
 
 
 def forget(path: str) -> None:
