@@ -45,10 +45,10 @@ _PEOPLE = (
     "teacher",
     "movement",
     "influence",
-    "member",
-    "notable",
+    "member_of",
+    "known_for",
     "genre",
-    "workplace",
+    "worked_in",
 )
 # Kept as [ISO time, precision, calendar]: 9 a year, 10 a month, 11 a day; the
 # calendar's Q-id (an answer kept before calendars has none: Gregorian)
@@ -123,10 +123,10 @@ WHERE {
     ?country wdt:P1549 ?value FILTER(LANG(?value) = "en")
     BIND(COALESCE(YEAR(?start), 0) AS ?since) BIND("nationality" AS ?kind) }
   UNION { ?artist wdt:P737 ?value BIND("influence" AS ?kind) }
-  UNION { ?artist wdt:P463 ?value BIND("member" AS ?kind) }
-  UNION { ?artist wdt:P800 ?value BIND("notable" AS ?kind) }
+  UNION { ?artist wdt:P463 ?value BIND("member_of" AS ?kind) }
+  UNION { ?artist wdt:P800 ?value BIND("known_for" AS ?kind) }
   UNION { ?artist wdt:P136 ?value BIND("genre" AS ?kind) }
-  UNION { ?artist wdt:P937 ?value BIND("workplace" AS ?kind) }
+  UNION { ?artist wdt:P937 ?value BIND("worked_in" AS ?kind) }
   UNION { ?artist wdt:P18 ?value BIND("portrait" AS ?kind) }
   UNION { SELECT ("paintings" AS ?kind) (COUNT(DISTINCT ?work) AS ?value) WHERE {
     ?work wdt:P170 wd:%(qid)s; wdt:P31 wd:%(painting)s } }

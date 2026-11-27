@@ -1243,6 +1243,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         target = self.target_item
         aliases = self.params.get("genre_aliases", "")
         pick = self.params.get("random_pick", "")
+        # name_counts=false: Labels, Instruments and a compilation's artists uncounted
+        counts = parse_bool(self.params.get("name_counts"), True)
         data = DataHandler(
             target=target,
             dbtype=self.dbtype,
@@ -1254,7 +1256,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
             album_format=parse_bool(self.params.get("album_format")),
             most_played=parse_bool(self.params.get("most_played")),
             compilation_artists=parse_bool(self.params.get("compilation_artists")),
-            name_counts=parse_bool(self.params.get("name_counts"), True),
+            name_counts=counts,
         )
 
         if not guard.alive():
@@ -1315,7 +1317,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if self.dbtype == "tvshow" and not own_tagline and data["TagLine"]:
             data["properties"]["tagline"] = data["TagLine"]
         if parse_bool(self.params.get("wikidata")):
-            data["properties"] |= self._wikidata(data["Title"], data["Writers"])
+            data["properties"] |= self._wikidata(data["Title"], data["Writers"], counts)
         # The tagline, else the title, else the label: an artist has no title
         heading = data["TagLine"] or data["Title"] or data["label"]
         data["properties"] |= self._heading_lines(heading)
@@ -1356,7 +1358,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         return set_items([data], tag_applier=apply_videoinfotag)
 
-    def _wikidata(self, title: str, writers: list[str]) -> dict[str, str]:
+    def _wikidata(self, title: str, writers: list[str], counts: bool) -> dict[str, str]:
         """
         Wikidata details of a film, show, artist or album as wikidata_* properties,
         while the wikidata setting is on: kept ones only, a missing or stale answer
@@ -1364,6 +1366,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         :param title: The item's title, for the story band's wording.
         :param writers: The item's writers: a show's creators, TMDb's.
+        :param counts: Whether Labels and Instruments count the rest (+N).
         :return: The properties; none for an item with no TMDb, IMDb or MusicBrainz id.
         """
         from resources.lib.shared import wikidata_details as wd
@@ -1371,8 +1374,6 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
         if not (wd.wanted() and (key := self._wikidata_key())):
             return {}
         found, fresh = wd.kept(key)
-        # name_counts=false: Labels and Instruments without the rest's count (+N)
-        counts = parse_bool(self.params.get("name_counts"), True)
         properties = wd.properties(self.dbtype, found, counts)
         if writers:  # Wikidata's creators stand in only for a show TMDb names none for
             properties.pop("wikidata_created_by", None)
@@ -1450,7 +1451,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
 
         if not parse_bool(self.params.get("story_bio")):
             return {}
-        names = wd.joined(found.get(line, []))
+        names = wd.joined(found.get(line, []), found.get(f"{line}_cut", False))
         properties = {f"wikidata_{line}": self._one_line(names)} if names else {}
         if (width := to_float(self.params.get("story_width"))) and (
             chip := self._chip_width("story_chip_")
@@ -2168,8 +2169,8 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 | self._bio("painter", art.artist_bio(found), "member_of")
                 | self._heading_lines(fields["name"]),
             }
-            if asked and parse_bool(self.params.get("story_bio")):
-                item["properties"]["wikidata_pending"] = "true"  # the skin masks it
+            if asked:  # a stale page: the skin can mask its re-serve
+                item["properties"]["wikidata_pending"] = "true"
         return set_items([item])
 
     def art_search(self) -> list[DirectoryItem]:
