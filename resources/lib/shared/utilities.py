@@ -685,6 +685,30 @@ def json_call(
     return result
 
 
+def library_details(
+    type: str, dbid: int, properties: list[str], parent: str
+) -> dict | None:
+    """
+    One library item's details, by its DBType.
+
+    :param type: A DETAILS key.
+    :param dbid: Library id.
+    :param properties: Properties to fetch.
+    :param parent: Caller name for logging.
+    :return: The details object, or None for an id Kodi no longer has.
+    """
+    return (
+        json_call(
+            DETAILS[type],
+            properties=properties,
+            params={f"{type}id": dbid},
+            parent=parent,
+        )
+        .get("result", {})
+        .get(f"{type}details")
+    )
+
+
 def pretty_print(obj: object) -> str:
     """
     Converts a Python object into a formatted JSON string.

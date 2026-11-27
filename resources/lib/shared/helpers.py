@@ -32,6 +32,7 @@ from resources.lib.shared.utilities import (
     condition,
     infolabel,
     json_call,
+    library_details,
     named,
     plugin_path,
     replace_file,
@@ -336,14 +337,10 @@ class DataHandler:
         ids, names = (
             ("albumartistid", "albumartist") if song else ("artistid", "artist")
         )
-        details = json_call(
-            f"AudioLibrary.Get{self.dbtype.title()}Details",
-            properties=[ids, names],
-            params={f"{self.dbtype}id": to_int(self.dbid)},
-            parent=self.__class__.__name__,
+        found = library_details(
+            self.dbtype, to_int(self.dbid), [ids, names], self.__class__.__name__
         )
-        found = details.get("result", {}).get(f"{self.dbtype}details", {})
-        if not found.get(ids):
+        if not (found and found.get(ids)):
             return {}
         return {"albumartist_id": str(found[ids][0]), "albumartist": found[names][0]}
 

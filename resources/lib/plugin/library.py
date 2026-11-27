@@ -11,33 +11,9 @@ from resources.lib.plugin.json_map import JSON_PROPERTIES, json_to_canonical
 from resources.lib.plugin.registry import LOG_TAG
 from resources.lib.plugin.setter import TagApplier, apply_videoinfotag, set_items
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import ADDON, DETAILS, json_call, set_plugincontent
+from resources.lib.shared.utilities import ADDON, json_call, set_plugincontent
 
 DirectoryItem = tuple[str, Any, bool]
-
-
-def library_details(
-    type: str, dbid: int, properties: list[str], parent: str
-) -> dict | None:
-    """
-    One library item's details, by its DBType.
-
-    :param type: A DETAILS key.
-    :param dbid: Library id.
-    :param properties: Properties to fetch.
-    :param parent: Caller name for logging.
-    :return: The details object, or None for an id Kodi no longer has.
-    """
-    return (
-        json_call(
-            DETAILS[type],
-            properties=properties,
-            params={f"{type}id": dbid},
-            parent=parent,
-        )
-        .get("result", {})
-        .get(f"{type}details")
-    )
 
 
 def title_filter(titles: Iterable[str], field: str = "title") -> dict[str, Any]:

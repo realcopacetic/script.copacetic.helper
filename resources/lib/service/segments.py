@@ -6,7 +6,7 @@ from resources.lib.apis import theintrodb
 from resources.lib.shared.utilities import (
     condition,
     infolabel,
-    json_call,
+    library_details,
     to_float,
     to_int,
     window_property,
@@ -53,12 +53,6 @@ def chapter_starts(duration: float) -> list[float]:
     return [0.0] * (count - len(marks)) + marks
 
 
-LIBRARY = {  # how a video's TheIntroDB ids are read: an episode's are its show's
-    "movie": ("VideoLibrary.GetMovieDetails", "movieid", "moviedetails"),
-    "tvshow": ("VideoLibrary.GetTVShowDetails", "tvshowid", "tvshowdetails"),
-}
-
-
 def lookup(
     total: float,
     media: str,
@@ -81,12 +75,7 @@ def lookup(
         return None
     found = {}
     if dbid and theintrodb.enabled():
-        method, key, result = LIBRARY[media]
-        ids = json_call(
-            method,
-            params={"properties": ["uniqueid"], key: dbid},
-            parent="skip_segments",
-        )["result"][result]["uniqueid"]
+        ids = library_details(media, dbid, ["uniqueid"], "skip_segments")["uniqueid"]
         found = theintrodb.segments(ids, round(total * 1000), season, episode)
     return Segments(found, total, TAIL if media == "movie" else 0.0)
 
