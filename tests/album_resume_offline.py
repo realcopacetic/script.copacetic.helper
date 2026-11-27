@@ -163,9 +163,9 @@ class AlbumResumeTest(LibraryTest):
         album = self.album(song(1, days=2), song(2), song(3))
         self.assertEqual(album.position, 1)
 
-    def test_on_the_progress_item(self):
-        self.songs = [song(1, days=2), song(2), song(3)]
-        labels = {"DBType": "album", "DBID": "7"}
+    def serve(self, dbid="7"):
+        """The progress item's properties for album dbid, served in window 10025."""
+        labels = {"DBType": "album", "DBID": dbid}
         published = {}
         for target, name, value in (
             (helpers, "get_infolabels", lambda target, keys: labels),
@@ -186,11 +186,25 @@ class AlbumResumeTest(LibraryTest):
         handler.dialog, handler.window_id = False, 10025
         handler._guard = lambda: mock.Mock(alive=lambda: True)
         (item,) = handler.progressbar()
-        props = item["properties"]
+        return item["properties"], published
+
+    def test_on_the_progress_item(self):
+        self.songs = [song(1, days=2), song(2), song(3)]
+        props, published = self.serve()
         self.assertEqual((props["album_next_track"], props["album"]), ("2", "true"))
         self.assertEqual(props["time_left"], "7m")  # still served: the skin picks
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(published["album_resume"], "7")  # the context menu's Resume
+
+    def test_row_flip_turns_on_an_in_place_change(self):
+        self.songs = [song(1, days=2), song(2), song(3)]
+        flip = self.serve()[0]["row_flip"]
+        self.assertEqual(self.serve()[0]["row_flip"], flip)  # the same row: kept
+        self.songs[1] = song(2, days=1)  # a song heard: the re-serve's new row
+        turned = self.serve()[0]["row_flip"]
+        self.assertNotEqual(turned, flip)
+        self.serve("8")  # another album: a move, no flip
+        self.assertEqual(self.serve()[0]["row_flip"], turned)
 
 
 class PlayAlbumResumeTest(LibraryTest):

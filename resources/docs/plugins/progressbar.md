@@ -178,6 +178,7 @@ One list item in the helper container:
 | `ListItem.Property(album_next_track)` | A part-heard album's [resume point](#albums): the next track's number, e.g. `8`. |
 | `ListItem.Property(album_next_title)` | With `album_next_track`: that song's title. |
 | `ListItem.Property(album_next_disc)` | With `album_next_track`, on an album of more than one disc: that song's disc number, e.g. `2`. |
+| `ListItem.Property(row_flip)` | `true` or empty: it turns whenever the bar is served for the same item as the window's last bar (`DBType` and `DBID`) with other properties, a re-serve that changes the row in place (a song heard, Stop rewatch, TMDB's answer), and is kept otherwise. To dip the row over such a re-serve, latch it in a hidden group placed after the row (`<visible>` on `row_flip` being `true`) and hide the row on the frame the two differ, fading it back in. Kept per window, in its `progress_row` and `progress_flip` properties. |
 
 Each context value is empty when it doesn't apply, so a label can test them in turn
 with `String.IsEmpty`. They are worked out after the bar has moved, so the bar is

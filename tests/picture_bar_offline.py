@@ -95,6 +95,7 @@ class PictureBarTest(unittest.TestCase):
                 "picture_resolution": "1920 x 1520",
                 "picture_size": "1.4 MB",
                 "time_left": "",
+                "row_flip": "",
             },
         )
 
