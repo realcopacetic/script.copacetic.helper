@@ -171,10 +171,9 @@ name), `label2` the artist, the picture as `thumb`, and the [item's](#the-item)
 `art_*` properties but `art_summary`. Only pictures are listed (as the look-ups), and
 nothing while the `wikidata` setting is off.
 
-Kept verdicts aren't checked against the disk: a picture moved or deleted stays listed,
-and won't open, until its verdict ages out (a year). A
-[refresh](../script/actions.md#art_details_refresh) of the picture, or a visit to its
-new place, renews it.
+The pictures listed are checked against the disk, those alone (up to `limit`): one
+moved or deleted is left out, though its verdict is kept until it ages out (a year). A
+visit to its new place looks it up there.
 
 ## The artist page
 

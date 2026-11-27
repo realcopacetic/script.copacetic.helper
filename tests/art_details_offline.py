@@ -60,6 +60,7 @@ sys.modules["xbmcvfs"].mkdirs = lambda path: Path(path).mkdir(exist_ok=True) or 
 sys.modules["xbmcvfs"].Stat = lambda path: SimpleNamespace(
     st_mtime=lambda: MTIMES.get(path, 0)
 )
+EXISTS = sys.modules["xbmcvfs"].exists  # the stub's, for paths not a test's pictures
 sys.path.insert(0, str(HELPER))
 
 from resources.lib.apis import cache, wikidata  # noqa: E402
@@ -171,7 +172,7 @@ class ArtDetailsTest(unittest.TestCase):
     """Wikidata and Wikipedia answer from the fixture; each request is in self.asked."""
 
     def setUp(self):
-        self.asked, self.refuse = [], None
+        self.asked, self.refuse, self.gone = [], None, set()
         ApiCacheHandler().clear("wikidata:%")
         art.FOLDERS.unlink(missing_ok=True)
         for queue in (wikidata.NEXT_CALL, f"{wikidata.NEXT_CALL}.held"):
@@ -182,10 +183,15 @@ class ArtDetailsTest(unittest.TestCase):
             (handlers, "set_items", lambda items, **kwargs: items),
             (handlers.ADDON, "getSettingBool", lambda key: key == "wikidata"),
             (wikidata, "NEXT_CALL", ""),  # no queue: a test asks faster than 1 a second
+            (art.xbmcvfs, "exists", self.exists),
         ):
             patcher = mock.patch.object(target, name, value)
             patcher.start()
             self.addCleanup(patcher.stop)
+
+    def exists(self, path):
+        """xbmcvfs.exists: the test's pictures are on disk, but those gone."""
+        return path not in self.gone if path.startswith(FOLDER) else EXISTS(path)
 
     def answer(self, url, params=None, headers=None, timeout=5, body=None):
         if self.refuse:
@@ -783,7 +789,7 @@ class ArtDetailsTest(unittest.TestCase):
 
     def found(self, query):
         """The search's hits, by file name."""
-        return [Path(path).name for path, _ in art.search(query)]
+        return [Path(path).name for path, _ in art.search(query, handlers.SEARCH_LIMIT)]
 
     def test_search_reads_kept_verdicts_only(self):
         art.mark(FOLDER, True)
@@ -846,7 +852,9 @@ class ArtDetailsTest(unittest.TestCase):
         # set_search_query's JSON escapes, once Kodi's percent-encoding is decoded
         self.assertEqual(files(query="Rh\\u00f4ne"), [rhone])
         self.assertEqual(len(files(query="starry")), 2)
-        self.assertEqual(len(files(query="starry", limit="1")), 1)  # the rail's limit
+        self.assertEqual(files(query="starry", limit="1"), [rhone])  # the rail's limit
+        self.gone.add(rhone)  # moved or deleted: dropped, the next one in its place
+        self.assertEqual(files(query="starry", limit="1"), [starry])
         # Past U+FFFF: a surrogate pair of escapes, as _publish_query writes it
         rare = f"{FOLDER}Rare.jpg"
         kept = ApiCacheHandler().get(f"wikidata:file:{starry}")[0]

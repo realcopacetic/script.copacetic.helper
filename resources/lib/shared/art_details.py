@@ -13,6 +13,7 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 from functools import cache
+from itertools import islice
 from operator import itemgetter
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
@@ -327,12 +328,13 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     return fields(name, artist, qid, work, text)
 
 
-def search(query: str) -> list[tuple[str, dict]]:
+def search(query: str, limit: int) -> list[tuple[str, dict]]:
     """
     Kept verdicts of pictures in marked folders whose details, or file name, hold
     every word of a query, best first; with no query, every match. Asks nothing.
 
     :param query: The words to find.
+    :param limit: The most hits; only these are checked to be on disk still.
     :return: (path, fields) pairs; fields {} for a picture no painting matched.
     """
     typed = query.split()
@@ -377,7 +379,9 @@ def search(query: str) -> list[tuple[str, dict]]:
             fold(hit[2].get("title") or file_label(hit[1])),
         )
     )
-    return [(path, fields) for _, path, fields in found]
+    # A picture moved or deleted keeps its verdict: dropped, as it won't open
+    hits = ((path, fields) for _, path, fields in found if xbmcvfs.exists(path))
+    return [*islice(hits, limit)]
 
 
 def forget(path: str) -> None:
