@@ -242,10 +242,7 @@ def _build_tmdb_canonical_item(
     art = item["art"]
     preferred_iso = _preferred_iso(language)
 
-    for logical_name, value in raw.items():
-        if value is None:
-            continue
-
+    for logical_name, value in raw.items():  # fetch_tmdb_fields keeps no None
         spec = TMDB_FIELD_MAP.get(logical_name)
         if not spec:
             continue
@@ -291,15 +288,13 @@ def _build_tmdb_canonical_item(
     return item
 
 
-def _preferred_iso(language: str | None) -> str:
+def _preferred_iso(language: str) -> str:
     """
     Extract a two-letter ISO language code.
 
-    :param language: TMDb language code (e.g. 'en-US').
-    :return: ISO code (e.g. 'en') or empty string.
+    :param language: TMDb language code (e.g. 'en-US'), tmdb_language's.
+    :return: ISO code (e.g. 'en').
     """
-    if not language:
-        return ""
     return language.split("-")[0].lower()
 
 
