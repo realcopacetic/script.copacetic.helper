@@ -744,6 +744,15 @@ class PlayedVersion(unittest.TestCase):
         service.server = None  # the skin left
         service._video_bump()
 
+    def test_a_scans_end_catches_its_updates_up(self):
+        service = object.__new__(monitor.Monitor)
+        service.player_monitor, service._video_update = None, Mock()
+        service.onNotification("xbmc", "VideoLibrary.OnScanFinished", "null")
+        service._video_update.assert_not_called()  # inactive
+        service.player_monitor = Mock()
+        service.onNotification("xbmc", "VideoLibrary.OnScanFinished", "null")
+        service._video_update.assert_called_once_with()
+
     def test_a_video_update_drops_the_items_kept_tmdb_id(self):
         from resources.lib.apis.tmdb import context
 

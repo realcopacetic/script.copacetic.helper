@@ -311,7 +311,7 @@ class Monitor(xbmc.Monitor):
         """
         Kodi event hook, on the service's thread: the clashes writes scripts hand over,
         a video update's kept TMDb id; while active, playlist_revision on music queue
-        edits (a shuffle too), the bar after Stop rewatch or library updates (no scan).
+        edits (a shuffle too), the bar after Stop rewatch, library updates or a scan.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
@@ -354,6 +354,12 @@ class Monitor(xbmc.Monitor):
                 and item.get("id", 0) > 0
                 and "transaction" not in data
             ):
+                self._video_update()
+            return
+        if method == "VideoLibrary.OnScanFinished":
+            # A scan's updates carry transaction, a watched toggle's too
+            # (VideoDatabase.cpp SetPlayCount): catch them all up once it ends
+            if self.player_monitor:
                 self._video_update()
             return
         shuffle = method == "Player.OnPropertyChanged"
