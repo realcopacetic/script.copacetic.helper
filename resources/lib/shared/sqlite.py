@@ -37,7 +37,6 @@ class SQLiteHandler:
         Initialise database path and ensure schema exists.
 
         :param db_path: Optional sqlite database path override.
-        :return: None.
         """
         self.db_path = db_path or LOOKUPS
         # Once per process and table: the service builds handlers on every serve
@@ -161,9 +160,6 @@ class ArtworkCacheHandler(SQLiteHandler):
 
     TABLE_NAME = "artwork"
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def _initialize_database(self) -> None:
         """
         Create artwork cache table and indexes, adding any columns an older
@@ -282,9 +278,6 @@ class TruncateCacheHandler(SQLiteHandler):
     """Stores clamp_text results keyed by a hash of text and geometry."""
 
     TABLE_NAME = "truncate_cache"
-
-    def __init__(self) -> None:
-        super().__init__()
 
     def _initialize_database(self) -> None:
         """Create the truncate cache table."""
