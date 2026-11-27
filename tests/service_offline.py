@@ -752,6 +752,8 @@ class PlayedVersion(unittest.TestCase):
         service.player_monitor = Mock()
         service.onNotification("xbmc", "VideoLibrary.OnScanFinished", "null")
         service._video_update.assert_called_once_with()
+        service.onNotification("xbmc", "VideoLibrary.OnCleanFinished", "null")
+        self.assertEqual(service._video_update.call_count, 2)  # a clean's alone too
 
     def test_a_video_update_drops_the_items_kept_tmdb_id(self):
         from resources.lib.apis.tmdb import context
