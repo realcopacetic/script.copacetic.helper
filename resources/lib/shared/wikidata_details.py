@@ -388,6 +388,11 @@ def answer(live: Callable[[], bool], call: Callable, *args: Any) -> Any:
     A request's answer, while the look-up is live, waiting out a busy queue (which
     cached skips: the look-up runs aside), and asked once more after a 429's short
     hold (which cached waits out); raises Unanswered otherwise.
+
+    :param live: Tested before each try; False stops the wait.
+    :param call: The request, a cached fetch: None when not answered.
+    :param args: Its arguments.
+    :return: Its answer.
     """
     tries = 2
     while tries and live():
