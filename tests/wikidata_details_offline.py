@@ -533,6 +533,22 @@ class DetailsTest(WikidataCase):
             self.assertIsNone(wikidata.having("P4947", "438631"))
         self.assertEqual(self.asked, [])
 
+    def test_stopped_during_the_wait_sends_nothing(self):
+        # the setting turns off while a look-up's call waits its slot: no request
+        home, queue = cache.Window(10000), "test.wikidata_next"
+        home.setProperty(queue, f"{time.time() + 2}")
+
+        def off(monitor, seconds=0):
+            self.setting = False
+            return False
+
+        with (
+            mock.patch.object(wikidata, "NEXT_CALL", queue),
+            mock.patch.object(Monitor, "waitForAbort", off),
+        ):
+            self.assertIsNone(wd.details(DUNE, wd.wanted))
+        self.assertEqual(self.asked, [])
+
     def test_a_busy_queue_is_waited_out(self):
         # cached skips a request over MAX_WAIT ahead: the look-up, aside, waits a
         # second at a time while it is live, and asks once the queue frees
