@@ -1844,6 +1844,20 @@ class RotateTest(unittest.TestCase):
         ):
             self.assertIsNone(serve.Server._slide(TURN, "x"))
 
+    def test_slide_check_open_binds_a_slide_with_no_background(self) -> None:
+        with (
+            patch.object(serve, "infolabel", return_value="slide_check=open"),
+            patch("resources.lib.art.multiart.slide_art", return_value={"slide": "x"}),
+            patch("resources.lib.art.multiart.slide_opens") as opens,
+            patch("resources.lib.plugin.setter.set_items", side_effect=list),
+        ):
+            opens.return_value = True
+            (item,), _ = serve.Server._slide(TURN, "x")
+            self.assertEqual(item["art"], {"slide": "x"})
+            opens.return_value = False  # Python can't open it: the slide holds
+            self.assertIsNone(serve.Server._slide(TURN, "x"))
+        opens.assert_called_with("x")
+
     def test_slide_under_a_dialog_or_with_no_params_makes_none(self) -> None:
         with patch.object(serve, "infolabel", return_value=PARAMS) as read:
             with patch.object(serve, "topmost_window_id", return_value=10106):

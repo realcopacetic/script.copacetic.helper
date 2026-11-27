@@ -208,6 +208,7 @@ show; with no rectangles that is the part of the image the frame shows.
 | `language` | TMDB language, e.g. `en-US` | add-on setting | Language of the TMDB artwork to add. |
 | `type`, `id`, `tmdb_id`, `tvshowid` | | | With `get_extra_multiart`: how the TMDB item is found. See [TMDB lookups](metadata.md#tmdb-lookups). |
 | `multiart_fadelabel` | control id | — | A FadeLabel to fill with the family, in display order. See [Multiart in a FadeLabel](#multiart-in-a-fadelabel). |
+| `slide_check` | `open` | — | In a `slides` probe's params: a slide binds once Python opens it (its header read, nothing processed) instead of once its `background` is made, so a skin that draws no blur behind its slides needn't ask `background_blur` for one. Without it, a slide binds only with a background. See [Multiart](../service/serve.md#the-services-own-news). |
 
 ### Other
 

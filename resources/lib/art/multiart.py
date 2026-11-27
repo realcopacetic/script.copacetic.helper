@@ -3,8 +3,10 @@
 import hashlib
 import random
 from itertools import zip_longest
+from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
+import xbmcvfs
 from xbmc import Monitor
 from xbmcgui import Window, getCurrentWindowId
 
@@ -207,6 +209,31 @@ def slide_art(params: Mapping[str, str], slide: str) -> dict[str, str]:
     return ImageEditor().image_processor(jobs=jobs, art_opts=art_opts) | {
         "slide": slide
     }
+
+
+def slide_opens(slide: str) -> bool:
+    """
+    Whether Pillow opens a slide from where a blur would read it, its header read
+    and nothing decoded: slide_check=open, for slides that make no background.
+
+    :param slide: The slide's URL.
+    :return: True if it opens.
+    """
+    from PIL import Image
+
+    from resources.lib.art.editor import ImageEditor
+
+    cache = ImageEditor().cache_manager
+    if not (path := cache.source_path(cache.prepare(slide))):
+        return False
+    try:
+        with Image.open(path):
+            return True
+    except OSError:
+        return False
+    finally:
+        if Path(path).is_relative_to(cache.temp_folder):  # a share's or the web's
+            xbmcvfs.delete(path)
 
 
 def _read_back(expected: Mapping[int, str], monitor: Monitor, readable: bool) -> bool:

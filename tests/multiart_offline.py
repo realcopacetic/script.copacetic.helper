@@ -300,6 +300,30 @@ class SlideArt(unittest.TestCase):
         self.assertEqual(kwargs["art_opts"]["icon"].url, "s.jpg")
         self.assertEqual(kwargs["art_opts"]["background"].url, "s.jpg")
 
+    def test_slide_opens_reads_where_a_blur_would_and_drops_its_temp_copy(self):
+        from PIL import Image
+
+        local, temps = STAGE / "slide.png", STAGE / "temps"
+        temps.mkdir(exist_ok=True)
+        Image.new("RGB", (4, 4)).save(local)
+        (temps / "copy.png").write_bytes(local.read_bytes())
+        (temps / "text.png").write_text("not an image")
+        cache = mock.Mock(temp_folder=str(temps))
+        editor = mock.Mock(return_value=mock.Mock(cache_manager=cache))
+        with (
+            mock.patch("resources.lib.art.editor.ImageEditor", editor),
+            mock.patch.object(multiart.xbmcvfs, "delete") as delete,
+        ):
+            opened = []
+            for path in (local, temps / "copy.png", temps / "text.png", None):
+                cache.source_path.return_value = path and str(path)
+                opened.append(multiart.slide_opens("s.png"))
+        self.assertEqual(opened, [True, True, False, False])
+        self.assertEqual(  # a temp copy only, opened or not
+            delete.call_args_list,
+            [mock.call(str(temps / "copy.png")), mock.call(str(temps / "text.png"))],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

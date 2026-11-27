@@ -248,11 +248,13 @@ during an artwork call's art reads, is waited out and the list read again.
   (`multiart`, `multiart1` …, two images or more), the service turns it on that list:
   every 5 s it makes the next slide with the params in that probe and binds one item
   carrying the slide (`Art(slide)`), its blur and band, the arrival's `current` and the
-  artwork list's `Property(identity)`, so picture and blur change together. The turn
-  stops at the next ring or once the slide probe reads other than the params a slide
-  was made with, and holds while another window is on top; a ring that finds the list
-  still holding its answer (the same arrival rung again) turns the family again if its
-  turn had ended. No FadeLabel register is needed.
+  artwork list's `Property(identity)`, so picture and blur change together. A slide
+  binds once its background is made, or, with `slide_check=open` in the probe's params,
+  once Python opens it (a skin that draws no blur). The turn stops at the next ring or
+  once the slide probe reads other than the params a slide was made with, and holds
+  while another window is on top; a ring that finds the list still holding its answer
+  (the same arrival rung again) turns the family again if its turn had ended. No
+  FadeLabel register is needed.
 - **The line.** The [typewriter](../plugins/typewriter.md) answers at once and types on
   a thread of its own, so the lists after it aren't held; the skin's lease
   (`Window(home).Property(typewriter_current_<target_id>)`) stops it at the next move. A
