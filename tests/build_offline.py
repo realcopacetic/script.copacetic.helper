@@ -1,8 +1,9 @@
 """
 Run the helper's builder pipeline outside Kodi against a skin directory.
 
-Kodi modules are replaced by the small stubs below; anything the builders
-call that isn't stubbed fails loudly. Outputs never touch the skin.
+Kodi modules are replaced by the small stubs below; any other Kodi name
+imports, so every helper module loads, but fails loudly once called. Outputs
+never touch the skin.
 """
 
 import argparse
@@ -25,10 +26,26 @@ def fail(message: str) -> None:
     sys.exit(2)
 
 
+class Unstubbed:
+    """A Kodi name no stub gives: importable and subclassable, failing once called."""
+
+    def __init__(self, *args, **kwargs):
+        raise NotImplementedError(f"{type(self).__qualname__} is not stubbed")
+
+
 def _module(name: str, **attrs) -> None:
-    """Register a stub module under ``name`` with the given attributes."""
+    """Register a stub module under ``name``; any other name gives an ``Unstubbed``."""
     module = types.ModuleType(name)
     module.__dict__.update(attrs)
+
+    def missing(attr: str) -> type:
+        if attr.startswith("__"):
+            raise AttributeError(attr)
+        stub = type(attr, (Unstubbed,), {"__qualname__": f"{name}.{attr}"})
+        setattr(module, attr, stub)
+        return stub
+
+    module.__getattr__ = missing
     sys.modules[name] = module
 
 
@@ -113,6 +130,7 @@ def install_stubs(
         log=log,
         getCondVisibility=lambda condition: False,
         getInfoLabel=lambda label: "",
+        getLocalizedString=lambda string_id: f"#{string_id}",  # windows/browse.py
         getRegion=lambda key: {"time": "%H:%M:%S"}.get(key, ""),
         executebuiltin=lambda action, wait=False: log(f"builtin: {action}"),
     )
