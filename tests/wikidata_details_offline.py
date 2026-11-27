@@ -512,8 +512,8 @@ class DetailsTest(WikidataCase):
             raise HttpError(None)
 
         with mock.patch.object(wikidata.http, "get_json", refuse):
-            with self.assertRaises(wd._Unanswered):
-                wd._answer(ALIVE, wikidata.items, ["Q1", "Q2", "Q3"])
+            with self.assertRaises(wd.Unanswered):
+                wd.answer(ALIVE, wikidata.items, ["Q1", "Q2", "Q3"])
         self.assertEqual(len(calls), 1)
 
     def test_a_hold_during_the_wait_sends_nothing(self):

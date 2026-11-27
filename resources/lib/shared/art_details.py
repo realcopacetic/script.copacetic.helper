@@ -12,7 +12,7 @@ import posixpath
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from functools import cache
+from functools import cache, partial
 from itertools import islice
 from operator import itemgetter
 from pathlib import Path
@@ -33,6 +33,7 @@ from resources.lib.shared.utilities import (
     replace_file,
     window_property,
 )
+from resources.lib.shared.wikidata_details import Unanswered, answer
 
 FOLDERS = Path(ADDONDATA, "art_details_folders.json")  # the marked folders' paths
 # A verdict stands until refreshed or the file changes; a year, so a moved or deleted
@@ -305,7 +306,8 @@ def look_up(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
 
 def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
-    look_up's answer, asked of Wikidata and Wikipedia in turn.
+    look_up's answer, asked of Wikidata and Wikipedia in turn, each request waiting
+    out a busy queue as the info screens' look-ups do (wikidata_details.answer).
 
     :param path: The picture's path.
     :param live: Tested before each request; False stops the look-up.
@@ -313,16 +315,17 @@ def _found(path: str, live: Callable[[], bool]) -> dict[str, Any] | None:
     """
     if not (name := parse(path)):
         return {}
-    if not (artist := wikidata.works(name.artist, live)):
-        return artist  # None: not answered; {}: no such painter
-    if not (best := match(name, artist["works"])):
-        return {}
-    qid, score = best
-    if not live() or (work := wikidata.painting(qid)) is None:
-        return None
-    article = next(iter(work.get("enwiki", [])), "")
-    text = (wikidata.summary(article) if live() else None) if article else ""
-    if text is None:
+    ask = partial(answer, live)
+    try:
+        if not (artist := ask(wikidata.works, name.artist, live)):
+            return {}  # no such painter
+        if not (best := match(name, artist["works"])):
+            return {}
+        qid, score = best
+        work = ask(wikidata.painting, qid)
+        article = next(iter(work.get("enwiki", [])), "")
+        text = ask(wikidata.summary, article) if article else ""
+    except Unanswered:
         return None
     log.debug(f"art_details → {qid} at {score} for {path}")
     return fields(name, artist, qid, work, text)

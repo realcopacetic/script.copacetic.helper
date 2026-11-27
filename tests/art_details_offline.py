@@ -398,18 +398,30 @@ class ArtDetailsTest(unittest.TestCase):
         ApiCacheHandler().expire("wikidata:%")  # the wait is over
         self.assertEqual(art.look_up(path, ALIVE)["qid"], "Q28839414")
 
-    def test_429_holds_the_queue(self):
-        path = f"{FOLDER}Franz Marc - 'Foxes' (1913).jpg"
-        queue = mock.patch.object(wikidata, "NEXT_CALL", "copacetic.wikidata_next")
-        queue.start()
-        self.addCleanup(queue.stop)
+    def test_429_holds_the_queue_and_the_look_up_waits_it_out(self):
+        # a busy queue, as a 429 holds it: the look-up, aside, waits a second at a
+        # time while it is live (wikidata_details.answer), then asks once it frees
+        path, queue, waits = f"{FOLDER}Franz Marc - 'Foxes' (1913).jpg", "q.next", []
+        self.addCleanup(HOME.clearProperty, queue)
+        self.addCleanup(HOME.clearProperty, f"{queue}.held")
+
+        def wait(monitor, seconds=0):
+            if seconds == 1:  # the look-up's, not a queued request's
+                self.assertEqual(self.asked, [])  # nothing sent while the hold stands
+                self.refuse = None
+                HOME.setProperty(queue, "0")  # the hold passes
+                HOME.setProperty(f"{queue}.held", "0")
+            waits.append(seconds)
+            return False
+
         self.refuse = HttpError(429, retry_after=60)
-        self.assertIsNone(art.look_up(path, ALIVE))
-        self.refuse, self.asked = None, []
-        self.assertIsNone(
-            art.look_up(f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg", ALIVE)
-        )
-        self.assertEqual(self.asked, [])  # nothing sent while the wait holds
+        with (
+            mock.patch.object(wikidata, "NEXT_CALL", queue),
+            mock.patch.object(Monitor, "waitForAbort", wait),
+        ):
+            self.assertEqual(art.look_up(path, ALIVE)["qid"], "Q28839414")
+        self.assertEqual(waits.count(1), 1)
+        self.assertEqual(self.asked[0], "search Franz Marc")  # asked again, once
 
     def test_stopped_during_the_queue_wait_asks_nothing(self):
         on = [True]
