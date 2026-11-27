@@ -12,7 +12,7 @@ import xbmcaddon
 import xbmcgui
 import xbmcvfs
 
-from resources.lib.apis.cache import cache_only
+from resources.lib.apis.cache import busy, cache_only
 from resources.lib.service.trailer import (
     TrailerZoomController,
     enter_fullscreen,
@@ -168,13 +168,16 @@ def art_details_refresh(
     :param prop: A Home property holding the path, read as written (no decode).
     :param ring: A served ring to send once it is found (serve.md), with no is.
     """
+    from resources.lib.apis.wikidata import NEXT_CALL
     from resources.lib.shared import art_details as art
 
     path = path or xbmcgui.Window(10000).getProperty(prop)
     if not (art.wanted(path) and art.is_picture(path)):  # off, unmarked, not a picture
         return
     art.forget(path)
-    art.look_up(path, lambda: art.wanted(path))
+    # Gives up on a busy queue, as each press runs a script of its own: the ring's
+    # serve, else the next visit, asks aside, which waits it out
+    art.look_up(path, lambda: art.wanted(path) and not busy(NEXT_CALL))
     if ring:
         from resources.lib.service.serve import ring as send
 

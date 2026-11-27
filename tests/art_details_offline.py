@@ -476,6 +476,20 @@ class ArtDetailsTest(unittest.TestCase):
         )
         self.assertEqual(art.verdict(path)["qid"], "Q2358487")
 
+    def test_refresh_gives_up_on_a_busy_queue(self):
+        # each press is a script of its own: none waits, the serve's aside does
+        path, queue, ring = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg", "q.next", []
+        art.mark(FOLDER, True)
+        HOME.setProperty(queue, f"{time.time() + 60}")
+        self.addCleanup(HOME.clearProperty, queue)
+        with (
+            mock.patch.object(wikidata, "NEXT_CALL", queue),
+            mock.patch("resources.lib.service.serve.ring", ring.append),
+        ):
+            actions.art_details_refresh(path, ring="serve?lists=9000")
+        self.assertEqual((self.asked, ring), ([], ["serve?lists=9000"]))
+        self.assertIsNone(art.verdict(path))  # none kept: the serve asks aside
+
     def test_forget_drops_its_own_file_only(self):
         mine, other = f"{FOLDER}Tiger_%.jpg", f"{FOLDER}TigerX12.jpg"  # LIKE would
         for path in (mine, other):
