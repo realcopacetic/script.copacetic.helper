@@ -252,9 +252,11 @@ class ArtworkCacheManager:
             stale_path = row.get(policy.ART_FIELD_PROCESSED)
             if stale_path and stale_path != new_path:
                 try:
-                    xbmcvfs.delete(stale_path)
+                    # False when Kodi failed, or the file was already gone
+                    done = xbmcvfs.delete(stale_path)
+                    outcome = "evicted" if done else "could not delete"
                     log.debug(
-                        f"{self.__class__.__name__} → write_lookup evicted stale "
+                        f"{self.__class__.__name__} → write_lookup {outcome} stale "
                         f"file → {stale_path}"
                     )
                 except Exception:
