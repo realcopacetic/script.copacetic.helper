@@ -124,19 +124,23 @@ class PictureBarTest(unittest.TestCase):
         self.assertNotIn("picture_size", self.serve()["properties"])
 
     def test_the_file_line(self):
-        # picture_name_chars: the edges apart and the name cut to what they leave
+        # picture_edges: the edges apart; picture_name_chars: the name cut to what
+        # the edges and size leave
         self.labels |= {
             "PictureResolution": "1920 x 1520",
             "Size": "1.4 MB",
             "FileName": "Van Gogh - The Starry Night.jpg",  # 31
         }
-        line = lambda chars: {
+        line = lambda chars, edges="true": {
             k: v
-            for k, v in self.serve(resolution_span="3840", picture_name_chars=chars)[
-                "properties"
-            ].items()
+            for k, v in self.serve(
+                resolution_span="3840", picture_edges=edges, picture_name_chars=chars
+            )["properties"].items()
             if k in ("picture_width", "picture_height", "picture_name")
         }
+        # each alone (Index asks the edges only)
+        self.assertEqual(line("", "true").keys(), {"picture_width", "picture_height"})
+        self.assertEqual(line("45", "").keys(), {"picture_name"})
         # 4 + 4 + 6 leave 31 of 45: the name whole; one less, cut with "…"
         self.assertEqual(
             line("45"),
@@ -158,8 +162,8 @@ class PictureBarTest(unittest.TestCase):
                 "picture_name": "Van Gogh - Th…",  # 14: 20 less the size's 6
             },
         )
-        # without the param: none of them (resolution_span alone, as before)
-        self.assertEqual(line(""), {})
+        # without the params: none of them (resolution_span alone, as before)
+        self.assertEqual(line("", ""), {})
 
 
 class CentreTest(unittest.TestCase):
