@@ -99,14 +99,8 @@ def multiart_sequence_from_infolabels(
     """
     if not art_type:
         return []
-
-    limit = int(clamp(to_int(max_items, DEFAULT_SLOTS), 0, MAX_SLOTS))
-    art_keys = [f"Art({art_type})"] + [
-        f"Art({art_type}{i})" for i in range(1, limit + 1)
-    ]
-
-    labels = get_infolabels(target, art_keys)
-    return [labels[k] for k in art_keys if labels.get(k)]
+    keys = [f"Art({art_type}{i or ''})" for i in range(_slots(max_items) + 1)]
+    return [url for url in get_infolabels(target, keys).values() if url]
 
 
 def multiart_sequence_from_dict(
@@ -124,13 +118,13 @@ def multiart_sequence_from_dict(
     """
     if not art_type:
         return []
+    keys = (f"{art_type}{i or ''}" for i in range(_slots(max_items) + 1))
+    return [url for key in keys if (url := art.get(key))]
 
-    limit = int(clamp(to_int(max_items, DEFAULT_SLOTS), 0, MAX_SLOTS))
 
-    base = art.get(art_type)
-    extras = [url for i in range(1, limit + 1) if (url := art.get(f"{art_type}{i}"))]
-
-    return [base, *extras] if base else extras
+def _slots(max_items: int | str | None) -> int:
+    """The extra slots to read: max_items within 0 to MAX_SLOTS, else DEFAULT_SLOTS."""
+    return clamp(to_int(max_items, DEFAULT_SLOTS), 0, MAX_SLOTS)
 
 
 def merge_multiart_sequences(
@@ -169,16 +163,11 @@ def sequence_to_multiart_dict(urls: Iterable[str]) -> dict[str, str]:
     """
     Turn a list of URLs into the standard multiart dict: urls[0] → "multiart",
     urls[1] → "multiart1", urls[2] → "multiart2", and so on.
+
+    :param urls: Artwork URLs in multiart order; empty ones are skipped.
+    :return: The multiart dict; empty for no URLs.
     """
-    seq = [u for u in urls if u]
-    if not seq:
-        return {}
-
-    result = {"multiart": seq[0]}
-    for index, url in enumerate(seq[1:], start=1):
-        result[f"multiart{index}"] = url
-
-    return result
+    return {f"multiart{i or ''}": url for i, url in enumerate(filter(None, urls))}
 
 
 def order_multiart(urls: Iterable[str]) -> list[str]:
@@ -364,7 +353,6 @@ def set_multiart_fadelabel(
             {to_int(fadelabel_id): ordered},
             alive=alive,
         )
-
     except Exception:
         log.exception("Unable to set multiart fadelabel", log.WARNING)
         return False
@@ -409,7 +397,6 @@ def seed_multiart(
     :param dialog: Whether this is a dialog's serve, which keeps its own seed keys.
     :return: Updated art dict, or None when the guard died mid-seed.
     """
-
     if not fadelabel_id:
         return art
     window_id = window_id or getCurrentWindowId()
