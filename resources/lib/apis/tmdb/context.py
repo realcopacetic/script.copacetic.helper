@@ -1,24 +1,12 @@
-# resources/lib/apis/tmdb/context.py
 # author: realcopacetic
 
 from typing import Any, Mapping
 
 from resources.lib.shared import logger as log
-from resources.lib.shared.utilities import infolabel, json_call, to_int
+from resources.lib.shared.utilities import infolabel, library_details, to_int
 
-_DETAILS_LOOKUP_BY_KIND = {
-    "movie": {
-        "method": "VideoLibrary.GetMovieDetails",
-        "id_key": "movieid",
-        "result_key": "moviedetails",
-    },
-    "tvshow": {
-        "method": "VideoLibrary.GetTVShowDetails",
-        "id_key": "tvshowid",
-        "result_key": "tvshowdetails",
-    },
-}
-
+# The library types whose details carry a TMDb uniqueid worth looking up
+_TMDB_KINDS = ("movie", "tvshow")
 
 # A library movie's or show's TMDb id once found, kept for the process until this
 # Kodi's next library update of it: a season's bar and metadata serve look it up once
@@ -45,42 +33,11 @@ def _library_tmdb_id(kind: str, dbid: int) -> str | None:
     :return: The TMDb id; None if it has none.
     """
     if not (found := _TMDB_IDS.get((kind, dbid))):
-        lookup = _DETAILS_LOOKUP_BY_KIND[kind]
-        found = _lookup_uniqueid_tmdb(
-            method=lookup["method"],
-            id_key=lookup["id_key"],
-            id_value=dbid,
-            result_key=lookup["result_key"],
-        )
+        details = library_details(kind, dbid, ["uniqueid"], "resolve_tmdb_context")
+        found = ((details or {}).get("uniqueid") or {}).get("tmdb")
         if found:
             _TMDB_IDS[kind, dbid] = found
     return found
-
-
-def _lookup_uniqueid_tmdb(
-    *,
-    method: str,
-    id_key: str,
-    id_value: int,
-    result_key: str,
-) -> str | None:
-    """
-    Fetch a TMDb uniqueid from a VideoLibrary JSON-RPC details endpoint.
-
-    :param method: JSON-RPC method, for example "VideoLibrary.GetMovieDetails".
-    :param id_key: Request parameter key, for example "movieid" or "tvshowid".
-    :param id_value: Numeric DBID value for the request parameter.
-    :param result_key: Result envelope key, for example "moviedetails".
-    :return: TMDb id string if present, else None.
-    """
-    response = json_call(
-        method,
-        params={id_key: id_value},
-        properties=["uniqueid"],
-        parent="resolve_tmdb_context",
-    )
-    uniqueid = response.get("result", {}).get(result_key, {}).get("uniqueid", {}) or {}
-    return uniqueid.get("tmdb")
 
 
 def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, Any]:
@@ -121,7 +78,7 @@ def resolve_tmdb_context(params: Mapping[str, str], target: str) -> dict[str, An
         lookup_dbid = dbid
         lookup_kind = kind
 
-    if not tmdb_id and lookup_dbid and lookup_kind in _DETAILS_LOOKUP_BY_KIND:
+    if not tmdb_id and lookup_dbid and lookup_kind in _TMDB_KINDS:
         tmdb_id = _library_tmdb_id(lookup_kind, lookup_dbid)
 
     tmdb_id = tmdb_id or None
