@@ -759,21 +759,21 @@ class ServeTest(WikidataCase):
         served = lambda width: self.served(
             "movie", None, title="Oppenheimer", story_width=width, **band
         )
-        # in TenWide, a chip 10 a character and 24: Set in 542, About 472 (J. Robert
-        # Oppenheimer's isn't named by the title "Oppenheimer"), 60 between
+        # in TenWide, a chip 10 a character and 24: Set in 542, About 382 (the
+        # subjects holding "Oppenheimer" go: J. Robert Oppenheimer, the hearing)
         with mock.patch.object(handlers, "skin_metric", lambda name: TenWide):
             self.assertEqual(
-                {k: v for k, v in served("1480").items() if k[-2] == "_"},
+                {k: v for k, v in served("1480").items() if k[-1].isdigit()},
                 {
                     "wikidata_set_in_1": "University of Cambridge",
                     "wikidata_set_in_2": "Project Y",
                     "wikidata_set_in_3": "World War II",
-                    "wikidata_about_1": "J. Robert Oppenheimer",
-                    "wikidata_about_2": "McCarthyism",
-                    "wikidata_about_3": "trial",
+                    "wikidata_about_1": "McCarthyism",
+                    "wikidata_about_2": "trial",
+                    "wikidata_about_3": "nuclear bomb",
                 },
             )
-            self.assertNotIn("wikidata_about_3", served("1000"))  # 1074 to 985
+            self.assertNotIn("wikidata_about_3", served("983"))  # 984 to 825
             self.assertNotIn("wikidata_about_1", served("600"))
             # a band of more than one chip: no collection
             self.labels["ListItem.Set"] = "Oppenheimer Collection"
@@ -968,6 +968,18 @@ class BandTest(unittest.TestCase):
         columns = self.chips("Peaky Blinders", about=about)
         self.assertEqual(columns["about"], ["art", "crime", "family"])
         self.assertEqual(self.chips("Smart People", about=["art"])["about"], ["art"])
+        # and a subject holding the title, case aside: Oppenheimer's own name and
+        # hearing go, its trial stays
+        about = [
+            "J. Robert Oppenheimer",
+            "McCarthyism",
+            "trial",
+            "Oppenheimer security hearing",
+        ]
+        columns = self.chips("OPPENHEIMER", about=about)
+        self.assertEqual(columns["about"], ["McCarthyism", "trial"])
+        # "Oppenheim" is no word of "Oppenheimer"
+        self.assertEqual(self.chips("Oppenheim", about=about)["about"], about[:3])
 
     def test_universe(self):
         for title, collection, universe, shown in (
