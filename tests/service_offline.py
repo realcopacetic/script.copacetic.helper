@@ -740,6 +740,23 @@ class PlayedVersion(unittest.TestCase):
         service.server = None  # the skin left
         service._video_bump()
 
+    def test_a_video_update_drops_the_items_kept_tmdb_id(self):
+        from resources.lib.apis.tmdb import context
+
+        service = object.__new__(monitor.Monitor)
+        service.player_monitor = None  # dropped whether active or not
+        ids = {("tvshow", 3): "1399", ("tvshow", 4): "1400", ("movie", 3): "603"}
+        context._TMDB_IDS.update(ids)
+        self.addCleanup(context._TMDB_IDS.clear)
+        refresh = '{"item": {"type": "tvshow", "id": 3}, "added": true}'
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", refresh)
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", '{"type": "movie"}')
+        kept = {("tvshow", 4): "1400", ("movie", 3): "603"}  # others, and a bare id
+        self.assertEqual(context._TMDB_IDS, kept)
+        update = '{"type": "tvshow", "id": 4}'  # AnnounceUpdate's shape
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", update)
+        self.assertEqual(context._TMDB_IDS, {("movie", 3): "603"})
+
     def test_overlapping_bumps_share_nothing(self):
         service = object.__new__(monitor.Monitor)
         seen = []
