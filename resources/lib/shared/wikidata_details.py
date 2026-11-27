@@ -166,8 +166,8 @@ def fit_band(
 ) -> dict[str, str]:
     """
     The story band fitted to its width, cut in DROPS' turn while it overflows, as
-    numbered wikidata_{column}_{n}: set_in (the places, then the period), about,
-    universe, part_of. A column is as wide as its chips, or its caption if wider.
+    wikidata_{column}_{n}: set_in (places, then period), about, universe, part_of. A
+    column takes its chips' width, or its caption's if wider ({column}_caption_wide).
 
     :param columns: story_chips' columns.
     :param chip: A chip's width.
@@ -177,18 +177,28 @@ def fit_band(
     :return: The properties.
     """
     gap, chip_gap = gaps
+
+    def chips(row: list[str]) -> float:
+        return sum(map(chip, row)) + chip_gap * (len(row) - 1)
+
     for key, keep in DROPS:
         drawn = [
-            max(captions.get(name, 0), sum(map(chip, row)) + chip_gap * (len(row) - 1))
+            max(captions.get(name, 0), chips(row))
             for name, row in _rows(columns).items()
             if row
         ]
         if sum(drawn) + gap * (len(drawn) - 1) <= width:
             break
         columns = columns | {key: columns[key][:keep]}
-    return {
+    rows = _rows(columns)
+    wide = {
+        f"wikidata_{key}_caption_wide": "true"
+        for key, row in rows.items()
+        if row and captions.get(key, 0) > chips(row)
+    }
+    return wide | {
         f"wikidata_{key}_{n}": name
-        for key, row in _rows(columns).items()
+        for key, row in rows.items()
         for n, name in enumerate(row, 1)
     }
 

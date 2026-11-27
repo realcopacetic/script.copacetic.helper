@@ -814,7 +814,10 @@ class ServeTest(WikidataCase):
             self.assertIn("wikidata_about_1", served("1400", **caption))
             caption["story_caption_font"] = "description_s"
             self.assertNotIn("wikidata_about_1", served("1400", **caption))
-            self.assertIn("wikidata_about_1", served("1402", **caption))
+            wide = served("1402", **caption)
+            self.assertIn("wikidata_about_1", wide)
+            self.assertEqual(wide["wikidata_about_caption_wide"], "true")
+            self.assertNotIn("wikidata_set_in_caption_wide", wide)
             # a band of more than one chip: no collection
             self.labels["ListItem.Set"] = "Oppenheimer Collection"
             self.assertNotIn("wikidata_part_of_1", served("1480"))
@@ -1029,10 +1032,14 @@ class BandTest(unittest.TestCase):
         # Universe's caption at 200 outweighs its 104 chip: 173 + 60 + 200 = 433
         band = {"places": ["London"], "period": ["1940s"], "universe": ["Universe"]}
         caption = {"universe": 200}
-        self.assertEqual(len(self.fit(433, caption, **band)), 3)
+        fitted = self.fit(433, caption, **band)
+        self.assertEqual(len(fitted), 4)  # three chips, Universe's caption wide
+        self.assertEqual(fitted["wikidata_universe_caption_wide"], "true")
         self.assertNotIn("wikidata_universe_1", self.fit(432, caption, **band))
         self.assertEqual(len(self.fit(432, **band)), 3)  # chips alone: 337
-        # a dropped column's caption counts no more
+        # a caption no wider than its chips (Set in's 173) flags nothing
+        self.assertEqual(len(self.fit(433, {"set_in": 173}, **band)), 3)
+        # a dropped column's caption counts no more, nor flags
         self.assertEqual(len(self.fit(200, {"about": 900}, places=["London"])), 1)
 
     def test_the_drop_order(self):
