@@ -29,6 +29,7 @@ from resources.lib.shared.utilities import (
     dev_reset_due,
     infolabel,
     json_call,
+    library_details,
     notify_build_failed,
     pin_dev_reset,
     reset_dev_state,
@@ -64,12 +65,8 @@ def _play_count(songid: int) -> int | None:
     :param songid: Library song id.
     :return: Its play count; None if unread.
     """
-    response = json_call(
-        "AudioLibrary.GetSongDetails",
-        params={"properties": ["playcount"], "songid": songid},
-        parent="song_closed",
-    )
-    return response.get("result", {}).get("songdetails", {}).get("playcount")
+    song = library_details("song", songid, ["playcount"], "song_closed")
+    return (song or {}).get("playcount")
 
 
 class Monitor(xbmc.Monitor):

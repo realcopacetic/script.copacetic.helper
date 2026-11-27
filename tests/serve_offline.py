@@ -427,6 +427,22 @@ class ServeTest(unittest.TestCase):
         # The cut net serve quiets nothing: the moved arrival's net still serves
         self.assertEqual(served, [CURSOR, moved.value, moved.value])
 
+    def test_a_probe_that_moves_during_an_empty_net_serve_quiets_nothing(self) -> None:
+        server = _server()
+        served, probe = [], [PARAMS]
+
+        def serve_(request: serve.Request, net: bool) -> None:
+            served.append(net)
+            probe[0] = "T2" if len(served) == 1 else probe[0]  # a swap as it runs
+
+        server._serve = serve_
+        server.last = {10025: SETTLE}
+        net = serve.Request()
+        self._worker(server, [net, PARAMS, net, net], probe)
+        # Back to the text read before the first: not quiet, so served, then let be
+        self.assertEqual(served, [True, True])
+        self.assertEqual(server.quiet, {10025: (PARAMS,)})
+
     def _net_world(self, server: serve.Server, handle: Callable) -> dict:
         """
         Wire a Server's serve to labels (probes and bound properties) and the
