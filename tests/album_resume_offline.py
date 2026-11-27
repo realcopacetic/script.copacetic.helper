@@ -59,7 +59,11 @@ class LibraryTest(unittest.TestCase):
     """GetSongs answers self.songs; each request is kept in self.calls."""
 
     def setUp(self):
-        self.songs, self.calls = [], []
+        self.songs, self.calls, self.props = [], [], {}  # props: the bar's window's
+        window = mock.Mock(
+            getProperty=lambda key: self.props.get(key, ""),
+            setProperty=self.props.__setitem__,
+        )
 
         def rpc(request):
             request = json.loads(request)
@@ -68,7 +72,7 @@ class LibraryTest(unittest.TestCase):
 
         for target, name, value in (
             (sys.modules["xbmc"], "executeJSONRPC", rpc),
-            (helpers, "Window", mock.Mock()),
+            (helpers, "Window", mock.Mock(return_value=window)),
             (helpers, "get_infolabels", lambda target, keys: {"DBID": "7"}),
         ):
             patcher = mock.patch.object(target, name, value, create=True)
