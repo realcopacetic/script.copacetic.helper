@@ -727,13 +727,15 @@ class PlayedVersion(unittest.TestCase):
             '{"item": {"type": "movie", "id": 6}, "added": true, "transaction": true}'
         )
         service.onNotification("xbmc", "VideoLibrary.OnUpdate", scan)
-        service._video_update.assert_not_called()  # inactive, then a scan's
+        saved = '{"id": -1, "type": ""}'  # a file's or plugin's play (CSaveFileState)
+        service.onNotification("xbmc", "VideoLibrary.OnUpdate", saved)
+        service._video_update.assert_not_called()  # inactive, a scan's, not library
         service.onNotification("xbmc", "VideoLibrary.OnUpdate", update)
         service._video_update.assert_called_once_with()
         lists = {"progressbar": 9010, "metadata": 9000}
         service.server = Mock(**{"served.side_effect": lambda info: lists.get(info, 0)})
-        service._video_bump()
-        self.assertEqual(service.server.again.call_args_list, [call(9010), call(9000)])
+        service._video_bump()  # metadata first: a follow_tmdb bar follows its fetch
+        self.assertEqual(service.server.again.call_args_list, [call(9000), call(9010)])
         lists, service.server.again = {"metadata": 9000}, Mock()  # a plugin bar's
         service._video_bump()
         service.server.again.assert_called_once_with(9000)

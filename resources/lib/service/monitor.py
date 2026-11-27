@@ -347,8 +347,13 @@ class Monitor(xbmc.Monitor):
             item = data.get("item", data)  # an announced item's, or AnnounceUpdate's
             forget_tmdb_id(item.get("type"), item.get("id"))  # a rescrape's new id
             # A plugin list refetches itself; a served one is rebound only on an
-            # arrival, and the rebuilt listing's ring repeats its visit (same second)
-            if self.player_monitor and "transaction" not in data:
+            # arrival, and the rebuilt listing's ring repeats its visit (same second).
+            # A library item's only: a file's saved state announces id -1
+            if (
+                self.player_monitor
+                and item.get("id", 0) > 0
+                and "transaction" not in data
+            ):
                 self._video_update()
             return
         shuffle = method == "Player.OnPropertyChanged"
@@ -422,7 +427,7 @@ class Monitor(xbmc.Monitor):
     def _video_bump(self) -> None:
         """Timer: the lists the topmost window served its bar and details in, again."""
         if server := self.server:  # None once the skin has left
-            for info in ("progressbar", "metadata"):
+            for info in ("metadata", "progressbar"):  # a bar follows metadata's fetch
                 if served := server.served(info):
                     server.again(served)
 
