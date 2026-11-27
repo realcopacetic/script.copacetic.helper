@@ -185,7 +185,8 @@ artist shown before joins a Back history in `<prop>_back` (ten at most, oldest
 dropped), which a call without `qid` steps back through. Showing the artist already
 shown, or Back with no history, does nothing: with `<prop>_back` empty, Back is yours
 to close the page. Then your served ring, if you pass one, so the page is served
-again for the new artist.
+again for the new artist. The helper's service takes each call's step in turn, so two
+quick presses both land; the action only hands it over.
 
 | Param | Accepted values | Default | What it does |
 |---|---|---|---|

@@ -8,7 +8,8 @@ path and mtime, a miss kept too, none kept when Wikidata isn't asked or refuses,
 429 holding the queue); the marked folders; the serve's properties and Home
 properties; chips fitted to a row. The artist page (art_artist, art_rail and the
 art_artist action): its fields, kept answers served and stale ones asked aside, the
-setting tested before each request, the rails, and the Back history. The search
+setting tested before each request, the rails, and the Back history, each press's
+step taken by the service in turn, so quick presses all land. The search
 (art_search): kept verdicts in marked folders, ranked, with no request.
 
 Network calls are replaced by answers in the query service's and Wikipedia's shapes,
@@ -67,7 +68,9 @@ from resources.lib.apis import cache, wikidata  # noqa: E402
 from resources.lib.apis.http import HttpError  # noqa: E402
 from resources.lib.plugin import handlers  # noqa: E402
 from resources.lib.script import actions  # noqa: E402
+from resources.lib.service import monitor  # noqa: E402
 from resources.lib.shared import art_details as art  # noqa: E402
+from resources.lib.shared import helpers  # noqa: E402
 from resources.lib.shared.parser import parse_plugin_argv  # noqa: E402
 from resources.lib.shared.sqlite import ApiCacheHandler  # noqa: E402
 
@@ -1006,27 +1009,53 @@ class ArtDetailsTest(unittest.TestCase):
             self.assertEqual(art._date(christmas, 11, julian, limit=9), "1599")
 
     def test_artist_history(self):
-        sent = []
+        sent, step = [], helpers.step_artist
         HOME.setProperty("page_artist", TURNER)
         HOME.clearProperty("page_artist_back")
         with mock.patch("resources.lib.service.serve.ring", sent.append):
-            actions.art_artist(prop="page_artist", qid="Q159606", ring="serve?x")
-            actions.art_artist(prop="page_artist", qid="Q159606")  # shown: nothing
-            actions.art_artist(prop="page_artist", qid="Q5582")
+            step(prop="page_artist", qid="Q159606", ring="serve?x")
+            step(prop="page_artist", qid="Q159606")  # shown: nothing
+            step(prop="page_artist", qid="Q5582")
         self.assertEqual(HOME.getProperty("page_artist"), "Q5582")
         self.assertEqual(HOME.getProperty("page_artist_back"), f"{TURNER} Q159606")
         self.assertEqual(sent, ["serve?x"])
-        actions.art_artist(prop="page_artist")  # Back
-        actions.art_artist(prop="page_artist")
+        step(prop="page_artist")  # Back
+        step(prop="page_artist")
         self.assertEqual(HOME.getProperty("page_artist"), TURNER)
         self.assertEqual(HOME.getProperty("page_artist_back"), "")
-        actions.art_artist(prop="page_artist")  # none left: the skin closes the page
+        step(prop="page_artist")  # none left: the skin closes the page
         self.assertEqual(HOME.getProperty("page_artist"), TURNER)
-        for n in range(actions.ARTIST_HISTORY + 2):
-            actions.art_artist(prop="page_artist", qid=f"Q{n}")
+        for n in range(helpers.ARTIST_HISTORY + 2):
+            step(prop="page_artist", qid=f"Q{n}")
         self.assertEqual(
-            len(HOME.getProperty("page_artist_back").split()), actions.ARTIST_HISTORY
+            len(HOME.getProperty("page_artist_back").split()), helpers.ARTIST_HISTORY
         )
+
+    def test_quick_presses_each_take_their_step(self):
+        """Each press's script hands its step over before the service hears any."""
+        heard, sent = deque(), []  # Kodi's announcement queue, heard in order
+
+        def notify(method, params, parent):
+            data = json.dumps(params["data"])
+            heard.append((params["sender"], f"Other.{params['message']}", data))
+            return {"result": "OK"}
+
+        service = object.__new__(monitor.Monitor)
+        service.player_monitor = None  # any skin: the action is public
+        HOME.setProperty("page_artist", "Q5582")
+        HOME.setProperty("page_artist_back", f"{TURNER} Q159606")
+        with mock.patch.object(actions, "json_call", notify):
+            actions.art_artist(prop="page_artist", ring="serve?x")  # a double Back
+            actions.art_artist(prop="page_artist", ring="serve?x")
+            actions.art_artist(prop="page_artist", qid="Q5582")  # a hop, then Back
+            actions.art_artist(prop="page_artist")
+        self.assertEqual(HOME.getProperty("page_artist"), "Q5582")  # none taken yet
+        with mock.patch("resources.lib.service.serve.ring", sent.append):
+            while heard:
+                service.onNotification(*heard.popleft())
+        self.assertEqual(HOME.getProperty("page_artist"), TURNER)
+        self.assertEqual(HOME.getProperty("page_artist_back"), "")
+        self.assertEqual(sent, ["serve?x"] * 2)
 
 
 if __name__ == "__main__":
