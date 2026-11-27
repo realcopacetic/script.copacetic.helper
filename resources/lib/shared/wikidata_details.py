@@ -15,7 +15,7 @@ from typing import Any, Callable
 from xbmc import Monitor
 
 from resources.lib.apis import wikidata
-from resources.lib.apis.cache import Asides, busy, hold
+from resources.lib.apis.cache import Asides, busy, hold, while_live
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.utilities import ADDON, fold, named
 
@@ -417,7 +417,8 @@ def details(key: tuple[str, ...], live: Callable[[], bool]) -> dict[str, Any] | 
     if fresh:
         return found
     try:
-        found = LOOK_UPS[key[0]](partial(_answer, live), *key[1:])
+        with while_live(live):  # tested again after each queue wait
+            found = LOOK_UPS[key[0]](partial(_answer, live), *key[1:])
     except _Unanswered:
         return None
     ttl = wikidata.TTL_HIT if found else wikidata.TTL_EMPTY
