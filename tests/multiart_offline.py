@@ -3,7 +3,8 @@ Offline checks for the gallery tiles' share-out (resources/lib/art/multiart.py):
 an image shows in one tile only (matched by the helper's image identity, a TMDb
 file name in any size) unless a tile has no other image free; a joined family; the
 first frame (multiart_first) leading a family; seed_multiart's blind seed under a
-dialog and its seed keys; a served slide's art. Run from the helper root:
+dialog and its seed keys; a served slide's art; multiart_family's items, opened
+on the register's image. Run from the helper root:
 python tests/multiart_offline.py
 """
 
@@ -323,6 +324,45 @@ class SlideArt(unittest.TestCase):
             delete.call_args_list,
             [mock.call(str(temps / "copy.png")), mock.call(str(temps / "text.png"))],
         )
+
+
+class Family(unittest.TestCase):
+    """multiart_family: one item a slide, wrapped round to the register's image."""
+
+    ART = {"ListItem.Art(poster)": "p", "ListItem.Art(poster1)": "p1"}
+
+    def family(self, shown: str, register: str | None = "3402") -> list[str]:
+        from resources.lib.plugin import handlers
+
+        params = {"info": "multiart_family", "art": "poster"}
+        if register:
+            params["register"] = register
+        labels = lambda target, keys: {k: self.ART.get(f"{target}.{k}") for k in keys}
+        with (
+            mock.patch.object(multiart, "get_infolabels", labels),
+            mock.patch.object(handlers, "infolabel", return_value=shown) as read,
+            mock.patch.object(handlers, "set_items", list),
+            mock.patch.object(handlers.PluginHandlers, "_info_on_top", lambda _: True),
+        ):
+            items = handlers.PluginHandlers(params).multiart_family()
+        self.assertEqual(read.called, bool(register))
+        self.assertEqual(
+            [item["file"].rpartition("/")[2] for item in items],
+            [str(i) for i in range(len(items))],
+        )
+        return [item["art"]["multiart"] for item in items]
+
+    def test_opens_on_the_shown_image_and_wraps(self):
+        self.ART = self.ART | {"ListItem.Art(poster2)": "p2"}
+        self.assertEqual(self.family("p1"), ["p1", "p2", "p"])
+
+    def test_an_image_not_in_the_family_opens_on_the_main(self):
+        self.assertEqual(self.family("other"), ["p", "p1"])
+        self.assertEqual(self.family("", register=None), ["p", "p1"])
+
+    def test_one_image_is_one_item(self):
+        self.ART = {"ListItem.Art(poster)": "p"}
+        self.assertEqual(self.family("p"), ["p"])
 
 
 if __name__ == "__main__":
