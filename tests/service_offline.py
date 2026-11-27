@@ -5,7 +5,9 @@ still start; helper_speed_dial follows the skin naming info=speed_dial; each ski
 keeps its own runtime state; a script rebuild sets and clears helper_reloading, and
 the editor close and delete_orphans reload only when the build wrote (or for a host
 open once the session has closed), else clear it. Under the screensaver only lyrics
-follow, while audio plays. played_version moves only for a counted play. A trailer
+follow, while audio plays. played_version moves only for a counted play. Subtitles
+match the preferred languages as codes on Omega and Kodi 22, never prefer a
+commentary, and step through several languages in turn. A trailer
 request that lands under a modal is dropped. A clashing add-on's feature turned on or
 off queues the clashes check. A skin switch, update or reload drops the loaded fonts.
 A template edited without a version bump rebuilds on the next start.
