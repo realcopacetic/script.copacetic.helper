@@ -456,14 +456,14 @@ class Server:
                     else []
                 )
                 handled = time.perf_counter()
-                if items is None and not (retried or stale()):
+                if stale():
+                    return  # a move came: a ring follows
+                if items is None and not retried:
                     # Its guard or reads met a dialog (a menu, or one that flashed
                     # by): nothing rings after it, so the probe is read again on top
                     retried = True
                     continue
-                if items is None or stale():
-                    if stale():
-                        return  # a move came: a ring follows
+                if items is None:
                     # Stopped twice on this text: the net lets it be, and goes on to
                     # the lists after it, for which no ring follows
                     self.failed[(window_id, list_id)] = params
