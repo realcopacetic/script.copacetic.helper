@@ -421,6 +421,26 @@ class ArtDetailsTest(unittest.TestCase):
             self.assertIsNone(art.look_up(path, lambda: on[0]))
         self.assertEqual(self.asked, [])
 
+    def test_stopped_during_the_last_wait_keeps_no_verdict(self):
+        # the last call's stale row (no works listed) comes back: no miss is kept
+        on, cache_ = [True], ApiCacheHandler()
+        queue = mock.patch.object(wikidata, "NEXT_CALL", "copacetic.wikidata_next")
+        queue.start()
+        self.addCleanup(queue.stop)
+        painter = {"qid": "Q44054", "label": ""}  # found, fresh
+        cache_.put("wikidata:artist:franzmarc", painter, cache.DAY)
+        cache_.put("wikidata:works:Q44054", [], -10)
+        HOME.setProperty(wikidata.NEXT_CALL, f"{time.time() + 1}")  # a slot ahead
+
+        def off(monitor, seconds):
+            on[0] = False
+            return False
+
+        path = f"{FOLDER}Franz Marc - 'Foxes' (1913).jpg"
+        with mock.patch.object(Monitor, "waitForAbort", off):
+            self.assertIsNone(art.look_up(path, lambda: on[0]))
+        self.assertEqual((self.asked, art.verdict(path)), ([], None))
+
     def test_refresh(self):
         path = f"{FOLDER}Franz Marc - 'Tiger' (1912).jpg"
         art.look_up(path, ALIVE)
