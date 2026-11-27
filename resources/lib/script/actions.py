@@ -57,6 +57,7 @@ from resources.lib.shared.utilities import (
     container_position,
     infolabel,
     json_call,
+    library_details,
     notify_build_failed,
     parse_bool,
     play_files,
@@ -627,8 +628,6 @@ def play_album_from_track(id: str, **kwargs: str) -> None:
 
     :param id: Song ID.
     """
-    from resources.lib.plugin.library import library_details
-
     songid = to_int(id)
     if not (
         song := library_details("song", songid, ["albumid"], "play_album_from_track")
@@ -923,8 +922,6 @@ def _info_item(key: str) -> xbmcgui.ListItem | None:
         return item
     if dbtype == "season" or dbtype not in DETAILS:
         return None
-    from resources.lib.plugin.library import library_details
-
     properties = ["title", "plot" if dbtype == "set" else "file"]
     if not (found := library_details(dbtype, dbid, properties, "info")):
         return None
@@ -1554,8 +1551,6 @@ def _mix_seed(type: str, dbid: int) -> dict | None:
     """
     properties = ["file", "artist", "artistid", "albumartist", "genre"]
     if type == "song":
-        from resources.lib.plugin.library import library_details
-
         return library_details("song", dbid, properties, "start_mix")
     if type == "artist":  # not a guest spot on another's album, while they have one
         from resources.lib.plugin.music import artist_identity

@@ -10,11 +10,17 @@ from typing import Callable, Iterable, Iterator
 from xbmc import getLocalizedString
 from xbmcgui import ListItem
 
-from resources.lib.plugin.library import DirectoryItem, library_details
+from resources.lib.plugin.library import DirectoryItem
 from resources.lib.plugin.setter import apply_musicinfotag, joined
 from resources.lib.shared.genres import genre_bucket
 from resources.lib.shared.mix import credits
-from resources.lib.shared.utilities import ADDON, VERSION, fold, json_call
+from resources.lib.shared.utilities import (
+    ADDON,
+    VERSION,
+    fold,
+    json_call,
+    library_details,
+)
 
 _DETAILS = {
     "album": ["displayartist", "genre", "title", "userrating", "year"],
