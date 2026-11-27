@@ -1137,6 +1137,19 @@ class Skin:
                         message = f'<control type="{control.get("type")}" /> in {name}'
                         self.report("empty-control", control.src, message)
 
+    def check_buried_nested(self) -> None:
+        """
+        Report a ``<nested />`` below a definition's top elements' children: Omega's
+        ``InsertNested`` looks no deeper, so the caller's content is dropped there.
+        """
+        for name in self.defs["include"]:
+            for top in elements(self.body(name)):
+                for child in elements(top):
+                    for nested in child.iter("nested"):
+                        if nested is not child:
+                            message = f"{name}: Kodi fills no <nested /> this deep"
+                            self.report("buried-nested", nested.src, message)
+
     def lint(
         self,
         windows: list[str] | None = None,
@@ -1178,6 +1191,7 @@ class Skin:
             message = MEDIA_MESSAGE.format(info=info, where=", ".join(sorted(contexts)))
             self.report("media-window-info", src, message)
         self.check_params()
+        self.check_buried_nested()
         for (cid, srcs), windows in self.duplicates.items():
             where = ", ".join(
                 f"{src} ×{n}" if n > 1 else src for src, n in Counter(srcs).items()
