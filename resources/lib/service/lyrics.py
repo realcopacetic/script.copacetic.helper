@@ -66,8 +66,10 @@ Song = tuple[str, str, str, int]  # (artist, title, album, seconds)
 # (source, synced, plain, instrumental)
 Found = tuple[str, list | None, str | None, bool]
 NONE = ("", None, None, False)
-# A library song's details for library(); library_song() makes its LRCLIB key
-SONG_FIELDS = ["file", "displayartist", "title", "album", "duration"]
+# A library song's LRCLIB key fields (library_song), what MusicPlayer.Artist, Title,
+# Album and Duration read playing it; then its details for library()
+KEY_FIELDS = ("displayartist", "title", "album", "duration")
+SONG_FIELDS = ["file", *KEY_FIELDS]
 _fetches = {}  # LRCLIB lookups in flight, by song
 
 
@@ -135,17 +137,17 @@ def _played(path: str) -> str:
     return infolabel("MusicPlayer.Lyrics")
 
 
-def find(path: str, embedded: Callable[[str], str] = _played) -> Found | None:
+def find(path: str, library: bool = False) -> Found | None:
     """
-    A song's lyrics from a .lrc beside it, else its tags: the playing song's by
-    default (a stream has no file beside it), or another's by embedded(path).
+    A song's lyrics from a .lrc beside it, else its tags: the playing song's as Kodi
+    read them at play (a stream has no file beside it), or a library song's file's.
 
     :param path: The song's file.
-    :param embedded: Reads the file's tagged lyrics.
+    :param library: The song isn't the playing one: its tags are read from the file.
     :return: (source, synced lines, plain text, instrumental); None when neither has any.
     """
-    readers = [("file", _sidecar), ("embedded", embedded)]
-    if embedded is _played and condition("Player.IsInternetStream"):
+    readers = [("file", _sidecar), ("embedded", tags.lyrics if library else _played)]
+    if not library and condition("Player.IsInternetStream"):
         del readers[0]
     for source, read in readers:
         text = read(path)
@@ -198,11 +200,10 @@ def library_song(details: dict[str, Any]) -> Song:
     A library song as song() reads it playing, so both share one LRCLIB cache row:
     MusicPlayer.Artist is its display artist, MusicPlayer.Duration its length.
 
-    :param details: Its details, SONG_FIELDS.
+    :param details: Its details, KEY_FIELDS at least.
     :return: (artist, title, album, seconds).
     """
-    fields = ("displayartist", "title", "album", "duration")
-    return tuple(details[field] for field in fields)
+    return tuple(details[field] for field in KEY_FIELDS)
 
 
 def _ask(song: Song, live: Callable[[], bool]) -> dict[str, Any] | None:
@@ -236,7 +237,7 @@ def library(song: dict[str, Any], again: Asker | None) -> str | None:
     """
     key = library_song(song)
     try:
-        found = find(song["file"], tags.lyrics)
+        found = find(song["file"], library=True)
     except Exception:  # a file's bytes: a tag that breaks the reader reads as none
         log.exception(f"lyrics → the tags of {song['file']} failed")
         found = None

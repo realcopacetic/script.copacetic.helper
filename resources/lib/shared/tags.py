@@ -1,18 +1,22 @@
 # author: realcopacetic
 
 """
-A song file's embedded lyrics, read from the tags Kodi's own loader reads them from
+A song file's embedded lyrics, from tags Kodi's own loader reads them from
 (music/tags/TagLoaderTagLib.cpp): an ID3v2 USLT frame (MP3) and a FLAC file's LYRICS
-comment. Kodi fills a song's lyrics only at play, so another song's are read here.
+comment. Not read: Ogg Vorbis and Opus comments, APE tags (Monkey's Audio, WavPack,
+Musepack); their lyrics come from LRCLIB. Kodi fills a song's only at play.
 """
+
+from collections.abc import Callable
 
 import xbmcvfs
 
-ID3 = 10  # bytes: an ID3v2 tag's header
+ID3 = 10  # bytes: an ID3v2 tag's header, and its footer
 # ID3v2's text encodings by their byte: Latin-1, UTF-16 with a byte order mark,
 # UTF-16 big-endian, UTF-8
 ENCODINGS = ("latin-1", "utf-16", "utf-16-be", "utf-8")
 VORBIS_COMMENT = 4  # a FLAC metadata block's type
+Read = Callable[[int, int], bytes]  # (position, size) -> the bytes there
 
 
 def lyrics(path: str) -> str:
@@ -23,12 +27,19 @@ def lyrics(path: str) -> str:
     :return: The text; "" for none, or a format Kodi reads no lyrics from.
     """
     with xbmcvfs.File(path) as file:
-        head = bytes(file.readBytes(ID3))
-        if head[:3] == b"ID3":
-            return _id3(file, head)
-        if head[:4] == b"fLaC":
-            return _flac(file)
-    return ""
+
+        def read(pos: int, size: int) -> bytes:
+            file.seek(pos, 0)
+            return bytes(file.readBytes(size)) if size else b""  # 0 reads the rest
+
+        head, start = read(0, ID3), 0
+        if head[:3] == b"ID3":  # an MP3's tag, or one ahead of a FLAC stream
+            start = ID3 + _syncsafe(head[6:10]) + (ID3 if head[5] & 0x10 else 0)
+            if read(start, 4) != b"fLaC":
+                return _id3(read, head)
+        elif head[:4] != b"fLaC":
+            return ""
+        return _flac(read, start + 4)
 
 
 def _syncsafe(data: bytes) -> int:
@@ -44,44 +55,45 @@ def _syncsafe(data: bytes) -> int:
     return size
 
 
-def _id3(file: xbmcvfs.File, head: bytes) -> str:
+def _id3(read: Read, head: bytes) -> str:
     """
-    The first USLT frame's text (ULT in v2.2), frame by frame through the tag. A
-    compressed or encrypted frame reads as none.
+    The last USLT frame's text (ULT in v2.2), as Kodi keeps, frame by frame through
+    the tag; a compressed or encrypted frame is passed over.
 
-    :param file: The file.
+    :param read: Reads the file.
     :param head: The tag's header.
     :return: The text; "" for none.
     """
     version, flags, end = head[3], head[5], ID3 + _syncsafe(head[6:10])
+    if version < 4 and flags & 0x80:  # the whole tag unsynchronised: undone in memory
+        data = bytes(ID3) + read(ID3, end - ID3).replace(b"\xff\x00", b"\xff")
+        read, end = (lambda pos, size: data[pos : pos + size]), len(data)
     pos = ID3
     if flags & 0x40:  # an extended header: v2.4's size counts itself, v2.3's doesn't
-        size = bytes(file.readBytes(4))
+        size = read(pos, 4)
         pos += _syncsafe(size) if version == 4 else 4 + int.from_bytes(size, "big")
     # v2.2's frames: a 3-letter name and 3-byte size; later ones 4 and 4, then 2 flags
     name, header = (b"USLT", 10) if version > 2 else (b"ULT", 6)
+    # v2.4's flags: grouping 0x40, compressed 0x08, encrypted 0x04, unsynchronised
+    # 0x02, data length 0x01; v2.3's: compressed 0x80, encrypted 0x40, grouping 0x20
+    skipped, grouped = (0x0C, 0x40) if version == 4 else (0xC0, 0x20)
+    found = ""
     while pos + header <= end:
-        file.seek(pos, 0)
-        frame = bytes(file.readBytes(header))
+        frame = read(pos, header)
         if frame[:1] in (b"", b"\0"):
-            return ""  # the padding after the last frame, or the file's end
+            break  # the padding after the last frame, or the file's end
         field = frame[len(name) : len(name) * 2]
         size = _syncsafe(field) if version == 4 else int.from_bytes(field, "big")
-        pos += header + size
-        if frame[: len(name)] != name:
-            continue
         status = frame[9] if version > 2 else 0
-        if status & (0x0C if version == 4 else 0xC0):
-            return ""
-        body = bytes(file.readBytes(size))
-        if version == 4 and status & 0x01:  # a data length ahead of the text
-            body = body[4:]
-        # Unsynchronised: v2.4 marks each frame, v2.3 the whole tag
-        unsynced = status & 0x02 if version == 4 else flags & 0x80
-        if unsynced:
-            body = body.replace(b"\xff\x00", b"\xff")
-        return _uslt(body)
-    return ""
+        if frame[: len(name)] == name and not status & skipped:
+            # A grouping byte, then v2.4's data length, ahead of the text
+            ahead = bool(status & grouped) + (4 if version == 4 and status & 1 else 0)
+            body = read(pos + header, size)[ahead:]
+            if version == 4 and status & 0x02:
+                body = body.replace(b"\xff\x00", b"\xff")
+            found = _uslt(body)
+        pos += header + size
+    return found
 
 
 def _uslt(body: bytes) -> str:
@@ -105,22 +117,22 @@ def _uslt(body: bytes) -> str:
     return rest[cut + step :].decode(ENCODINGS[encoding[0]], "replace").strip("\0")
 
 
-def _flac(file: xbmcvfs.File) -> str:
+def _flac(read: Read, pos: int) -> str:
     """
-    The LYRICS comment of a FLAC file's VORBIS_COMMENT block, block by block.
+    The LYRICS comment of a FLAC stream's VORBIS_COMMENT block, block by block.
 
-    :param file: The file, read past its fLaC mark.
+    :param read: Reads the file.
+    :param pos: The first block's place, past the fLaC mark.
     :return: The text; "" for none.
     """
-    pos, last = 4, False
+    last = False
     while not last:
-        file.seek(pos, 0)
-        if len(block := bytes(file.readBytes(4))) < 4:
+        if len(block := read(pos, 4)) < 4:
             return ""
         last, kind = block[0] & 0x80, block[0] & 0x7F
         size = int.from_bytes(block[1:], "big")
         if kind == VORBIS_COMMENT:
-            return _comment(bytes(file.readBytes(size)))
+            return _comment(read(pos + 4, size))
         pos += 4 + size
     return ""
 

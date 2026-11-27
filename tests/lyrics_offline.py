@@ -668,10 +668,16 @@ def id3_frame(name, data, version=4):
     return name + size + b"\0\0" + data
 
 
-def id3(*frames, version=4):
-    """An ID3v2 tag of frames and 20 bytes of padding, then a little audio."""
+def id3(*frames, version=4, unsync=False, audio=b"\xff\xfb"):
+    """
+    An ID3v2 tag of frames and 20 bytes of padding, then the audio; unsync: the
+    whole tag unsynchronised (v2.3's flag), a 0 after every 0xFF.
+    """
     body = b"".join(frames) + b"\0" * 20
-    return b"ID3" + bytes([version, 0, 0]) + syncsafe(len(body)) + body + b"\xff\xfb"
+    if unsync:
+        body = body.replace(b"\xff", b"\xff\x00")
+    flags = bytes([version, 0, 0x80 if unsync else 0])
+    return b"ID3" + flags + syncsafe(len(body)) + body + audio
 
 
 def flac(*comments, picture=b""):
@@ -726,6 +732,34 @@ class LibrarySongTest(Kodi):
         path = self.song(id3(id3_frame(b"USLT", utf16, version=3), version=3))["file"]
         self.assertEqual(lyrics.tags.lyrics(path), VERSES)
         self.assertEqual(lyrics.tags.lyrics(self.song(id3())["file"]), "")
+
+    def test_id3_v23_unsynchronised_tag_read_in_memory(self):
+        # The art's 0xFF bytes push every frame after it on: its sizes count the
+        # bytes once the tag is undone, as v2.3 sets them
+        art = id3_frame(b"APIC", b"\0image/jpeg\0\3\0" + b"\xff\xe0" * 300, version=3)
+        words = "Paper lanterns ÿ over the harbour"  # Latin-1 0xFF in the text too
+        lyric = id3_frame(b"USLT", b"\0eng\0" + words.encode("latin-1"), version=3)
+        song = self.song(id3(art, lyric, version=3, unsync=True))
+        self.assertEqual(lyrics.tags.lyrics(song["file"]), words)
+
+    def test_id3_last_lyrics_frame_wins_past_grouping_and_length(self):
+        first = id3_frame(b"USLT", b"\3eng\0Salt on the window")
+        # v2.4: a grouping byte (0x40) and a data length (0x01) ahead of the text
+        data = b"\7" + syncsafe(30) + b"\3eng\0" + VERSES.encode()
+        size = syncsafe(len(data))
+        last = b"USLT" + size + b"\0" + bytes([0x41]) + data
+        self.assertEqual(
+            lyrics.tags.lyrics(self.song(id3(first, last))["file"]), VERSES
+        )
+        grouped = data[:1] + data[5:]  # v2.3: the grouping byte (0x20) alone
+        frame = b"USLT" + len(grouped).to_bytes(4, "big") + b"\0\x20" + grouped
+        song = self.song(id3(first, frame, version=3))
+        self.assertEqual(lyrics.tags.lyrics(song["file"]), VERSES)
+
+    def test_flac_behind_an_id3_tag(self):
+        data = id3(id3_frame(b"TIT2", b"\3x"), audio=flac(f"LYRICS={VERSES}"))
+        path = self.song(data, "Paper Lanterns.flac")["file"]
+        self.assertEqual(lyrics.tags.lyrics(path), VERSES)
 
     def test_flac_lyrics_comment_past_its_picture(self):
         data = flac("TITLE=Paper Lanterns", f"lyrics={VERSES}", picture=b"\0" * 50000)
@@ -811,13 +845,11 @@ class LibrarySongTest(Kodi):
         handler = handlers.PluginHandlers(params, again=again)
         with (
             patch.object(handlers, "set_items", list),
-            patch.object(handlers, "condition", lambda key: key in self.conditions),
             patch.object(handlers, "library_details", lambda *args: song),
         ):
             return handler.lyrics_plain()
 
     def test_the_song_listing_pending_then_lines(self):
-        self.conditions.add(lyrics.ENABLED)
         song = self.song()
         with patch.object(lyrics.ASIDES, "ask", lambda *a: None):
             self.assertEqual(
@@ -844,12 +876,11 @@ class LibrarySongTest(Kodi):
             ],
         )
 
-    def test_the_song_listing_is_off_with_the_lyrics_setting(self):
+    def test_the_song_listing_keys_on_no_skin_setting(self):
         song = self.song(id3(id3_frame(b"USLT", b"\3eng\0" + VERSES.encode())))
-        self.assertEqual(self.serve(song), [])  # Skin.HasSetting(lyrics) is off
-        self.conditions.add(lyrics.ENABLED)
-        self.assertEqual(len(self.serve(song)), 2)
+        self.assertEqual(len(self.serve(song)), 2)  # Skin.HasSetting(lyrics) off
         self.assertEqual(self.serve(None), [])  # an id Kodi no longer has
+        self.assertEqual(self.serve(song, id="0"), [])  # not a library song
 
 
 class PluginAndActionTest(unittest.TestCase):

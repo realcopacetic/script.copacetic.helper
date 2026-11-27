@@ -333,9 +333,10 @@ kind of items, from the same sources in the same order: a `.lrc` beside the file
 tags (an MP3's ID3v2 lyrics frame or a FLAC file's `LYRICS` comment, the ones Kodi
 reads), then LRCLIB's saved answer. Synced lyrics come without their time stamps, one
 item per line, an empty one between verses. An instrumental, or none found, lists
-nothing; so does every song while the skin's `lyrics` setting is off, the switch the
-[CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on. A song LRCLIB has never
-been asked for is asked then (with the helper's LRCLIB setting on): a plugin call
+nothing. Ask for it only while your skin shows lyrics, say behind its `lyrics`
+setting, the switch the [CU LRC Lyrics clash](index.md#add-ons-that-clash) keys on.
+A song LRCLIB has never been asked for is asked then (with the helper's LRCLIB
+setting on): a plugin call
 waits for the answer; a [served](serve.md) call answers at
 once with one empty item carrying `lyrics_pending` = `true`, and serves the list again
 when LRCLIB's answer lands, so the skin can mask lines that arrive late. The playing
