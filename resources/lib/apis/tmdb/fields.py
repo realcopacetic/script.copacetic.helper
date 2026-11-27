@@ -156,12 +156,6 @@ TMDB_FIELD_MAP = {
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p"
 YOUTUBE_PLUGIN_BASE = "plugin://plugin.video.youtube/play/?video_id="
-TMDB_TRANSFORMS = (
-    "pick_best_trailer",
-    "list_top_trailers",
-    "extract_creator_names",
-    "extract_creator_ids",
-)
 
 
 def apply_tmdb_transform(name: str, value: Any) -> Any:
@@ -170,17 +164,11 @@ def apply_tmdb_transform(name: str, value: Any) -> Any:
 
     :param name: Transform identifier (for example, "pick_best_trailer").
     :param value: Raw value extracted from TMDb JSON.
-    :return: Transformed value, or original value if unknown or invalid.
+    :return: Transformed value, or original value if unknown.
     """
-    if name not in TMDB_TRANSFORMS:
-        log.debug(f"apply_tmdb_transform → unknown {name=}, {value=}")
-        return value
-
-    func = globals().get(name)
-    if callable(func):
+    if func := TMDB_TRANSFORMS.get(name):
         return func(value)
-
-    log.debug(f"apply_tmdb_transform → missing callable for {name=}, {value=}")
+    log.debug(f"apply_tmdb_transform → unknown {name=}, {value=}")
     return value
 
 
@@ -189,7 +177,7 @@ def _iter_mappings(value: Any) -> Iterator[Mapping[str, Any]]:
     Iterate Mapping items from a list, skipping non-Mapping entries.
 
     :param value: Any value, expected to be a list of Mapping items.
-    :yield: Each Mapping in the list, in order.
+    :yields: Each Mapping in the list, in order.
     """
     if not isinstance(value, list):
         return
@@ -377,3 +365,12 @@ def assign_image_list_to_art(
         art[label], *urls_list = urls_list
     for index, url in enumerate(urls_list, start=1):
         art[f"{label}{index}"] = url
+
+
+# The transforms TMDB_FIELD_MAP's "transform" names, by name
+TMDB_TRANSFORMS = {
+    "pick_best_trailer": pick_best_trailer,
+    "list_top_trailers": list_top_trailers,
+    "extract_creator_names": extract_creator_names,
+    "extract_creator_ids": extract_creator_ids,
+}
