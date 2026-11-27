@@ -10,7 +10,8 @@ newer ring, a window change or a moved mark drops it unbound; a list a dialog co
 mid-run is owed again; a list bound for the arrival from the same probe text
 (Property(params)) is not served again, any other list is; the net's bare serve serves
 the window on top's last request, is let be while a request waits or runs, and lets be
-a list whose handler stopped twice on the same text; a ring with no lists serves the
+a list whose handler stopped twice on the same text, and a bind clears its quiet (an
+info dialog's swap back is served); a ring with no lists serves the
 window's last request under its own mark; again() serves one list of it (the whole
 arrival once its serve stopped short, beside an again's own lists, only for the arrival
 that asked, as a handler's late answer asks, once per list and arrival; one asked
@@ -495,6 +496,20 @@ class ServeTest(unittest.TestCase):
         self._drive(server, labels, [settle, late, serve.Request()])
         self.assertIn((9301, "logo&late"), server.binds_seen)
         self.assertEqual(server.failed, {(10025, 9300): "a&stop"})
+
+    def test_a_bind_clears_the_net_quiet(self) -> None:
+        server = _server()
+        settle = SETTLE._replace(lists=_lists(9000))
+        labels = self._net_world(server, lambda params, superseded, again, cursors: [])
+        show = lambda item: lambda: labels.update(
+            {"Control.GetLabel(6900)": f"info=metadata&item={item}"}
+        )
+        show("a")()
+        net = serve.Request()
+        # A net on a binds nothing (it holds a); Information swaps to b, then back
+        self._drive(server, labels, [settle, net, show("b"), net, show("a"), net])
+        served = [params for _, params in server.binds_seen]
+        self.assertEqual(served, [f"info=metadata&item={i}" for i in "aba"])
 
     def test_a_net_ring_as_the_worker_wakes_never_replaces_the_arrival(self) -> None:
         server = _server()
