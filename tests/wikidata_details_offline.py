@@ -549,6 +549,38 @@ class DetailsTest(WikidataCase):
             self.assertIsNone(wd.details(DUNE, wd.wanted))
         self.assertEqual(self.asked, [])
 
+    def test_stopped_during_the_last_wait_keeps_nothing(self):
+        # the setting turns off while the last call waits: its stale row comes back,
+        # but the details built from it are not kept
+        wd.details(DUNE, ALIVE)
+        rows = [*ApiCacheHandler().starting("wikidata:")]
+        home, queue, waits = cache.Window(10000), "test.wikidata_next", []
+
+        def wait(monitor, seconds=0):
+            waits.append(seconds)
+            home.setProperty(queue, f"{time.time() + 0.5}")  # the next call waits too
+            self.setting = len(waits) != last
+            return False
+
+        def run():
+            for key, payload in rows:
+                ApiCacheHandler().put(key, payload, -10)  # all stale, the details too
+            waits.clear()
+            home.setProperty(queue, f"{time.time() + 0.5}")
+            with (
+                mock.patch.object(wikidata, "NEXT_CALL", queue),
+                mock.patch.object(Monitor, "waitForAbort", wait),
+            ):
+                return wd.details(DUNE, wd.wanted)
+
+        last = 0  # never stopped: asked again and kept
+        self.assertTrue(run())
+        self.assertTrue(wd.kept(DUNE)[1])
+        last, self.asked = len(waits), []
+        self.assertIsNone(run())
+        self.assertEqual(len(self.asked), last - 1)  # each call but the last asked
+        self.assertFalse(wd.kept(DUNE)[1])
+
     def test_a_busy_queue_is_waited_out(self):
         # cached skips a request over MAX_WAIT ahead: the look-up, aside, waits a
         # second at a time while it is live, and asks once the queue frees
