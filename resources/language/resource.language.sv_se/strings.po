@@ -225,7 +225,7 @@ msgctxt "#32034"
 msgid "Clear ListenBrainz data"
 msgstr "Rensa ListenBrainz-data"
 
-#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB.
+#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB or Wikidata.
 #: /resources/lib/script/actions.py
 msgctxt "#32035"
 msgid "Forget every saved %s answer? Each is fetched again when next shown."
@@ -301,8 +301,8 @@ msgstr "Wikidata"
 
 #: /resources/settings.xml
 msgctxt "#32048"
-msgid "Look up paintings on Wikidata"
-msgstr "Slå upp målningar på Wikidata"
+msgid "Look up details on Wikidata"
+msgstr "Slå upp detaljer på Wikidata"
 
 #: /resources/settings.xml
 #: /resources/lib/script/actions.py
@@ -454,8 +454,8 @@ msgstr "Slår på igen varje tillägg som hjälptillägget slog av för att det 
 #. "Look up art details" is string #32847: use the same words. Keep Wikidata and Wikipedia as they are.
 #: /resources/settings.xml
 msgctxt "#32148"
-msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia. Only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. No account needed. Off: nothing sent."
-msgstr "Konstnär, år, teknik, samling, mått och en sammanfattning för målningar i dina bildmappar, från Wikidata och Wikipedia. Bara i mappar du väljer: Slå upp konstdetaljer i en mapps snabbmeny. En fil matchas efter sitt namn, som Konstnär - Titel (År), första gången du stannar på den; namnet skickas till Wikidata. Inget konto behövs. Av: inget skickas."
+msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia; for films, TV shows, artists and albums in your library, details such as who wrote the music, the book a story is based on, record labels and producers. Paintings only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. A library item is found by its TMDb, IMDb or MusicBrainz id, which is sent when the skin shows its details. No account needed. Off: nothing sent."
+msgstr "Konstnär, år, teknik, samling, mått och en sammanfattning för målningar i dina bildmappar, från Wikidata och Wikipedia; för filmer, TV-serier, artister och album i ditt bibliotek, detaljer som vem som skrev musiken, boken en berättelse bygger på, skivbolag och producenter. Målningar bara i mappar du väljer: Slå upp konstdetaljer i en mapps snabbmeny. En fil matchas efter sitt namn, som Konstnär - Titel (År), första gången du stannar på den; namnet skickas till Wikidata. Ett biblioteksobjekt hittas via sitt TMDB-, IMDb- eller MusicBrainz-id, som skickas när skalet visar dess detaljer. Inget konto behövs. Av: inget skickas."
 
 #: /resources/settings.xml
 msgctxt "#32149"

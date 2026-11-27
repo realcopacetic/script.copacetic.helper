@@ -225,7 +225,7 @@ msgctxt "#32034"
 msgid "Clear ListenBrainz data"
 msgstr "清除 ListenBrainz 数据"
 
-#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB.
+#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB or Wikidata.
 #: /resources/lib/script/actions.py
 msgctxt "#32035"
 msgid "Forget every saved %s answer? Each is fetched again when next shown."
@@ -301,8 +301,8 @@ msgstr "Wikidata"
 
 #: /resources/settings.xml
 msgctxt "#32048"
-msgid "Look up paintings on Wikidata"
-msgstr "在 Wikidata 上查找画作"
+msgid "Look up details on Wikidata"
+msgstr "在 Wikidata 上查找详情"
 
 #: /resources/settings.xml
 #: /resources/lib/script/actions.py
@@ -454,8 +454,8 @@ msgstr "重新开启助手因皮肤已具备相同功能（歌词、下一集提
 #. "Look up art details" is string #32847: use the same words. Keep Wikidata and Wikipedia as they are.
 #: /resources/settings.xml
 msgctxt "#32148"
-msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia. Only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. No account needed. Off: nothing sent."
-msgstr "从 Wikidata 和 Wikipedia 为图片文件夹中的画作获取画家、年份、材质、收藏地、尺寸和简介。仅限你选择的文件夹：在文件夹的上下文菜单中选择“查找艺术详情”。文件按名称匹配，格式为 画家 - 标题 (年份)，在你首次停留时进行；名称会发送到 Wikidata。无需账户。关闭：不发送任何内容。"
+msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia; for films, TV shows, artists and albums in your library, details such as who wrote the music, the book a story is based on, record labels and producers. Paintings only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. A library item is found by its TMDb, IMDb or MusicBrainz id, which is sent when the skin shows its details. No account needed. Off: nothing sent."
+msgstr "从 Wikidata 和 Wikipedia 为图片文件夹中的画作获取画家、年份、材质、收藏地、尺寸和简介；为资料库中的电影、电视剧、歌手和专辑获取作曲者、故事改编自的书籍、唱片公司和制作人等详情。画作仅限你选择的文件夹：在文件夹的上下文菜单中选择“查找艺术详情”。文件按名称匹配，格式为 画家 - 标题 (年份)，在你首次停留时进行；名称会发送到 Wikidata。资料库项目通过其 TMDB、IMDb 或 MusicBrainz ID 查找，该 ID 会在皮肤显示其详情时发送。无需账户。关闭：不发送任何内容。"
 
 #: /resources/settings.xml
 msgctxt "#32149"
