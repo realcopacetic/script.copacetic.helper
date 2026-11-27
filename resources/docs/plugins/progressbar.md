@@ -57,6 +57,8 @@ Put the other controls inside the group. Their positions are relative to the gro
 | `centre_id` | control id | none | A control in the group to centre across on the bar (see the table above). |
 | `album_days` | whole number | `14` | How far back a song's last play counts towards an [album's](#albums) progress. |
 | `resolution_span` | whole number | none | Measure a [picture](#pictures): the bar is its long edge against this many pixels. |
+| `picture_edges` | `true`, `false` | `false` | With `resolution_span`: also return the picture's width and height apart (`picture_width`, `picture_height`), so the skin can draw its own sign between them. |
+| `picture_name_chars` | whole number | none | With `resolution_span`: also return the file's name in `picture_name`, cut with `…` to this many characters less those of its width, height and size: for a file line in a monospaced font, where the skin's own separators are left out of the count. |
 | `new_days` | whole number | `30` | How long an item stays `new`: a film or album was added, an episode first aired, or for a show or season (see `new_kind`) the show was added or its unwatched episodes first aired, at most this many days ago. It also bounds `new_episode`: TMDB's last aired episode must have aired within it. |
 | `follow_tmdb` | `true`, `false` | `false` | Served only: follow the metadata serve's TMDB fetch for the same show (asked on a thread of its own when its entry is missing or stale), so the airing, aired and returning rows come on a first focus with nothing cached. The bar's item carries `tmdb_pending` `true` meanwhile and is served again when the fetch ends, news or not. It follows only a fetch already asked, so the ring's `lists=` must name the metadata list (with `enrich_with_tmdb`, or a season's `show_creators`) before the bar's, as Copacetic's do (`9000:6900.9010:6910`): a bar served first finds nothing to follow. Turn it on only if the skin masks that re-serve (below): its labels change in place. |
 | `rewatch_days` | whole number | none | Turns [rewatches](#rewatches) on, and says how long one lasts unplayed: it ends once its latest play is more than this many days ago. Without it (or `0`) there are no rewatches and no episode read before the bar moves. Copacetic passes its *Rewatch ends after* setting (default 90). |
@@ -175,6 +177,8 @@ One list item in the helper container:
 | `ListItem.Property(album)` | `true` for a library album; empty otherwise. |
 | `ListItem.Property(picture_resolution)` | With `resolution_span` only: the focused item's `ListItem.PictureResolution`, e.g. `1920 x 1520`; empty when Kodi couldn't read it. |
 | `ListItem.Property(picture_size)` | With `resolution_span` only: the focused item's `ListItem.Size`, e.g. `1.4 MB`. |
+| `ListItem.Property(picture_width)`, `picture_height` | With `picture_edges`: the picture's edges from `ListItem.PictureResolution`, e.g. `1920` and `1520`; empty when Kodi couldn't read it. |
+| `ListItem.Property(picture_name)` | With `picture_name_chars`: the focused item's `ListItem.FileName`, cut to fit with `…`. |
 | `ListItem.Property(album_next_track)` | A part-heard album's [resume point](#albums): the next track's number, e.g. `8`. |
 | `ListItem.Property(album_next_title)` | With `album_next_track`: that song's title. |
 | `ListItem.Property(album_next_disc)` | With `album_next_track`, on an album of more than one disc: that song's disc number, e.g. `2`. |

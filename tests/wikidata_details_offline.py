@@ -1259,7 +1259,11 @@ class BandTest(unittest.TestCase):
         self.assertEqual(bio(10), {"wikidata_known_for_1": "works"})  # never none
         self.assertTrue(all("+" not in chip for chip in bio(full).values()))
         # a caption wider than its column's chips counts: Genre's 300 drops Worked in
-        self.assertNotIn("wikidata_worked_in_1", bio(full, {"genre": 300}))
+        captioned = bio(full, {"genre": 300})
+        self.assertNotIn("wikidata_worked_in_1", captioned)
+        # ... and is flagged for the skin to lay out at its caption's width (N227)
+        self.assertEqual(captioned["wikidata_genre_caption_wide"], "true")
+        self.assertNotIn("wikidata_known_for_caption_wide", captioned)
         # an artist's: Awards, then Influenced by, which goes first
         artist = {"awards": ["award", "prize", "medal"], "influences": ["Prince"]}
         fitted = wd.bio_band("artist", artist, chip, 300, (60, 15), {})
