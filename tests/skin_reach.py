@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from build_offline import HELPER, build_isolated, install_stubs
 from skin_lint import (
+    FIELD,
     GENERATED,
     Node,
     Skin,
@@ -89,13 +90,38 @@ def every_row(manager: RuntimeStateManager) -> dict:
     return state
 
 
-def variants(manager: RuntimeStateManager, state: dict) -> dict[str, dict]:
+def written_fields(skin: Path) -> set[str]:
+    """
+    The row fields the settings editor writes: each control's ``field`` (else
+    ``mapping_item``) and its browse's sibling controls'. A row stores no other.
+
+    :param skin: Skin root.
+    :return: Field names, any mapping's.
+    """
+    controls = [
+        (name, control)
+        for path in sorted((skin / "extras/templates/controls").glob("*.json"))
+        for name, control in json.loads(path.read_text("utf-8"))["controls"].items()
+    ]
+    written = {control.get("field") or "mapping_item" for _, control in controls}
+    for _, control in controls:
+        onclick = control.get("onclick") or {}
+        for sibling in onclick.get("sibling_fields", {}).values():
+            named = {c.get("field", sibling) for n, c in controls if n == sibling}
+            written |= named or {sibling}
+    return written
+
+
+def variants(
+    manager: RuntimeStateManager, state: dict, written: set[str]
+) -> dict[str, dict]:
     """
     One state per option value that some row keeps and changes, set on every such
     row; then, for a field with ``dependent_fields``, one per value of each of them.
 
     :param manager: Manager over the templates.
     :param state: Base runtime state.
+    :param written: Fields the editor writes; any other only takes its default.
     :return: {label: runtime state}, every single option before any pair.
     """
     found = {1: {}, 2: {}}
@@ -108,11 +134,14 @@ def variants(manager: RuntimeStateManager, state: dict) -> dict[str, dict]:
             sub = {k: v for k, v in done.items() if isinstance(v, str)}
             sub[placeholder] = row["mapping_item"]
             items = manager.configs.resolve(key, template, sub).get("items", [])
-            return [(*given, (field, value)) for value in items]
+            # a {…} is rendered only in a default: no stored value holds one
+            return [(*given, (field, v)) for v in items if not FIELD.search(v)]
 
         singles, pairs = {}, {}  # a pair runs only if it gives a state no single does
         for row in rows:
-            seeds = manager._seed_fields_for(key, row["mapping_item"])
+            seeded = manager._seed_fields_for(key, row["mapping_item"])
+            # a field the editor never writes takes its default, from its deps
+            seeds = {f: t for f, t in seeded.items() if f in written}
             for field, template in seeds.items():
                 singles.update(dict.fromkeys(allowed(row, field, template, ())))
                 deps = manager.configs.dependent_fields(key, template)
@@ -247,7 +276,7 @@ def main() -> None:
         manager = state_manager(args.skin, base / "runtime_state.json", Path(tmp))
         state = every_row(manager)
         runs = {"defaults": manager.runtime_state, "every row": state}
-        runs |= variants(manager, state)
+        runs |= variants(manager, state, written_fields(args.skin))
         if args.list:
             print("\n".join(runs))
             sys.exit()
