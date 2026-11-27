@@ -150,6 +150,13 @@ the mark:
 <onload>NotifyAll(script.copacetic.helper,$INFO[Window(home).Property(serve_load)]&amp;is=$INFO[Window(home).Property(moved_primary)])</onload>
 ```
 
+A dialog served over the window (`window=`) does the same in
+`Window(home).Property(serve_load_dialog)`, with a mark of its own. If that dialog is
+still open when the service starts, its ring is served instead, and the window's is
+kept as the window's last request, so the [net](#the-net) serves it once the dialog
+closes. A dialog closed since leaves the window's ring alone, so the property needn't
+be cleared.
+
 ### From Python
 
 [`set_search_query`](../script/actions.md#set_search_query) and

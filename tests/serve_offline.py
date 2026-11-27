@@ -870,6 +870,31 @@ class ServeTest(unittest.TestCase):
             server._listen()
         server._ring.assert_not_called()
 
+    def test_start_serves_a_dialog_still_open_and_keeps_its_windows_for_the_net(
+        self,
+    ) -> None:
+        self.props[serve.LOAD] = "serve?lists=9010:6910&mark=moved_primary&wait=225"
+        self.props[serve.LOAD_DIALOG] = (
+            "serve?lists=9000:6900&mark=moved_item&window=12003"
+        )
+        server = _server()
+        server._ring, open_ = Mock(), [True]
+        with (
+            patch.object(serve, "_token", side_effect=lambda mark: f"t:{mark}"),
+            patch.object(serve, "condition", side_effect=lambda c: open_[0]),
+        ):
+            server._load()
+            dialog = serve.Request(((9000, 6900),), "moved_item", "t:moved_item")
+            server._ring.assert_called_once_with(dialog._replace(windows=(12003,)))
+            self.assertEqual(
+                server.last, {10025: MOVE._replace(value="t:moved_primary")}
+            )
+            open_[0], server.last = False, {}  # closed since: the window's is rung
+            server._ring.reset_mock()
+            server._load()
+        server._ring.assert_called_once_with(MOVE._replace(value="t:moved_primary"))
+        self.assertEqual(server.last, {})
+
     def test_a_ring_from_python_writes_its_token_first(self) -> None:
         calls = []
         home = Mock(setProperty=lambda key, value: calls.append((key, value)))

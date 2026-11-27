@@ -33,6 +33,7 @@ from resources.lib.shared.utilities import (
 # bare, the skin's net: a probe on top no longer reads as its list's Property(params)
 VERB = "serve"
 LOAD = "serve_load"  # the window's load ring, without its is: the service's start
+LOAD_DIALOG = "serve_load_dialog"  # a dialog's (window=), while it is still open
 PLUGIN = "plugin://script.copacetic.helper/?"  # a plugin URL's, before its query
 WAIT, NONE = "wait", "none"  # a probe's "not yet" and "nothing for this item"
 POLL = 0.1  # seconds between looks while a dialog covers the window or a probe waits
@@ -348,11 +349,24 @@ class Server:
 
     def _load(self) -> None:
         """
-        The window's load rang before the service could hear it (Kodi start, a
-        restart): that ring now, under a new token.
+        The loads rang before the service could hear them (Kodi start, a restart), under
+        new tokens: a dialog's still open is rung, its window's kept for the net once
+        it closes; else the window's is rung.
         """
-        if message := home_property(LOAD):
-            request = Request.parse(message.partition("?")[2])
+        window, dialog = (
+            Request.parse(message.partition("?")[2]) if message else None
+            for message in map(home_property, (LOAD, LOAD_DIALOG))
+        )
+        if dialog and not any(
+            condition(f"Window.IsActive({w})") for w in dialog.windows
+        ):
+            dialog = None  # closed since its load
+        if window and dialog:
+            with self.lock:
+                self.last[getCurrentWindowId()] = window._replace(
+                    value=_token(window.mark)
+                )
+        if request := dialog or window:
             self._ring(request._replace(value=_token(request.mark)))
 
     def _work(self) -> None:
