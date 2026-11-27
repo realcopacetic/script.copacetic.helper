@@ -35,14 +35,18 @@ class PictureBarTest(unittest.TestCase):
     """Kodi's reads stubbed: the focused item's labels are self.labels."""
 
     def setUp(self):
-        self.labels, self.reads = {}, []
+        self.labels, self.reads, self.props = {}, [], {}  # props: the bar's window's
+        window = mock.Mock(
+            getProperty=lambda key: self.props.get(key, ""),
+            setProperty=self.props.__setitem__,
+        )
 
         def read(target, keys):
             self.reads.extend(f"{target}.{key}" for key in keys)
             return {key: self.labels.get(key, "") for key in keys}
 
         for target, name, value in (
-            (helpers, "Window", mock.Mock()),
+            (helpers, "Window", mock.Mock(return_value=window)),
             (helpers, "get_infolabels", read),
             (helpers, "condition", lambda expression: False),
             (helpers.ProgressBarManager, "update", lambda self, percent, **kw: None),
@@ -98,6 +102,14 @@ class PictureBarTest(unittest.TestCase):
                 "row_flip": "",
             },
         )
+
+    def test_no_dbid_never_flips(self):
+        # Pictures and files have no DBID: a move between two is never a re-serve
+        for resolution in ("1920 x 1520", "960 x 540", "1920 x 1520"):
+            self.labels["PictureResolution"] = resolution
+            item = self.serve(resolution_span="3840")
+            self.assertEqual(item["properties"]["row_flip"], "")
+        self.assertEqual(self.props.get("progress_row"), "")
 
     def test_size_alone_without_a_resolution(self):
         self.labels["Size"] = "357 KB"

@@ -1558,26 +1558,28 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 )
                 window_property("album_resume", value=dbid if pb.album.position else "")
             # Last: it compares the row the item now carries
-            item["properties"]["row_flip"] = self._row_flip(
-                pb.infolabels, item["properties"]
-            )
+            item["properties"]["row_flip"] = self._row_flip(pb, item["properties"])
 
         return set_items([item], tag_applier=apply_videoinfotag)
 
-    def _row_flip(self, labels: dict[str, str], props: dict[str, str]) -> str:
+    @staticmethod
+    def _row_flip(pb: ProgressBarManager, props: dict[str, str]) -> str:
         """
-        row_flip, turned when this window's last bar was the same item with other
-        properties: a re-serve that changes its row in place (a song heard, TMDb's
-        answer), which the skin can dip over.
+        row_flip, turned when this window's last bar was the same library item with
+        other properties: a re-serve that changes its row in place (a song heard,
+        TMDb's answer), which the skin can dip over. An item with no DBID never is.
 
-        :param labels: The focused item's infolabels, as ProgressBarManager read them.
+        :param pb: The serve's bar, for its window and the focused item's labels.
         :param props: The progress item's properties.
         :return: The window's flip after this serve: "true" or empty.
         """
-        window = Window(self.window_id)
+        window, labels = pb.window, pb.infolabels
+        last, flip = map(window.getProperty, ("progress_row", "progress_flip"))
+        if not labels["DBID"]:  # nothing to know it again by (a file, an add-on's)
+            window.setProperty("progress_row", "")
+            return flip
         item = f"{labels['DBType']}{labels['DBID']}"
         row = f"{item} {json.dumps(props, sort_keys=True)}"
-        last, flip = map(window.getProperty, ("progress_row", "progress_flip"))
         if last != row and last.partition(" ")[0] == item:
             flip = "" if flip else "true"
             window.setProperty("progress_flip", flip)
