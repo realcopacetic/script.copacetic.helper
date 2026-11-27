@@ -225,7 +225,7 @@ msgctxt "#32034"
 msgid "Clear ListenBrainz data"
 msgstr "Wyczyść dane ListenBrainz"
 
-#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB or LRCLIB.
+#. %s is a web service's name: TMDB, ListenBrainz, Deezer, TheIntroDB, LRCLIB or Wikidata.
 #: /resources/lib/script/actions.py
 msgctxt "#32035"
 msgid "Forget every saved %s answer? Each is fetched again when next shown."
@@ -301,8 +301,8 @@ msgstr "Wikidata"
 
 #: /resources/settings.xml
 msgctxt "#32048"
-msgid "Look up paintings on Wikidata"
-msgstr "Wyszukuj obrazy w Wikidata"
+msgid "Look up details on Wikidata"
+msgstr "Wyszukuj szczegóły w Wikidata"
 
 #: /resources/settings.xml
 #: /resources/lib/script/actions.py
@@ -454,8 +454,8 @@ msgstr "Ponownie włącza każdy dodatek, który dodatek pomocniczy wyłączył,
 #. "Look up art details" is string #32847: use the same words. Keep Wikidata and Wikipedia as they are.
 #: /resources/settings.xml
 msgctxt "#32148"
-msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia. Only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. No account needed. Off: nothing sent."
-msgstr "Artysta, rok, technika, kolekcja, wymiary i streszczenie dla obrazów w Twoich folderach ze zdjęciami, z Wikidata i Wikipedii. Tylko w wybranych folderach: Wyszukaj szczegóły dzieła w menu kontekstowym folderu. Plik jest rozpoznawany po nazwie, w postaci Artysta - Tytuł (Rok), gdy po raz pierwszy się na nim zatrzymasz; nazwa jest wysyłana do Wikidata. Konto nie jest wymagane. Wyłączone: nic nie jest wysyłane."
+msgid "Artist, year, medium, collection, size and a summary for paintings in your picture folders, from Wikidata and Wikipedia; for films, TV shows, artists and albums in your library, details such as who wrote the music, the book a story is based on, record labels and producers. Paintings only in folders you choose: Look up art details in a folder's context menu. A file is matched by its name, as Artist - Title (Year), when you first rest on it; the name is sent to Wikidata. A library item is found by its TMDb, IMDb or MusicBrainz id, which is sent when the skin shows its details. No account needed. Off: nothing sent."
+msgstr "Artysta, rok, technika, kolekcja, wymiary i streszczenie dla obrazów w Twoich folderach ze zdjęciami, z Wikidata i Wikipedii; dla filmów, seriali, wykonawców i albumów w Twojej bibliotece szczegóły, takie jak autor muzyki, książka, na której opiera się historia, wytwórnie płytowe i producenci. Obrazy tylko w wybranych folderach: Wyszukaj szczegóły dzieła w menu kontekstowym folderu. Plik jest rozpoznawany po nazwie, w postaci Artysta - Tytuł (Rok), gdy po raz pierwszy się na nim zatrzymasz; nazwa jest wysyłana do Wikidata. Element biblioteki jest odnajdywany po identyfikatorze TMDB, IMDb lub MusicBrainz, wysyłanym, gdy skóra pokazuje jego szczegóły. Konto nie jest wymagane. Wyłączone: nic nie jest wysyłane."
 
 #: /resources/settings.xml
 msgctxt "#32149"
