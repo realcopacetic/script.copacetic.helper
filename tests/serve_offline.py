@@ -139,8 +139,9 @@ def _reads(server: serve.Server) -> Callable[[str], str]:
     """
 
     def read(label: str) -> str:
-        if label.startswith("Container("):  # Container(9010).ListItem.Property(x)
-            return server.bound.get(int(label[10:14]), {}).get(label[34:-1], "")
+        if label.startswith("Container("):  # Container(9010).ListItemAbsolute(0)...
+            key = label.rpartition("Property(")[2][:-1]  # ... .Property(x)
+            return server.bound.get(int(label[10:14]), {}).get(key, "")
         probes = server.probes
         if isinstance(probes, dict):  # Control.GetLabel(6910)
             probes = probes[int(label[17:-1])]
@@ -452,7 +453,7 @@ class ServeTest(unittest.TestCase):
 
         def bind(window_id, list_id, items, current, item, echo="", params=""):
             server.binds_seen.append((list_id, params))
-            prop = f"Container({list_id}).ListItem.Property"
+            prop = f"Container({list_id}).ListItemAbsolute(0).Property"
             labels.update({f"{prop}(params)": params, f"{prop}(current)": current})
 
         server.binds_seen = []
@@ -931,8 +932,8 @@ class ServeTest(unittest.TestCase):
             read,
             [
                 "Control.GetLabel(6937)",
-                "Container(9370).ListItem.Property(params)",
-                "Container(9370).ListItem.Property(current)",  # not this move's
+                "Container(9370).ListItemAbsolute(0).Property(params)",
+                "Container(9370).ListItemAbsolute(0).Property(current)",  # not this move's
             ],
         )
         server._bind.assert_called_once_with(

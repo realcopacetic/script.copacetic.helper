@@ -555,7 +555,8 @@ class Server:
         :param line: Whether its handler is ongoing.
         :return: True when serving it again would bind what it holds.
         """
-        bound = f"Container({list_id}).ListItem.Property"
+        # The first item, which the bind marks: a list on screen may be scrolled
+        bound = f"Container({list_id}).ListItemAbsolute(0).Property"
         if infolabel(f"{bound}(params)") != params:
             return False
         if line:

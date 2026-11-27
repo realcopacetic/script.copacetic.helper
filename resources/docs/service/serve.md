@@ -205,7 +205,10 @@ visibility.
 ## The bind
 
 The first bound item carries four properties the skin compares to tell whether the
-list answers what is on screen:
+list answers what is on screen. A bind selects that item, so `Container(id).ListItem`
+reads them; for a list on screen the user scrolls (a served page of lyrics), read
+`Container(id).ListItemAbsolute(0)`, as the service does to see whether a list still
+holds its answer:
 
 | Property | Value |
 |---|---|
