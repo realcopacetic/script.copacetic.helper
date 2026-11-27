@@ -144,7 +144,7 @@ class ImageProcessor:
                 image = image.crop((dx, dy, image.width - dx, image.height - dy))
             if opts.darken and opts.darken.frame:
                 frame_w, frame_h = map(int, opts.darken.frame.split(","))
-                image, _ = ColorDarken.frame_image(image, frame_w, frame_h)
+                image = ColorDarken.frame_image(image, frame_w, frame_h)
             else:
                 image = self._cover(image, self.cfg.blur_target_size)
                 width, height = self.cfg.blur_target_size
