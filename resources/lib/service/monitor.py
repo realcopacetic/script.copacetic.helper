@@ -18,7 +18,7 @@ from resources.lib.service import clashes
 from resources.lib.service.player import PlayerMonitor
 from resources.lib.service.serve import Server
 from resources.lib.shared import logger as log
-from resources.lib.shared.helpers import REWATCH_STOPPED
+from resources.lib.shared.helpers import ARTIST_STEP, REWATCH_STOPPED, step_artist
 from resources.lib.shared.speed_dial import release_refresh, skin_uses_speed_dial
 from resources.lib.shared.sqlite import ApiCacheHandler
 from resources.lib.shared.text import load_font
@@ -306,10 +306,10 @@ class Monitor(xbmc.Monitor):
 
     def onNotification(self, sender: str, method: str, data: str) -> None:
         """
-        Kodi event hook, on the service's thread: the clashes writes scripts hand over,
-        a video update's kept TMDb id; while active, playlist_revision on music queue
-        edits (a shuffle too), the bar after Stop rewatch, library updates, a scan's or
-        clean's end.
+        Kodi event hook, on the service's thread: the clashes writes and artist steps
+        scripts hand over, a video update's kept TMDb id; while active, a queue edit's
+        playlist_revision (a shuffle too), the bar after Stop rewatch, an update, a scan's
+        or clean's end.
 
         :param sender: Announcement sender.
         :param method: Announcement name, e.g. "Playlist.OnAdd".
@@ -323,6 +323,9 @@ class Monitor(xbmc.Monitor):
         if mine and method == f"Other.{clashes.RESET}":
             clashes.restore(forget=True)
             self.clash_features = ()  # checked next pass: reads this frame are cached
+            return
+        if mine and method == f"Other.{ARTIST_STEP}":  # in any skin: a public action
+            step_artist(**json.loads(data))
             return
         if mine and method == f"Other.{REWATCH_STOPPED}":  # the action's mark is down
             server = self.server  # None once the skin has left

@@ -635,6 +635,36 @@ def album_progress(album_id: int, days: int, *fields: str) -> AlbumProgress:
     return AlbumProgress(0, total, state, {}, 0, songs)
 
 
+ARTIST_HISTORY = 10  # artists the artist page's Back steps through
+ARTIST_STEP = "artist_step"  # art_artist's word to the service: take this step
+
+
+def step_artist(prop: str, qid: str = "", ring: str = "") -> None:
+    """
+    The service's step of the skin's artist page, so quick presses queue: qid goes in
+    prop and the one shown joins the Back history in prop_back; no qid steps back.
+    Then the skin's ring, if it passes one.
+
+    :param prop: The Home property the page reads its artist's Q-id from.
+    :param qid: The artist to show; none for the one before.
+    :param ring: A served ring to send once it is set (serve.md), with no is.
+    """
+    home = Window(10000)
+    shown, trail = home.getProperty(prop), home.getProperty(f"{prop}_back").split()
+    if qid == shown or not (qid or trail):
+        return
+    if qid and shown:  # a first artist, set this way, has none before it
+        trail = [*trail, shown][-ARTIST_HISTORY:]
+    elif not qid:
+        qid = trail.pop()
+    window_property(f"{prop}_back", value=" ".join(trail))
+    window_property(prop, value=qid)
+    if ring:
+        from resources.lib.service.serve import ring as send
+
+        send(ring)
+
+
 # This device's Stop rewatch marks (rewatch_stops), in the add-on's own storage
 REWATCH_STOPS = Path(ADDONDATA, "rewatch_stopped.json")
 REWATCH_STOPPED = "rewatch_stopped"  # the action's word to the service: serve the bar
