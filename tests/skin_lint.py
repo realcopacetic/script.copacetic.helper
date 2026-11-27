@@ -1033,8 +1033,15 @@ class Skin:
         :param outside: ``(include glob, params)`` of the template calls.
         :return: One ``Call`` per call site.
         """
-        calls = [  # a template's row field takes any value
-            Call(None, glob, {k: FIELD.sub("*", v) for k, v in params.items()})
+        calls = [  # a template's row field takes any value; a whole one, its field's
+            Call(
+                None,
+                glob,
+                {
+                    k: v if FIELD.fullmatch(v) else FIELD.sub("*", v)
+                    for k, v in params.items()
+                },
+            )
             for glob, params in outside
             if glob.strip("*")
         ]
@@ -1052,7 +1059,9 @@ class Skin:
         return calls
 
     def check_unreached_defaults(
-        self, outside: Sequence[tuple[str, dict[str, str]]]
+        self,
+        outside: Sequence[tuple[str, dict[str, str]]],
+        fields: dict[str, set[str]],
     ) -> None:
         """
         Report a param default no mount falls back to: every call that can reach the
@@ -1060,6 +1069,7 @@ class Skin:
         (Kodi drops that one, ``ResolveParametersForNode``). Bare params are the aim.
 
         :param outside: ``(include glob, params)`` of the template calls.
+        :param fields: Every value each mapping row field takes, from ``field_values``.
         """
         calls = self.call_graph(outside)
         literal, globs, dispatch = defaultdict(set), set(), {}
@@ -1090,6 +1100,8 @@ class Skin:
                 whole = PARAM.fullmatch(value or "")
                 if whole and call.owner:
                     found |= taken(call.owner, whole[1], seen | {(name, param)})
+                elif FIELD.fullmatch(value or ""):  # a row field: every value it takes
+                    found |= fields.get(value[1:-1], {"*"})
                 elif value is not None:
                     found.add(PARAM.sub("*", value))
             return found
@@ -1155,6 +1167,7 @@ class Skin:
         windows: list[str] | None = None,
         reach: set[tuple[str, str]] | None = None,
         outside: Sequence[tuple[str, dict[str, str]]] = (),
+        fields: dict[str, set[str]] = {},
     ) -> set[Finding]:
         """
         Run every rule over the given windows, or over every loaded file.
@@ -1162,6 +1175,7 @@ class Skin:
         :param windows: Window file names; ``None`` lints the whole skin.
         :param reach: Every-setting union from ``skin_reach.py``, if one was saved.
         :param outside: ``(include glob, params)`` of the template calls.
+        :param fields: Every value each mapping row field takes (read only).
         :return: All findings.
         """
         for name, root in self.roots.items():
@@ -1185,7 +1199,7 @@ class Skin:
                 self.check_unreached(reach)
             self.check_declared_params()
             self.check_constant_params(outside)
-            self.check_unreached_defaults(outside)
+            self.check_unreached_defaults(outside, fields)
             self.check_empty_controls()
         for (src, info), contexts in self.media_info.items():
             message = MEDIA_MESSAGE.format(info=info, where=", ".join(sorted(contexts)))
@@ -1313,6 +1327,36 @@ def template_calls(skin: Path) -> list[tuple[str, dict[str, str]]]:
         for call in ET.parse(path).iter("include")
         if "content" in call.attrib
     ]
+
+
+def field_values(skin: Path) -> dict[str, set[str]]:
+    """
+    Every value a mapping row's field can take: the rows' and placeholders' own, and
+    the items of each config its ``config_fields`` names (a ``{…}`` matching any).
+
+    :param skin: Skin root directory.
+    :return: {field: values, a placeholder as ``*``}; empty without templates (C1).
+    """
+    templates = skin / "extras/templates"
+    configs = {}
+    for path in sorted(templates.glob("configs/*.json")):
+        configs |= json.loads(path.read_text("utf-8"))["configs"]
+    found = defaultdict(set)
+    for path in sorted(templates.glob("mappings/*.json")):
+        for mapping in json.loads(path.read_text("utf-8")).values():
+            rows = [
+                mapping.get("placeholders", {}),
+                *mapping.get("metadata", {}).values(),
+            ]
+            for field, value in chain.from_iterable(row.items() for row in rows):
+                if isinstance(value, str):
+                    found[field].add(FIELD.sub("*", value))
+            for fields in mapping.get("config_fields", {}).values():
+                for field, key in fields.items():
+                    for name, config in configs.items():
+                        if fnmatchcase(name, FIELD.sub("*", key)):
+                            found[field].update(config["items"])
+    return found
 
 
 def property_glob(name: str) -> str:
@@ -1525,7 +1569,9 @@ def main() -> None:
         if windows:
             print(f"windows: {', '.join(windows)}")
         findings = (
-            skin.lint(windows, reach, template_calls(args.skin))
+            skin.lint(
+                windows, reach, template_calls(args.skin), field_values(args.skin)
+            )
             | set(check_textures(args.skin))
             | set(check_strings(args.skin))
         )
