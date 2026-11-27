@@ -53,7 +53,7 @@ the focus guard below protects a served run too.
 | `speed_dial` | Fills a container with pinned and recently played music. | [Speed Dial](speed_dial.md) |
 | `popularity_label` | Returns a word for how popular a library artist, album or song is ("Charting", "#2 song", "Your #3 artist"). | [Library Listings](library.md#popularity_label) |
 | `lyrics` | Fills a container with the playing song's synced lyric lines, one item per line. | [Lyrics](../service/player.md#lyrics) |
-| `lyrics_plain` | Fills a container with the playing song's plain lyrics, one item per line, wrapped to a width if asked. | [Lyrics](../service/player.md#lyrics) |
+| `lyrics_plain` | Fills a container with the playing song's plain lyrics, or a library song's (`type=song&id=`), one item per line, wrapped to a width if asked. | [Lyrics](../service/player.md#lyrics) |
 | `broadcasts` | Fills a container with one PVR channel's programmes, from the one on air. | [Broadcasts](broadcasts.md) |
 
 `progressbar` and `typewriter` share the [placement options](placement.md).

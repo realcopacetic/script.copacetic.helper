@@ -13,7 +13,9 @@ from typing import Any
 import xbmcvfs
 
 from resources.lib.apis import lrclib
+from resources.lib.apis.cache import Asker, Asides
 from resources.lib.shared import logger as log
+from resources.lib.shared import tags
 from resources.lib.shared.lrc import LINES, LONG, NEIGHBOURS, PLAIN, parse, plain
 from resources.lib.shared.text import skin_metric, wrap_text
 from resources.lib.shared.utilities import (
@@ -64,6 +66,9 @@ Song = tuple[str, str, str, int]  # (artist, title, album, seconds)
 # (source, synced, plain, instrumental)
 Found = tuple[str, list | None, str | None, bool]
 NONE = ("", None, None, False)
+# A library song's details for library(): its LRCLIB key matches the playing song's
+# (MusicPlayer.Artist is the display artist), so both share one cache row
+SONG_FIELDS = ["file", "displayartist", "title", "album", "duration"]
 _fetches = {}  # LRCLIB lookups in flight, by song
 
 
@@ -102,14 +107,14 @@ def song(prefix: str = "MusicPlayer.") -> Song:
 
 def _sidecar(path: str) -> str:
     """
-    The text of a .lrc of the same name beside the playing file: UTF-16 by its byte
+    The text of a .lrc of the same name beside a song's file: UTF-16 by its byte
     order mark, else UTF-8, else Windows-1252.
 
-    :param path: The playing file.
-    :return: Its text; "" for none, or a stream.
+    :param path: The song's file.
+    :return: Its text; "" for none.
     """
     lrc = f"{os.path.splitext(path)[0]}.lrc"
-    if condition("Player.IsInternetStream") or not xbmcvfs.exists(lrc):
+    if not xbmcvfs.exists(lrc):
         return ""
     with xbmcvfs.File(lrc) as file:
         data = file.readBytes()
@@ -121,18 +126,30 @@ def _sidecar(path: str) -> str:
         return data.decode("cp1252", "replace")
 
 
-def find(path: str) -> Found | None:
+def _played(path: str) -> str:
     """
-    The playing song's lyrics from a .lrc beside it, else its tags (Kodi reads them
-    from the file at play).
+    The playing song's tagged lyrics, as Kodi read them from its file at play.
 
-    :param path: The playing file.
+    :param path: Unused: the playing file's.
+    :return: The text; "" for none.
+    """
+    return infolabel("MusicPlayer.Lyrics")
+
+
+def find(path: str, embedded: Callable[[str], str] = _played) -> Found | None:
+    """
+    A song's lyrics from a .lrc beside it, else its tags: the playing song's by
+    default (a stream has no file beside it), or another's by embedded(path).
+
+    :param path: The song's file.
+    :param embedded: Reads the file's tagged lyrics.
     :return: (source, synced lines, plain text, instrumental); None when neither has any.
     """
-    for source, text in (
-        ("file", _sidecar(path)),
-        ("embedded", infolabel("MusicPlayer.Lyrics")),
-    ):
+    readers = [("file", _sidecar), ("embedded", embedded)]
+    if embedded is _played and condition("Player.IsInternetStream"):
+        del readers[0]
+    for source, read in readers:
+        text = read(path)
         if synced := parse(text):
             return source, synced, None, False
         if text := plain(text):  # a .lrc of only tags holds none
@@ -175,6 +192,55 @@ def _found(payload: dict[str, Any] | None) -> Found:
     if not payload:
         return NONE
     return "lrclib", payload["synced"], payload["plain"], payload["instrumental"]
+
+
+def _ask(song: Song, live: Callable[[], bool]) -> dict[str, Any] | None:
+    """
+    Ask LRCLIB for a library song, and cache its answer.
+
+    :param song: (artist, title, album, seconds).
+    :param live: Whether the answer is still wanted: if not, its search is skipped.
+    :return: lrclib.lyrics' payload; None after a failure, or once unwanted.
+    """
+    try:
+        return lrclib.lyrics(*song, lambda: not live())
+    except lrclib.Aborted:
+        return None
+
+
+# Served calls' LRCLIB lookups for library songs, one at a time; the answer serves
+# their lists again
+ASIDES = Asides(_ask)
+
+
+def library(song: dict[str, Any], again: Asker | None) -> str | None:
+    """
+    A library song's lyrics as plain text, synced lines without their times: a .lrc
+    beside its file, its tags, else LRCLIB's kept answer. One never kept is asked:
+    in the call for a plugin, aside for a served call (again), which reads None.
+
+    :param song: Its details, SONG_FIELDS.
+    :param again: A served list's re-serve; None for a plugin call.
+    :return: The text; "" for none or an instrumental; None while LRCLIB is asked.
+    """
+    key = song["displayartist"], song["title"], song["album"], song["duration"]
+    try:
+        found = find(song["file"], tags.lyrics)
+    except Exception:  # a file's bytes: a tag that breaks the reader reads as none
+        log.exception(f"lyrics → the tags of {song['file']} failed")
+        found = None
+    if not found and _wanted(key):
+        payload, fresh = _saved(key)
+        if payload is None and not fresh:
+            if again:
+                ASIDES.ask(key, again)
+                return None
+            payload = _ask(key, lambda: True)
+        found = _found(payload)
+    _, synced, text, instrumental = found or NONE
+    if instrumental:
+        return ""
+    return "\n".join(line for _, line in synced).strip() if synced else text or ""
 
 
 class Fetch(Thread):

@@ -155,8 +155,10 @@ python tests/pvr_offline.py
 # .lrc beside the song in any encoding, its tags, LRCLIB off the service thread) and
 # the next song's prefetch, one request per song; what is published, lines before
 # their state; the follow (3510) and browse (3511) lists put on the line by their own
-# selected item, a queued move never added to; the poller hook;
-# the info=lyrics plugin path (an item per line) and the lyrics_seek action
+# selected item, a queued move never added to; the poller hook; a library song's
+# (shared/tags.py's ID3v2 and FLAC reads, art unread; LRCLIB asked in a plugin call,
+# aside and pending in a served one); the info=lyrics plugin path (an item per line)
+# and the lyrics_seek action
 python tests/lyrics_offline.py
 
 # The add-on's own directory (plugin/listing.py): the root's Videos and Music folders,

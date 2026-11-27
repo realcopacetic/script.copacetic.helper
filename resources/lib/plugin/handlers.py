@@ -3458,13 +3458,45 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
     @log.duration
     def lyrics_plain(self) -> list[DirectoryItem] | None:
         """
-        One item per line of the playing song's plain lyrics; with wrap_width= and
-        wrap_font=, a line Kodi would wrap is split there. One path for every item,
-        so a list Kodi refetches (a new song) opens on its first.
+        One item per line of the playing song's plain lyrics, or with type=song&id=
+        a library song's (_song_lyrics); with wrap_width= and wrap_font=, a line Kodi
+        would wrap is split there. One path for every item: a refetch opens on its first.
 
         :return: List of directory items for Kodi, or None if none.
         """
-        lines = Window(10000).getProperty(PLAIN).splitlines()
+        if self.dbtype == "song":
+            return self._song_lyrics()
+        rows = self._lyric_rows(Window(10000).getProperty(PLAIN))
+        return set_items(rows) or None
+
+    def _song_lyrics(self) -> list[DirectoryItem]:
+        """
+        Library song id's lyrics while the lyrics service is on (lyrics.library). A
+        served call asks LRCLIB aside: one blank row marked lyrics_pending meanwhile.
+
+        :return: List of directory items for Kodi; none for no lyrics.
+        """
+        from resources.lib.service import lyrics
+
+        if not (condition(lyrics.ENABLED) and (dbid := to_int(self.dbid))):
+            return []
+        fields = lyrics.SONG_FIELDS
+        if not (song := library_details("song", dbid, fields, "lyrics_plain")):
+            return []
+        if (text := lyrics.library(song, self.again)) is None:
+            pending = {"label": "", "properties": {"lyrics_pending": "true"}}
+            return set_items([{"file": plugin_path("lyrics/plain")} | pending])
+        return set_items(self._lyric_rows(text))
+
+    def _lyric_rows(self, text: str) -> list[dict[str, Any]]:
+        """
+        Plain lyrics as one row a line, a line split where Kodi would wrap it in
+        wrap_font= at wrap_width=.
+
+        :param text: The lyrics.
+        :return: Item dicts, one path for all; none for no text.
+        """
+        lines = text.splitlines()
         if (width := to_int(self.params.get("wrap_width"))) and (
             metric := skin_metric(self.params.get("wrap_font", ""))
         ):
@@ -3472,7 +3504,7 @@ class PluginHandlers(metaclass=PluginInfoRegistry):
                 row for line in lines for row in wrap_text(metric, line, width) or [""]
             ]
         path = plugin_path("lyrics/plain")
-        return set_items({"file": path, "label": line} for line in lines) or None
+        return [{"file": path, "label": line} for line in lines]
 
     @log.duration
     def soundtracks(self) -> list[DirectoryItem] | None:
