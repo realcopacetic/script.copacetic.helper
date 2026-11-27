@@ -700,6 +700,10 @@ class ServeTest(WikidataCase):
                 self.labels["ListItem.Property(artist_type)"] = kind
                 found = self.served("artist", None).get("wikidata_instruments")
                 self.assertEqual(found, served, kind)
+            # Kodi's own instruments show: none to fade to
+            self.labels["ListItem.Property(artist_type)"] = "Person"
+            self.labels["ListItem.Property(artist_instrument)"] = "Guitar"
+            self.assertNotIn("wikidata_instruments", self.served("artist", None))
 
     def test_created_by_stands_in_for_tmdbs(self):
         self.entities |= CREATED
@@ -737,8 +741,8 @@ class ServeTest(WikidataCase):
             "story_chip_padding": "12",
             "story_gap": "60",
         }
-        served = lambda width: self.served(
-            "movie", None, title="Oppenheimer", story_width=width, **band
+        served = lambda width, **more: self.served(
+            "movie", None, title="Oppenheimer", story_width=width, **band, **more
         )
         # in TenWide, a chip 10 a character and 24: Set in 542, About 382 (the
         # subjects holding "Oppenheimer" go: J. Robert Oppenheimer, the hearing)
@@ -756,6 +760,13 @@ class ServeTest(WikidataCase):
             )
             self.assertNotIn("wikidata_about_3", served("983"))  # 984 to 825
             self.assertNotIn("wikidata_about_1", served("600"))
+            # captions in story_caption_font: About's 800 outweighs its chips' 382,
+            # so at 1400 (542 + 60 + 800 = 1402) the column goes; opt-in
+            caption = {"story_caption_about": "x" * 80}
+            self.assertIn("wikidata_about_1", served("1400", **caption))
+            caption["story_caption_font"] = "description_s"
+            self.assertNotIn("wikidata_about_1", served("1400", **caption))
+            self.assertIn("wikidata_about_1", served("1402", **caption))
             # a band of more than one chip: no collection
             self.labels["ListItem.Set"] = "Oppenheimer Collection"
             self.assertNotIn("wikidata_part_of_1", served("1480"))
@@ -908,6 +919,9 @@ class BandTest(unittest.TestCase):
         ):
             columns = self.chips(year=year, periods=[period])
             self.assertEqual(columns["period"], [period] * shown, (period, year))
+        # the near ones go before the choice: the finer 2023 yields to the 1940s
+        columns = self.chips(year=2023, periods=["2023", "1940s"])
+        self.assertEqual(columns["period"], ["1940s"])
 
     def test_about(self):
         # what the title names goes (Peaky Blinders' gang), word by word; three
@@ -958,10 +972,20 @@ class BandTest(unittest.TestCase):
             {"places": [], "period": [], "about": [], "universe": [], "part_of": []},
         )
 
-    def fit(self, width, **columns):
+    def fit(self, width, captions=None, **columns):
         chip = lambda name: 10 * len(name) + 24
         empty = dict.fromkeys(("places", "period", "about", "universe", "part_of"), [])
-        return wd.fit_band(empty | columns, chip, width, 60, 15)
+        return wd.fit_band(empty | columns, chip, width, (60, 15), captions or {})
+
+    def test_a_caption_wider_than_its_chips(self):
+        # Universe's caption at 200 outweighs its 104 chip: 173 + 60 + 200 = 433
+        band = {"places": ["London"], "period": ["1940s"], "universe": ["Universe"]}
+        caption = {"universe": 200}
+        self.assertEqual(len(self.fit(433, caption, **band)), 3)
+        self.assertNotIn("wikidata_universe_1", self.fit(432, caption, **band))
+        self.assertEqual(len(self.fit(432, **band)), 3)  # chips alone: 337
+        # a dropped column's caption counts no more
+        self.assertEqual(len(self.fit(200, {"about": 900}, places=["London"])), 1)
 
     def test_the_drop_order(self):
         # chips 10 a character and 24, 15 apart; columns 60 apart. Set in: two
@@ -1039,6 +1063,8 @@ class HeadingTest(unittest.TestCase):
         self.assertEqual(self.served("movie", **heading)["heading_lines"], "2")
         self.labels["ListItem.Tagline"] = "Short."
         self.assertEqual(self.served("movie", **heading)["heading_lines"], "1")
+        self.labels |= {"ListItem.Tagline": "", "ListItem.Title": ""}
+        self.assertNotIn("heading_lines", self.served("movie", **heading))  # no "0"
         self.assertNotIn("heading_lines", self.served("movie"))
         self.assertNotIn("heading_lines", self.served("movie", heading_font="x"))
         with mock.patch.object(handlers, "skin_metric", lambda name: None):
@@ -1082,7 +1108,7 @@ class HeadingTest(unittest.TestCase):
 
 
 class YearsTest(unittest.TestCase):
-    """artist_years: Kodi's years active, else its dates by the artist's type."""
+    """artist_years: Kodi's years active, else a group's dates; never a lifespan."""
 
     def years(self, kind="", present="present", **dates):
         fields = ("yearsactive", "born", "formed", "died", "disbanded")
@@ -1091,20 +1117,22 @@ class YearsTest(unittest.TestCase):
 
     def test_by_type(self):
         both = {"born": "1971-08-18", "formed": "1985", "died": "", "disbanded": ""}
-        self.assertEqual(self.years("Person", **both), "1971–present")
-        self.assertEqual(self.years("character", **both), "1971–present")
         for kind in ("Group", "Orchestra", "Choir", "Other", ""):
             self.assertEqual(self.years(kind, **both), "1985–present", kind)
-        # each falls back to the other's dates
-        self.assertEqual(self.years("Person", formed="1985"), "1985–present")
-        self.assertEqual(self.years("Group", born="1997-03-04"), "1997–present")
+        # a person's or character's lifespan isn't its years active: none
         ended = {"formed": "1991", "disbanded": "2008-02-22", "died": "2010"}
+        for kind in ("Person", "character"):
+            self.assertEqual(self.years(kind, **both), "", kind)
+            self.assertEqual(self.years(kind, **ended), "", kind)
+        # a group's dates fall back to born and died
+        self.assertEqual(self.years("Group", born="1997-03-04"), "1997–present")
         self.assertEqual(self.years("Group", **ended), "1991–2008")
-        self.assertEqual(self.years("Person", **ended), "1991–2010")
+        self.assertEqual(self.years("Group", formed="1991", died="2010"), "1991–2010")
         self.assertEqual(self.years("Group", "nu", formed="1991"), "1991–nu")
 
     def test_kodis_own_and_none(self):
         self.assertEqual(self.years(yearsactive="1990s", formed="1991"), "1990s")
+        self.assertEqual(self.years("Person", yearsactive="1990s"), "1990s")
         self.assertEqual(self.years("Group", disbanded="2008"), "")  # no start
         self.assertEqual(self.years(formed="in the nineties"), "")
 

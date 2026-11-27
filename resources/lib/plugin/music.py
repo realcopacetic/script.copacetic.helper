@@ -222,20 +222,18 @@ def artist_identity(dbid: int, parent: str) -> tuple[str, str] | None:
 
 def artist_years(artist: dict[str, str], present: str) -> str:
     """
-    An artist's years active: Kodi's own, else its first year to its last or present,
-    a person's (PEOPLE) birth to death, another's formation to disbanding, each
-    falling back to the other's.
+    An artist's years active: Kodi's own; else a group's (not PEOPLE: a lifespan isn't
+    years active) formation, else birth, to its disbanding, else death, or present.
 
     :param artist: Kodi's yearsactive, type, born, formed, died and disbanded.
     :param present: The word for an artist still active.
-    :return: "1997–2019", "1971–present"; "" with no first year.
+    :return: "1997–2019", "2003–present"; "" with no first year, or for a person.
     """
-    if artist["yearsactive"]:
+    if artist["yearsactive"] or artist["type"].casefold() in PEOPLE:
         return artist["yearsactive"]
-    starts, ends = ("born", "formed"), ("died", "disbanded")
-    if artist["type"].casefold() not in PEOPLE:
-        starts, ends = starts[::-1], ends[::-1]
-    first, last = (_year(artist, keys) for keys in (starts, ends))
+    first, last = (
+        _year(artist, k) for k in (("formed", "born"), ("disbanded", "died"))
+    )
     return first and f"{first}–{last or present}"
 
 

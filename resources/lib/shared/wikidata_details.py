@@ -50,7 +50,7 @@ WRITTEN = {
     "Q8274": "manga",
 }
 NAMES = 2  # an artist's labels and instruments named, the rest counted (+N)
-LOOKED = 6  # subjects labelled, Wikidata's first: some go as the title's or a time
+LOOKED = 6  # periods and subjects labelled, Wikidata's first: some don't show
 PLACES, SUBJECTS = 2, 3  # chips at most
 # Times by their label, finer first, each with the years it spans: a year (1940), a
 # decade (1940s), a century (20th century, 20. century, XX century)
@@ -62,6 +62,7 @@ TIMES = (
 NEAR = 5  # a year or decade this close to the release year is its own time: not shown
 # Words a universe's name is matched without (Despicable Me universe, … Collection)
 GENERIC = frozenset({"universe", "collection", "franchise", "series"})
+COLUMNS = ("set_in", "about", "universe", "part_of")  # the story band's, as drawn
 # The story band's cuts, in turn, while it overflows: a column to so many chips
 DROPS = (
     ("universe", 0),
@@ -135,21 +136,20 @@ def story_chips(
     :param collection: A film's set; "" for none.
     :return: Each column's chips.
     """
-    period = min(found.get("periods", []), key=lambda p: _time(p)[0], default="")
-    years = _time(period)[1]
-    near = year and years and years[0] - NEAR <= year <= years[-1] + NEAR
+    periods = [p for p in found.get("periods", []) if not _near(p, year)]
+    period = min(periods, key=lambda p: _time(p)[0], default="")
     universe = found.get("universe", "")
-    named = _words(title, GENERIC), _words(collection, GENERIC)
+    others = _words(title, GENERIC), _words(collection, GENERIC)
     titled = (_words(title),)
     about = [
         s
         for s in found.get("about", [])
         if _time(s)[0] < 0 and not _overlaps(_words(s), titled)
     ]
-    repeats = _overlaps(_words(universe, GENERIC), named)
+    repeats = _overlaps(_words(universe, GENERIC), others)
     columns = {
         "places": found.get("places", []),
-        "period": [period] if period and not near else [],
+        "period": [period] if period else [],
         "about": about[:SUBJECTS],
         "universe": [universe] if universe and not repeats else [],
     }
@@ -161,26 +161,29 @@ def fit_band(
     columns: dict[str, list[str]],
     chip: Callable[[str], float],
     width: float,
-    gap: float,
-    chip_gap: float,
+    gaps: tuple[float, float],
+    captions: dict[str, float],
 ) -> dict[str, str]:
     """
     The story band fitted to its width, cut in DROPS' turn while it overflows, as
     numbered wikidata_{column}_{n}: set_in (the places, then the period), about,
-    universe, part_of.
+    universe, part_of. A column is as wide as its chips, or its caption if wider.
 
     :param columns: story_chips' columns.
     :param chip: A chip's width.
     :param width: The band's width.
-    :param gap: The gap between two columns.
-    :param chip_gap: The gap between two chips of a column.
+    :param gaps: The gap between two columns, and between two chips of a column.
+    :param captions: Each drawn column's caption width, by its key; none for none.
     :return: The properties.
     """
+    gap, chip_gap = gaps
     for key, keep in DROPS:
-        rows = [row for row in _rows(columns).values() if row]
-        chips = [name for row in rows for name in row]
-        drawn = sum(map(chip, chips)) + chip_gap * (len(chips) - len(rows))
-        if drawn + gap * (len(rows) - 1) <= width:
+        drawn = [
+            max(captions.get(name, 0), sum(map(chip, row)) + chip_gap * (len(row) - 1))
+            for name, row in _rows(columns).items()
+            if row
+        ]
+        if sum(drawn) + gap * (len(drawn) - 1) <= width:
             break
         columns = columns | {key: columns[key][:keep]}
     return {
@@ -219,6 +222,12 @@ def _kind(claims: dict[str, list]) -> str:
     return next((WRITTEN[q] for q in forms if q in WRITTEN), "")
 
 
+def _near(label: str, year: int) -> bool:
+    """Whether a year or decade is within NEAR years of the item's year; 0 for none."""
+    years = _time(label)[1]
+    return bool(year and years) and years[0] - NEAR <= year <= years[-1] + NEAR
+
+
 def _time(label: str) -> tuple[int, range]:
     """
     A period's rank by its label (TIMES: 0 a year, 1 a decade, 2 a century; -1 a
@@ -240,6 +249,11 @@ def _item(ask: Callable, prop: str, value: str) -> tuple[str, dict] | None:
     return qid, ask(wikidata.items, [qid])[qid]["claims"]
 
 
+def _labelled(names: dict[str, str], qids: list[str]) -> list[str]:
+    """The items' labels in order, an unlabelled item left out."""
+    return [*filter(None, map(names.get, qids))]
+
+
 def _once(*groups: list[str]) -> list[str]:
     """Items from both ends of a link, each once: an album often links both ways."""
     return [*dict.fromkeys(qid for group in groups for qid in group)]
@@ -257,8 +271,9 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
     if not found:
         return {}
     qid, claims = found
-    composers, sources, periods = (claims.get(p, []) for p in ("P86", "P144", "P2408"))
-    places, subjects = claims.get("P840", [])[:PLACES], claims.get("P921", [])[:LOOKED]
+    composers, sources = claims.get("P86", []), claims.get("P144", [])
+    places = claims.get("P840", [])[:PLACES]
+    periods, subjects = (claims.get(p, [])[:LOOKED] for p in ("P2408", "P921"))
     universes = (claims.get("P1434") or claims.get("P8345", []))[:1]
     creators = claims.get("P170", []) if kind == "tvshow" else []  # only shows serve
     albums = _once(claims.get("P406", []), ask(wikidata.having, "P9899", qid))
@@ -274,10 +289,9 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
     authors = source["claims"].get("P50", []) if source else []
     story = [*universes, *places, *periods, *subjects]  # by label alone
     names = ask(wikidata.labels, [*authors, *creators, *story])
-    labelled = lambda qids: [*filter(None, map(names.get, qids))]
     return {
         "music_by": [*filter(None, (linked[q]["label"] for q in composers))],
-        "created_by": labelled(creators),
+        "created_by": _labelled(names, creators),
         "composers": [
             mbid for q in composers for mbid in linked[q]["claims"].get("P434", [])
         ],
@@ -285,12 +299,12 @@ def _video(kind: str, ask: Callable, tmdb: str, imdb: str) -> dict[str, Any]:
         and {
             "title": source["label"],
             "type": _kind(source["claims"]),
-            "authors": labelled(authors),
+            "authors": _labelled(names, authors),
         },
-        "places": labelled(places),
-        "periods": labelled(periods),
-        "about": labelled(subjects),
-        "universe": next(iter(labelled(universes)), ""),
+        "places": _labelled(names, places),
+        "periods": _labelled(names, periods),
+        "about": _labelled(names, subjects),
+        "universe": next(iter(_labelled(names, universes)), ""),
         "soundtracks": [
             group for q in albums for group in linked[q]["claims"].get("P436", [])
         ],
