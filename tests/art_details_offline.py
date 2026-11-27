@@ -174,7 +174,8 @@ class ArtDetailsTest(unittest.TestCase):
         self.asked, self.refuse = [], None
         ApiCacheHandler().clear("wikidata:%")
         art.FOLDERS.unlink(missing_ok=True)
-        HOME.clearProperty(wikidata.NEXT_CALL)
+        for queue in (wikidata.NEXT_CALL, f"{wikidata.NEXT_CALL}.held"):
+            HOME.clearProperty(queue)
         MTIMES.clear()
         for target, name, value in (
             (wikidata.http, "get_json", self.answer),
