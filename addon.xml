@@ -115,7 +115,5 @@
     <description lang="pl_PL">Copacetic Helper buduje układy i grafiki skóry Copacetic 2. Tokeny TMDB i ListenBrainz w jego ustawieniach dodają dodatkowe funkcje.[CR]Ten produkt korzysta z API TMDB, ale nie jest wspierany ani certyfikowany przez TMDB (https://www.themoviedb.org).</description>
     <summary lang="sv_SE">Motorn bakom skalet Copacetic 2.</summary>
     <description lang="sv_SE">Copacetic Helper bygger skalet Copacetic 2:s layouter och bilder. TMDB- och ListenBrainz-token i dess inställningar ger extra funktioner.[CR]Den här produkten använder TMDB API men är inte godkänd eller certifierad av TMDB (https://www.themoviedb.org).</description>
-    <summary lang="zh_CN">Copacetic 2 皮肤背后的引擎。</summary>
-    <description lang="zh_CN">Copacetic Helper 为 Copacetic 2 皮肤构建布局和艺术图片。在其设置中填写 TMDB 和 ListenBrainz 令牌可启用额外功能。[CR]本产品使用 TMDB API，但未经 TMDB 认可或认证 (https://www.themoviedb.org)。</description>
   </extension>
 </addon>
